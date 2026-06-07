@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name                AI学习通助手（DeepSeek + Kimi）
-// @version             2.0.0
+// @version             2.1.0
 // @description         支持DeepSeek/Kimi双模型的学习通自动答题助手，图片题目自动截图识别，用户自行填写API密钥免费使用
 // @author              Khihl & Claude
 // @originalAuthor      Ne-21
@@ -72,11 +72,11 @@ var setting = {
 /************************************************************************************************** */
 /*
   ╔══════════════════════════════════════════════════════════════╗
-  ║          AI学习通助手 v2.0.0 (DeepSeek + Kimi)              ║
+  ║          AI学习通助手 v2.1.0 (DeepSeek + Kimi)              ║
   ╠══════════════════════════════════════════════════════════════╣
   ║  原作者:    Ne-21                                           ║
   ║  开发者:    Khihl & Claude (AI-Assisted)                    ║
-  ║  更新:      2026-06-07                                      ║
+  ║  更新:      2026-06-07 · Liquid Glass UI v3.0                ║
   ║                                                             ║
   ║  DeepSeek(纯文本) + Kimi(图片多模态) 双模型智能分流          ║
   ║  文档/PPT模拟翻阅 · 讨论区AI自动回复 · 视频弹题处理          ║
@@ -519,62 +519,139 @@ function showBox() {
             var styleEl = top.document.createElement('style');
             styleEl.id = 'ne-21style';
             styleEl.textContent = `
-            /* === Liquid Glass UI (iOS 26 style, neutral light glass) === */
-            #ne-21box{position:fixed;top:5%;right:16%;width:340px;z-index:99999;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:13px;color:rgba(15,23,42,.86);background:linear-gradient(180deg,rgba(255,255,255,.62) 0%,rgba(241,245,249,.55) 100%);backdrop-filter:blur(22px) saturate(180%) brightness(1.04);-webkit-backdrop-filter:blur(22px) saturate(180%) brightness(1.04);border:1px solid rgba(255,255,255,.65);border-radius:22px;box-shadow:0 0 0 1px rgba(15,23,42,.09),0 24px 48px -12px rgba(15,23,42,.45),0 10px 26px -8px rgba(15,23,42,.3),inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(15,23,42,.06);overflow:hidden;transition:opacity .25s ease,transform .25s ease;animation:ne21-in .4s cubic-bezier(.2,.9,.3,1) both;}
-            @keyframes ne21-in{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:none}}
-            #ne-21box .ne21-header{position:relative;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(180deg,rgba(255,255,255,.72) 0%,rgba(248,250,252,.35) 100%);color:rgba(15,23,42,.92);border-bottom:1px solid rgba(15,23,42,.07);cursor:move;user-select:none;}
-            #ne-21box .ne21-header::after{content:'';position:absolute;left:14px;right:14px;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.85),transparent);pointer-events:none;}
-            #ne-21box .ne21-body{max-height:80vh;opacity:1;overflow:hidden;transition:max-height .4s cubic-bezier(.4,0,.2,1),opacity .3s ease,padding .3s ease;}
-            #ne-21box.ne21-collapsed .ne21-body{max-height:0;opacity:0;padding-top:0;padding-bottom:0;}
-            #ne-21box.ne21-collapsed .ne21-header{border-bottom:none;}
-            #ne-21box.ne21-collapsed .ne21-header::after{display:none;}
+            /* ================================================================
+               Liquid Glass UI v3.0 — iOS 26+ 液态毛玻璃
+               质感 · 光影 · 微动效 · 专业级细节
+               ================================================================ */
+
+            /* —— 主浮窗：液态玻璃基底 —— */
+            #ne-21box{position:fixed;top:5%;right:16%;width:340px;z-index:99999;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:13px;color:rgba(15,23,42,.86);background:linear-gradient(180deg,rgba(255,255,255,.62) 0%,rgba(241,245,249,.55) 100%);backdrop-filter:blur(22px) saturate(180%) brightness(1.04);-webkit-backdrop-filter:blur(22px) saturate(180%) brightness(1.04);border:1px solid rgba(255,255,255,.65);border-radius:22px;box-shadow:0 0 0 1px rgba(15,23,42,.09),0 24px 48px -12px rgba(15,23,42,.45),0 10px 26px -8px rgba(15,23,42,.3),inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(15,23,42,.06);overflow:hidden;transition:opacity .25s ease,transform .25s ease;animation:ne21-in .45s cubic-bezier(.2,.9,.3,1) both;will-change:transform;user-select:none;}
+
+            /* 浮窗边缘光晕 — 玻璃折射模拟 */
+            #ne-21box::before{content:'';position:absolute;inset:-2px;border-radius:23px;padding:2px;background:linear-gradient(135deg,rgba(255,255,255,.5) 0%,rgba(255,255,255,.15) 30%,rgba(255,255,255,0) 50%,rgba(255,255,255,.1) 70%,rgba(255,255,255,.4) 100%);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;z-index:-1;pointer-events:none;}
+
+            /* —— 入场动画 —— */
+            @keyframes ne21-in{from{opacity:0;transform:translateY(-12px) scale(.96)}60%{transform:translateY(2px) scale(1.01)}to{opacity:1;transform:none}}
+            @keyframes ne21-soft-land{0%{transform:translateY(-12px) scale(.96);opacity:0}50%{transform:translateY(2px) scale(1.01)}100%{transform:translateY(0) scale(1);opacity:1}}
+            @keyframes ne21-fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+            /* —— 标题栏 —— */
+            #ne-21box .ne21-header{position:relative;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(180deg,rgba(255,255,255,.78) 0%,rgba(248,250,252,.45) 60%,rgba(241,245,249,.3) 100%);color:rgba(15,23,42,.92);border-bottom:1px solid rgba(15,23,42,.07);box-shadow:inset 0 1px 0 rgba(255,255,255,.95);cursor:move;user-select:none;}
+            #ne-21box .ne21-header::after{content:'';position:absolute;left:14px;right:14px;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.4) 15%,rgba(255,255,255,.9) 50%,rgba(255,255,255,.4) 85%,transparent 100%);pointer-events:none;}
+
+            /* —— Body（含滚动） —— */
+            #ne-21box .ne21-body{position:relative;padding:14px 16px 16px;max-height:70vh;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(15,23,42,.15) transparent;opacity:1;transition:max-height .4s cubic-bezier(.4,0,.2,1),opacity .3s ease,padding .3s ease;will-change:max-height;}
+            /* SVG噪点纹理 — 增强玻璃质感 */
+            #ne-21box .ne21-body::before{content:'';position:absolute;inset:0;opacity:.03;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");background-size:128px 128px;pointer-events:none;z-index:0;}
+
+            /* 最小化：缩为圆形按钮 */
+            #ne-21box.ne21-minimized{width:36px!important;height:36px;border-radius:50%;cursor:grab;transition:width .4s cubic-bezier(.4,0,.2,1),height .4s cubic-bezier(.4,0,.2,1),border-radius .4s cubic-bezier(.4,0,.2,1),box-shadow .35s ease;box-shadow:0 0 0 1px rgba(15,23,42,.06),0 8px 24px -8px rgba(15,23,42,.35),0 3px 10px -4px rgba(15,23,42,.22),inset 0 1px 0 rgba(255,255,255,.9);}
+            #ne-21box.ne21-minimized:active{cursor:grabbing;}
+            #ne-21box.ne21-minimized::before{display:none;}
+            #ne-21box.ne21-minimized .ne21-header{position:absolute;inset:0;padding:0;justify-content:center;align-items:center;background:transparent;box-shadow:none;border-bottom:none;cursor:grab;}
+            #ne-21box.ne21-minimized .ne21-header::after{display:none;}
+            #ne-21box.ne21-minimized .ne21-title{display:none;}
+            #ne-21box.ne21-minimized #ne-21close{display:flex;position:static;margin:0;width:36px;height:36px;font-size:16px;font-weight:600;border-radius:50%;border:none;background:transparent;box-shadow:none;color:rgba(15,23,42,.55);cursor:grab;pointer-events:none;}
+            #ne-21box.ne21-minimized #ne-21close:hover{background:transparent;transform:none;box-shadow:none;}
+            #ne-21box.ne21-minimized .ne21-body{display:none;}
+            #ne-21box.ne21-minimized:hover{transform:scale(1.08);box-shadow:0 0 0 1px rgba(15,23,42,.09),0 12px 28px -8px rgba(15,23,42,.45),0 5px 14px -4px rgba(15,23,42,.25),inset 0 1px 0 rgba(255,255,255,1);}
+            #ne-21box.ne21-minimized:active{transform:scale(.95);}
+
+            /* —— 标题文字 + 状态指示灯 —— */
             #ne-21box .ne21-title{display:flex;align-items:center;gap:9px;font-weight:600;font-size:14px;letter-spacing:.3px;margin:0;color:inherit;}
-            #ne-21box .ne21-dot{width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.98),rgba(255,255,255,.5) 55%,rgba(15,23,42,.18) 100%);box-shadow:0 0 0 0 rgba(255,255,255,.7),inset 0 1px 1px rgba(255,255,255,.95);animation:ne21-pulse 2s infinite;flex-shrink:0;}
-            @keyframes ne21-pulse{0%{box-shadow:0 0 0 0 rgba(255,255,255,.7),inset 0 1px 1px rgba(255,255,255,.95)}70%{box-shadow:0 0 0 8px rgba(255,255,255,0),inset 0 1px 1px rgba(255,255,255,.95)}100%{box-shadow:0 0 0 0 rgba(255,255,255,0),inset 0 1px 1px rgba(255,255,255,.95)}}
-            #ne-21box #ne-21close{margin:0;width:24px;height:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;line-height:1;color:rgba(15,23,42,.7);cursor:pointer;border:1px solid rgba(255,255,255,.65);border-radius:50%;background:rgba(255,255,255,.55);box-shadow:0 0 0 1px rgba(15,23,42,.06),inset 0 1px 0 rgba(255,255,255,.8),0 1px 2px rgba(15,23,42,.08);transition:background .2s,color .2s,transform .15s;user-select:none;font-family:inherit;}
-            #ne-21box #ne-21close:hover{background:rgba(255,255,255,.78);color:rgba(15,23,42,.92);box-shadow:0 0 0 1px rgba(15,23,42,.08),inset 0 1px 0 rgba(255,255,255,.9),0 1px 2px rgba(15,23,42,.1);}
-            #ne-21box #ne-21close:active{transform:scale(.92);}
-            #ne-21box .ne21-body{padding:14px 16px 16px;max-height:70vh;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(15,23,42,.2) transparent;}
+            #ne-21box .ne21-dot{width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.98),rgba(255,255,255,.5) 55%,rgba(15,23,42,.18) 100%);box-shadow:0 0 0 0 rgba(255,255,255,.7),inset 0 1px 1px rgba(255,255,255,.95);animation:ne21-pulse 2.5s infinite;flex-shrink:0;transition:background .4s ease;}
+            /* 脉冲光晕扩散 */
+            @keyframes ne21-pulse{0%{box-shadow:0 0 0 0 rgba(255,255,255,.7),inset 0 1px 1px rgba(255,255,255,.95)}50%{box-shadow:0 0 0 6px rgba(255,255,255,.3),0 0 0 12px rgba(255,255,255,.08),inset 0 1px 1px rgba(255,255,255,.95)}100%{box-shadow:0 0 0 12px rgba(255,255,255,0),0 0 0 24px rgba(255,255,255,0),inset 0 1px 1px rgba(255,255,255,.95)}}
+
+            /* —— 关闭/折叠按钮 —— */
+            #ne-21box #ne-21close{margin:0;width:24px;height:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;line-height:1;color:rgba(15,23,42,.7);cursor:pointer;border:1px solid rgba(255,255,255,.65);border-radius:50%;background:rgba(255,255,255,.55);box-shadow:0 0 0 1px rgba(15,23,42,.06),inset 0 1px 0 rgba(255,255,255,.8),0 1px 2px rgba(15,23,42,.08);transition:all .2s cubic-bezier(.4,0,.2,1);user-select:none;font-family:inherit;}
+            #ne-21box #ne-21close:hover{background:rgba(255,255,255,.82);color:rgba(15,23,42,.92);box-shadow:0 0 0 1px rgba(15,23,42,.1),inset 0 1px 0 rgba(255,255,255,.95),0 2px 6px rgba(15,23,42,.12);transform:scale(1.05);}
+            #ne-21box #ne-21close:active{transform:scale(.9);}
+
             #ne-21box .ne21-body::-webkit-scrollbar{width:5px;}
-            #ne-21box .ne21-body::-webkit-scrollbar-thumb{background:rgba(15,23,42,.2);border-radius:4px;}
-            #ne-21box .ne21-body::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,.32);}
+            #ne-21box .ne21-body::-webkit-scrollbar-thumb{background:rgba(15,23,42,.2);border-radius:4px;transition:background .3s;}
+            #ne-21box .ne21-body::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,.36);}
+
+            /* —— 通知区 —— */
             #ne-21box #ne-21notice{border-top:none!important;margin:0 0 6px!important;overflow:visible;}
-            #ne-21box .ne21-uid{display:flex;align-items:center;gap:6px;color:rgba(15,23,42,.62);font-size:12px;margin-bottom:10px;padding:8px 12px;background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.7);border-radius:12px;box-shadow:0 0 0 1px rgba(15,23,42,.05),inset 0 1px 0 rgba(255,255,255,.75),0 1px 2px rgba(15,23,42,.05);}
+
+            /* —— API状态卡片 —— */
+            #ne-21box .ne21-uid{display:flex;align-items:center;gap:6px;color:rgba(15,23,42,.62);font-size:12px;margin-bottom:10px;padding:8px 12px;background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.7);border-radius:12px;box-shadow:0 0 0 1px rgba(15,23,42,.05),inset 0 1px 0 rgba(255,255,255,.75),inset 0 0 20px rgba(255,255,255,.3),0 1px 2px rgba(15,23,42,.05);}
             #ne-21box .ne21-uid b{color:rgba(15,23,42,.92);font-weight:600;}
-            #ne-21box .ne21-row{display:flex;gap:8px;align-items:center;}
-            #ne-21box .ne21-btn{display:inline-flex;align-items:center;justify-content:center;padding:7px 14px;font-size:12px;font-weight:500;border-radius:14px;cursor:pointer;border:1px solid rgba(255,255,255,.7);transition:transform .15s,box-shadow .2s,background .2s,color .2s;white-space:nowrap;}
+
+            /* —— 按钮行 —— */
+            #ne-21box .ne21-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+
+            /* —— 按钮基底 —— */
+            #ne-21box .ne21-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;padding:7px 14px;font-size:12px;font-weight:500;border-radius:14px;cursor:pointer;border:1px solid rgba(255,255,255,.7);transition:all .2s cubic-bezier(.4,0,.2,1);white-space:nowrap;overflow:hidden;}
+            /* 涟漪伪元素 */
+            #ne-21box .ne21-btn::after{content:'';position:absolute;inset:0;background:radial-gradient(circle at center,rgba(255,255,255,.8) 0%,transparent 70%);opacity:0;transition:opacity .4s;pointer-events:none;}
+            #ne-21box .ne21-btn:active::after{opacity:1;transition:opacity 0s;}
+            #ne-21box .ne21-btn:active{transform:translateY(0) scale(.97);}
+
+            /* 主按钮 — 色彩光泽hover */
             #ne-21box .ne21-btn-primary{color:rgba(15,23,42,.92);background:rgba(255,255,255,.72);box-shadow:0 0 0 1px rgba(15,23,42,.07),inset 0 1px 0 rgba(255,255,255,.95),inset 0 -6px 12px -6px rgba(15,23,42,.08),0 4px 10px -2px rgba(15,23,42,.22);}
-            #ne-21box .ne21-btn-primary:hover{transform:translateY(-1px);background:rgba(255,255,255,.88);box-shadow:0 0 0 1px rgba(15,23,42,.09),inset 0 1px 0 rgba(255,255,255,1),inset 0 -6px 12px -6px rgba(15,23,42,.1),0 6px 14px -2px rgba(15,23,42,.28);}
+            #ne-21box .ne21-btn-primary:hover{transform:translateY(-1px);background:linear-gradient(135deg,rgba(255,255,255,.9) 0%,rgba(240,245,255,.85) 50%,rgba(255,255,255,.9) 100%);box-shadow:0 0 0 1px rgba(59,130,246,.15),inset 0 1px 0 rgba(255,255,255,1),inset 0 -6px 12px -6px rgba(15,23,42,.1),0 8px 20px -4px rgba(59,130,246,.2),0 0 0 4px rgba(59,130,246,.06);}
+
+            /* 次要按钮 */
             #ne-21box .ne21-btn-secondary{color:rgba(15,23,42,.78);background:rgba(255,255,255,.45);box-shadow:0 0 0 1px rgba(15,23,42,.06),inset 0 1px 0 rgba(255,255,255,.75),0 1px 2px rgba(15,23,42,.06);}
-            #ne-21box .ne21-btn-secondary:hover{background:rgba(255,255,255,.65);color:rgba(15,23,42,.92);box-shadow:0 0 0 1px rgba(15,23,42,.08),inset 0 1px 0 rgba(255,255,255,.85),0 2px 4px rgba(15,23,42,.08);}
-            #ne-21box .ne21-btn:active{transform:translateY(0) scale(.98);}
-            #ne-21box #modelSelect{flex:1;min-width:0;padding:7px 10px;font-size:12px;border-radius:14px;border:1px solid rgba(255,255,255,.7);background:rgba(255,255,255,.55);color:rgba(15,23,42,.86);cursor:pointer;outline:none;box-shadow:0 0 0 1px rgba(15,23,42,.06),inset 0 1px 0 rgba(255,255,255,.8);transition:background .2s,box-shadow .2s;}
+            #ne-21box .ne21-btn-secondary:hover{background:rgba(255,255,255,.65);color:rgba(15,23,42,.92);box-shadow:0 0 0 1px rgba(15,23,42,.08),inset 0 1px 0 rgba(255,255,255,.85),0 4px 10px rgba(15,23,42,.1);transform:translateY(-1px);}
+
+            /* 跳过任务按钮 — 红色光泽hover */
+            #ne-21box #skipTaskBtn:hover{background:linear-gradient(135deg,rgba(255,255,255,.9) 0%,rgba(255,240,240,.85) 50%,rgba(255,255,255,.9) 100%)!important;box-shadow:0 0 0 1px rgba(220,38,38,.15),inset 0 1px 0 rgba(255,255,255,1),0 8px 20px -4px rgba(220,38,38,.15)!important;transform:translateY(-1px);}
+
+            /* —— 输入框 / 下拉框 —— */
+            #ne-21box #modelSelect{flex:1;min-width:0;padding:7px 10px;font-size:12px;border-radius:14px;border:1px solid rgba(255,255,255,.7);background:rgba(255,255,255,.55);color:rgba(15,23,42,.86);cursor:pointer;outline:none;box-shadow:0 0 0 1px rgba(15,23,42,.06),inset 0 1px 0 rgba(255,255,255,.8);transition:all .25s cubic-bezier(.4,0,.2,1);}
             #ne-21box #modelSelect:hover{background:rgba(255,255,255,.7);}
-            #ne-21box #modelSelect:focus{background:rgba(255,255,255,.75);box-shadow:0 0 0 1px rgba(15,23,42,.08),inset 0 1px 0 rgba(255,255,255,.85),0 0 0 4px rgba(15,23,42,.1);}
-            #ne-21box .ne21-select{padding:5px 8px;font-size:12px;border-radius:10px;border:1px solid rgba(255,255,255,.65);background:rgba(255,255,255,.5);color:rgba(15,23,42,.86);cursor:pointer;outline:none;min-width:80px;flex-shrink:0;box-shadow:0 0 0 1px rgba(15,23,42,.05),inset 0 1px 0 rgba(255,255,255,.75);transition:background .2s,box-shadow .2s;}
+            #ne-21box #modelSelect:focus{background:rgba(255,255,255,.8);box-shadow:0 0 0 1px rgba(59,130,246,.2),0 0 0 4px rgba(59,130,246,.08),inset 0 1px 0 rgba(255,255,255,.9);}
+
+            #ne-21box .ne21-select{padding:5px 8px;font-size:12px;border-radius:10px;border:1px solid rgba(255,255,255,.65);background:rgba(255,255,255,.5);color:rgba(15,23,42,.86);cursor:pointer;outline:none;min-width:80px;flex-shrink:0;box-shadow:0 0 0 1px rgba(15,23,42,.05),inset 0 1px 0 rgba(255,255,255,.75);transition:all .25s cubic-bezier(.4,0,.2,1);}
             #ne-21box .ne21-select:hover{background:rgba(255,255,255,.7);}
-            #ne-21box .ne21-select:focus{background:rgba(255,255,255,.72);box-shadow:0 0 0 1px rgba(15,23,42,.08),inset 0 1px 0 rgba(255,255,255,.82),0 0 0 3px rgba(15,23,42,.06);}
-            #ne-21box #userInfo{margin:10px 0 0;padding:10px 12px;background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.7);border-radius:12px;box-shadow:0 0 0 1px rgba(15,23,42,.05),inset 0 1px 0 rgba(255,255,255,.75);font-size:12px;color:rgba(15,23,42,.66);line-height:1.6;overflow:hidden;display:none;}
+            #ne-21box .ne21-select:focus{background:rgba(255,255,255,.8);box-shadow:0 0 0 1px rgba(59,130,246,.2),0 0 0 4px rgba(59,130,246,.08),inset 0 1px 0 rgba(255,255,255,.9);}
+            #ne-21box input[type=text]:focus,#ne-21box input[type=number]:focus{box-shadow:0 0 0 1px rgba(59,130,246,.2),0 0 0 4px rgba(59,130,246,.08),inset 0 1px 0 rgba(255,255,255,.9)!important;background:rgba(255,255,255,.8)!important;}
+
+            /* —— 用户信息区 —— */
+            #ne-21box #userInfo{margin:10px 0 0;padding:10px 12px;background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.7);border-radius:12px;box-shadow:0 0 0 1px rgba(15,23,42,.05),inset 0 1px 0 rgba(255,255,255,.75),inset 0 0 20px rgba(255,255,255,.3);font-size:12px;color:rgba(15,23,42,.66);line-height:1.6;overflow:hidden;display:none;}
             #ne-21box #userInfo:not(:empty){display:block;}
             #ne-21box #userInfo b{color:rgba(15,23,42,.9);font-weight:600;}
-            #ne-21box #moreSettings{padding:4px 14px;background:rgba(255,255,255,.42);border:1px solid rgba(255,255,255,.65);border-radius:14px;box-shadow:0 0 0 1px rgba(15,23,42,.05),inset 0 1px 0 rgba(255,255,255,.7);margin:10px 0 0;max-height:0;opacity:0;padding-top:0;padding-bottom:0;margin-top:0;overflow:hidden;transition:max-height .45s cubic-bezier(.4,0,.2,1),opacity .35s ease,margin .3s ease,padding .3s ease;scrollbar-width:thin;scrollbar-color:rgba(15,23,42,.2) transparent;}
+
+            /* —— 设置面板 —— */
+            #ne-21box #moreSettings{padding:4px 14px;background:rgba(255,255,255,.42);border:1px solid rgba(255,255,255,.65);border-radius:14px;box-shadow:0 0 0 1px rgba(15,23,42,.05),inset 0 1px 0 rgba(255,255,255,.7),inset 0 0 20px rgba(255,255,255,.3);margin:10px 0 0;max-height:0;opacity:0;padding-top:0;padding-bottom:0;margin-top:0;overflow:hidden;transition:max-height .5s cubic-bezier(.4,0,.2,1),opacity .35s ease,margin .4s ease,padding .4s ease;scrollbar-width:thin;scrollbar-color:rgba(15,23,42,.2) transparent;}
             #ne-21box #moreSettings.ne21-show{max-height:50vh;opacity:1;padding:4px 14px;margin-top:10px;overflow-y:auto;}
             #ne-21box #moreSettings::-webkit-scrollbar{width:5px;}
-            #ne-21box #moreSettings::-webkit-scrollbar-thumb{background:rgba(15,23,42,.2);border-radius:4px;}
-            #ne-21box #moreSettings::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,.32);}
+            #ne-21box #moreSettings::-webkit-scrollbar-thumb{background:rgba(15,23,42,.2);border-radius:4px;transition:background .3s;}
+            #ne-21box #moreSettings::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,.36);}
+
+            /* 设置项逐条入场 */
+            #ne-21box #moreSettings.ne21-show label{animation:ne21-fadeUp .4s ease both;}
+            #ne-21box #moreSettings.ne21-show label:nth-child(1){animation-delay:.03s}
+            #ne-21box #moreSettings.ne21-show label:nth-child(2){animation-delay:.07s}
+            #ne-21box #moreSettings.ne21-show label:nth-child(3){animation-delay:.11s}
+            #ne-21box #moreSettings.ne21-show label:nth-child(4){animation-delay:.15s}
+            #ne-21box #moreSettings.ne21-show label:nth-child(5){animation-delay:.19s}
+            #ne-21box #moreSettings.ne21-show label:nth-child(6){animation-delay:.23s}
+            #ne-21box #moreSettings.ne21-show label:nth-child(7){animation-delay:.27s}
+            #ne-21box #moreSettings.ne21-show label:nth-child(8){animation-delay:.31s}
             #ne-21box #moreSettings label{display:flex;flex-direction:row-reverse;align-items:center;justify-content:space-between;margin:0;padding:8px 2px;font-size:12px;color:rgba(15,23,42,.78);cursor:pointer;user-select:none;line-height:1.4;}
-            #ne-21box #moreSettings label + label{border-top:1px dashed rgba(15,23,42,.1);}
-            #ne-21box #moreSettings input[type=checkbox]{appearance:none;-webkit-appearance:none;width:34px;height:20px;border:1px solid rgba(15,23,42,.08);border-radius:20px;cursor:pointer;position:relative;transition:background .25s,box-shadow .25s;background:rgba(15,23,42,.16);box-shadow:inset 0 1px 2px rgba(15,23,42,.12);margin:0 0 0 10px;flex-shrink:0;}
-            #ne-21box #moreSettings input[type=checkbox]::before{content:'';position:absolute;top:1px;left:1px;width:16px;height:16px;border-radius:50%;background:linear-gradient(180deg,rgba(255,255,255,1),rgba(255,255,255,.85));box-shadow:0 1px 3px rgba(15,23,42,.25),inset 0 1px 0 rgba(255,255,255,1);transition:transform .25s cubic-bezier(.2,.9,.3,1);}
+            #ne-21box #moreSettings label + label{border-top:1px dashed rgba(15,23,42,.08);}
+
+            /* —— iOS 风格 Toggle Switch —— */
+            #ne-21box #moreSettings input[type=checkbox]{appearance:none;-webkit-appearance:none;width:34px;height:20px;border:1px solid rgba(15,23,42,.08);border-radius:20px;cursor:pointer;position:relative;transition:all .3s cubic-bezier(.2,.9,.3,1);background:rgba(15,23,42,.16);box-shadow:inset 0 1px 2px rgba(15,23,42,.12);margin:0 0 0 10px;flex-shrink:0;}
+            #ne-21box #moreSettings input[type=checkbox]::before{content:'';position:absolute;top:1px;left:1px;width:16px;height:16px;border-radius:50%;background:linear-gradient(180deg,rgba(255,255,255,1),rgba(255,255,255,.85));box-shadow:0 1px 3px rgba(15,23,42,.25),inset 0 1px 0 rgba(255,255,255,1);transition:transform .3s cubic-bezier(.2,.9,.3,1);}
             #ne-21box #moreSettings input[type=checkbox]:hover{background:rgba(15,23,42,.24);}
-            #ne-21box #moreSettings input[type=checkbox]:checked{background:rgba(34,197,94,.55);border-color:rgba(34,197,94,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.5),inset 0 -2px 4px rgba(34,197,94,.2),0 0 0 1px rgba(34,197,94,.15);}
-            #ne-21box #moreSettings input[type=checkbox]:checked:hover{background:rgba(34,197,94,.7);}
-            #ne-21box #moreSettings input[type=checkbox]:checked::before{transform:translateX(14px);}
+            #ne-21box #moreSettings input[type=checkbox]:checked{background:linear-gradient(135deg,#22c55e,#16a34a);border-color:rgba(34,197,94,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 0 10px rgba(34,197,94,.25);}
+            #ne-21box #moreSettings input[type=checkbox]:checked:hover{background:linear-gradient(135deg,#22c55e,#15803d);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 0 14px rgba(34,197,94,.35);}
+            #ne-21box #moreSettings input[type=checkbox]:checked::before{transform:translateX(14px);box-shadow:0 2px 6px rgba(0,0,0,.15),0 0 4px rgba(34,197,94,.3),inset 0 1px 0 rgba(255,255,255,1);}
             #ne-21box #moreSettings p{display:none;}
+
+            /* —— 设置分组 —— */
             #ne-21box #moreSettings .ne21-group{padding:6px 0 2px;}
-            #ne-21box #moreSettings .ne21-group + .ne21-group{border-top:1.5px solid rgba(15,23,42,.15);margin-top:4px;padding-top:8px;}
-            #ne-21box #moreSettings .ne21-group-title{font-size:11px;font-weight:600;color:rgba(15,23,42,.45);letter-spacing:.5px;text-transform:uppercase;padding:0 2px 6px;user-select:none;}
+            #ne-21box #moreSettings .ne21-group + .ne21-group{border-top:1.5px solid rgba(15,23,42,.12);margin-top:4px;padding-top:8px;}
+            #ne-21box #moreSettings .ne21-group-title{font-size:11px;font-weight:600;color:rgba(15,23,42,.42);letter-spacing:.6px;text-transform:uppercase;padding:0 2px 6px;user-select:none;}
+
             #ne-21box #ne-21thinking{display:none!important;}
+
+            /* —— 加载动画 —— */
             @keyframes ne21-spin{to{transform:rotate(360deg)}}
             @keyframes ne21-dot{0%,80%,100%{transform:scale(.5);opacity:.4}40%{transform:scale(1);opacity:1}}
             #ne-21box #ne-21log .ne21-log-spinner{display:inline-block;width:9px;height:9px;margin-right:5px;border:1.5px solid rgba(15,23,42,.18);border-top-color:rgba(15,23,42,.7);border-radius:50%;vertical-align:-1px;animation:ne21-spin .8s linear infinite;}
@@ -582,40 +659,55 @@ function showBox() {
             #ne-21box #ne-21log .ne21-log-dots i{width:3px;height:3px;border-radius:50%;background:currentColor;opacity:.65;animation:ne21-dot 1.2s infinite ease-in-out both;}
             #ne-21box #ne-21log .ne21-log-dots i:nth-child(2){animation-delay:.16s;}
             #ne-21box #ne-21log .ne21-log-dots i:nth-child(3){animation-delay:.32s;}
-            #ne-21box #ne-21log{max-height:140px;overflow-y:auto;margin:12px 0 0;padding:10px 12px;background:rgba(15,23,42,.06);border:1px solid rgba(255,255,255,.55);border-radius:14px;box-shadow:0 0 0 1px rgba(15,23,42,.06),inset 0 1px 0 rgba(255,255,255,.6),inset 0 0 16px rgba(15,23,42,.06);font-family:"SF Mono","Cascadia Code",Consolas,Menlo,monospace;font-size:11px;line-height:1.6;color:rgba(15,23,42,.78);transition:max-height .4s cubic-bezier(.4,0,.2,1),opacity .3s ease,margin .3s ease,padding .3s ease;}
+
+            /* —— 日志面板 —— */
+            #ne-21box #ne-21log{position:relative;max-height:140px;overflow-y:auto;margin:12px 0 0;padding:10px 12px;background:rgba(15,23,42,.08);border:1px solid rgba(255,255,255,.55);border-radius:14px;box-shadow:0 0 0 1px rgba(15,23,42,.06),inset 0 1px 0 rgba(255,255,255,.6),inset 0 0 20px rgba(15,23,42,.08);font-family:"SF Mono","Cascadia Code",Consolas,Menlo,monospace;font-size:11.5px;line-height:1.65;color:rgba(15,23,42,.88);transition:max-height .45s cubic-bezier(.4,0,.2,1),opacity .35s ease,margin .35s ease,padding .35s ease;user-select:text;}
             #ne-21box #ne-21log.ne21-hidden{max-height:0;opacity:0;margin-top:0;padding-top:0;padding-bottom:0;overflow:hidden;}
             #ne-21box #ne-21log:empty{display:none;}
             #ne-21box #ne-21log::-webkit-scrollbar{width:5px;}
-            #ne-21box #ne-21log::-webkit-scrollbar-thumb{background:rgba(15,23,42,.2);border-radius:4px;}
-            #ne-21box #ne-21log::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,.32);}
-            #ne-21box #ne-21log p{margin:0;padding:2px 0;word-break:break-all;}
+            #ne-21box #ne-21log::-webkit-scrollbar-thumb{background:rgba(15,23,42,.2);border-radius:4px;transition:background .3s;}
+            #ne-21box #ne-21log::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,.36);}
+
+            /* 日志条目 + 入场动画 + 左侧色彩条 */
+            #ne-21box #ne-21log p{margin:0;padding:3px 0 3px 10px;word-break:break-all;border-left:3px solid transparent;animation:ne21-log-in .3s ease both;font-size:11.5px;}
+            @keyframes ne21-log-in{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:translateX(0)}}
+
+            /* 日志折叠详情 */
             #ne-21box #ne-21log .ne21-collapse{margin:4px 0;border:1px solid rgba(15,23,42,.1);border-radius:8px;overflow:hidden;}
-            #ne-21box #ne-21log .ne21-collapse summary{padding:4px 8px;cursor:pointer;font-weight:600;background:rgba(15,23,42,.04);list-style:none;display:flex;align-items:center;gap:6px;font-size:11px;}
+            #ne-21box #ne-21log .ne21-collapse summary{padding:4px 8px;cursor:pointer;font-weight:600;background:rgba(15,23,42,.04);list-style:none;display:flex;align-items:center;gap:6px;font-size:11px;transition:background .2s;}
+            #ne-21box #ne-21log .ne21-collapse summary:hover{background:rgba(15,23,42,.07);}
             #ne-21box #ne-21log .ne21-collapse summary::-webkit-details-marker{display:none;}
             #ne-21box #ne-21log .ne21-collapse summary::before{content:'▶';font-size:8px;transition:transform .2s;}
             #ne-21box #ne-21log .ne21-collapse[open] summary::before{transform:rotate(90deg);}
             #ne-21box #ne-21log .ne21-collapse .ne21-detail{padding:6px 10px;font-size:11px;border-top:1px solid rgba(15,23,42,.06);}
             #ne-21box #ne-21log .ne21-collapse .ne21-detail img{max-width:100%;border-radius:6px;margin:4px 0;}
             #ne-21box #ne-21log hr{display:none;}
-            #ne-21box #ne-21log .ne21-time{color:rgba(15,23,42,.4);margin-right:6px;}
+            #ne-21box #ne-21log .ne21-time{color:rgba(15,23,42,.45);margin-right:6px;}
+
+            /* —— 关于弹窗 —— */
             .ne21-credits-popup{backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);border:1px solid rgba(255,255,255,.65)!important;border-radius:22px!important;box-shadow:0 24px 48px -12px rgba(15,23,42,.35)!important;}
-            #ne-21-about-overlay{position:fixed;inset:0;z-index:100000;background:rgba(15,23,42,.35);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;animation:ne21-fadeIn .25s ease both;}
-            #ne-21-about-popup{width:400px;padding:18px 20px;background:linear-gradient(180deg,rgba(255,255,255,.88) 0%,rgba(241,245,249,.82) 100%);backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);border:1px solid rgba(255,255,255,.65);border-radius:20px;box-shadow:0 24px 48px -12px rgba(15,23,42,.4),inset 0 1px 0 rgba(255,255,255,.9);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:12px;color:rgba(15,23,42,.86);animation:ne21-in .3s cubic-bezier(.2,.9,.3,1) both;}
+            #ne-21-about-overlay{position:fixed;inset:0;z-index:100000;background:rgba(15,23,42,.35);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;animation:ne21-fadeIn .3s ease both;}
             @keyframes ne21-fadeIn{from{opacity:0}to{opacity:1}}
+            #ne-21-about-popup{width:400px;padding:20px;background:linear-gradient(180deg,rgba(255,255,255,.88) 0%,rgba(241,245,249,.82) 100%);backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);border:1px solid rgba(255,255,255,.65);border-radius:22px;box-shadow:0 0 0 1px rgba(15,23,42,.08),0 24px 48px -12px rgba(15,23,42,.4),inset 0 1px 0 rgba(255,255,255,.9);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:12px;color:rgba(15,23,42,.86);animation:ne21-soft-land .4s cubic-bezier(.2,.9,.3,1) both;}
+            /* 关于弹窗 — 信息卡片 */
+            #ne-21-about-popup .ne21-about-card{background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.7);border-radius:14px;padding:12px;margin-bottom:10px;box-shadow:0 0 0 1px rgba(15,23,42,.04),inset 0 1px 0 rgba(255,255,255,.8),inset 0 0 20px rgba(255,255,255,.3);}
+            /* 关于弹窗 — 关闭按钮 */
+            #ne-21-about-close{transition:all .2s;}
+            #ne-21-about-close:hover{background:rgba(255,255,255,.78)!important;color:rgba(15,23,42,.8)!important;}
             `;
             top.document.head.appendChild(styleEl);
         }
         var box_html = `
             <div id="ne-21box">
-                <div class="ne21-header" title="按住标题栏可拖动 / 点击右侧按钮收起">
-                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small style="font-size:10px;font-weight:400;opacity:0.6">v2.0 by Khihl</small></h3>
-                    <button id="ne-21close" type="button" aria-label="收起">−</button>
+                <div class="ne21-header" title="拖动移动 | 点击 − 最小化">
+                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small style="font-size:10px;font-weight:400;opacity:0.6">v2.0</small></h3>
+                    <button id="ne-21close" type="button" aria-label="最小化">−</button>
                 </div>
                 <div class="ne21-body">
                     <div id="ne-21notice"></div>
                     <div id="moreSettings">
                         <div class="ne21-group">
-                            <div class="ne21-group-title">DeepSeek（纯文本题）</div>
+                            <div class="ne21-group-title">🤖 DeepSeek（纯文本题）</div>
                             <label title="DeepSeek API 密钥，从 platform.deepseek.com 获取">
                                 <input type="text" id="GPTJsSetting.deepseekApiKey" class="ne21-select" placeholder="sk-..." style="min-width:120px;flex:1;padding:5px 8px;font-family:monospace;">API 密钥
                             </label>
@@ -630,7 +722,7 @@ function showBox() {
                             </label>
                         </div>
                         <div class="ne21-group">
-                            <div class="ne21-group-title">Kimi（图片题自动使用）</div>
+                            <div class="ne21-group-title">👁️ Kimi（图片题自动使用）</div>
                             <label title="Kimi API 密钥，从 platform.moonshot.cn 获取">
                                 <input type="text" id="GPTJsSetting.kimiApiKey" class="ne21-select" placeholder="sk-..." style="min-width:120px;flex:1;padding:5px 8px;font-family:monospace;">API 密钥
                             </label>
@@ -639,11 +731,11 @@ function showBox() {
                             </label>
                         </div>
                         <div class="ne21-group">
-                            <div class="ne21-group-title">视频 / 音频</div>
+                            <div class="ne21-group-title">🎬 视频 / 音频</div>
                             <label><select id="GPTJsSetting.rate" class="ne21-select"><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select>播放倍速</label>
                         </div>
                         <div class="ne21-group">
-                            <div class="ne21-group-title">答题行为</div>
+                            <div class="ne21-group-title">📝 答题行为</div>
                             <label title="两次 AI 搜题请求之间的最小间隔（秒）。0 为不节流；高并发可设 1~3">
                                 <input type="number" id="GPTJsSetting.reqIntervalTime" class="ne21-select" min="0" max="60" step="1" style="min-width:56px;width:56px;padding:5px 8px;">搜题间隔 (秒)
                             </label>
@@ -652,13 +744,13 @@ function showBox() {
                             <label><input type="checkbox" id="GPTJsSetting.fuzzyMatch" checked>相似度匹配（模糊匹配答案）</label>
                         </div>
                         <div class="ne21-group">
-                            <div class="ne21-group-title">测验 / 考试</div>
+                            <div class="ne21-group-title">📋 测验 / 考试</div>
                             <label><input type="checkbox" id="GPTJsSetting.sub">测验自动提交</label>
                             <label><input type="checkbox" id="GPTJsSetting.force">测验强制提交（无论作答与否）</label>
                             <label><input type="checkbox" id="GPTJsSetting.examTurn">考试自动跳转下一题</label>
                         </div>
                         <div class="ne21-group">
-                            <div class="ne21-group-title">模式开关</div>
+                            <div class="ne21-group-title">⚙️ 模式开关</div>
                             <label><input type="checkbox" id="GPTJsSetting.redo">重做模式（不跳过已答题）</label>
                             <label><input type="checkbox" id="GPTJsSetting.task" checked>仅处理任务点（跳过非任务点）</label>
                         </div>
@@ -691,33 +783,35 @@ function showBox() {
                     }
                 }
             } catch (_) { /* empty */ }
-            // 恢复收起/展开状态
+            // 恢复最小化状态
             if (localStorage.getItem('GPTJsSetting.boxCollapsed') === 'true') {
-                $box.addClass('ne21-collapsed');
+                $box.addClass('ne21-minimized');
                 $('#ne-21close').text('+').attr('aria-label', '展开');
             }
         })();
 
-        // 收起/展开按钮：切换 .ne21-collapsed，按钮文本在 − / + 之间切换
+        // 最小化按钮：切换 .ne21-minimized → 缩为浮动球 / 展开
         $('#ne-21close').on('mousedown', function (e) {
             e.stopPropagation(); // 避免触发标题栏拖动
         }).on('click', function (e) {
             e.stopPropagation();
-            var collapsed = $('#ne-21box').toggleClass('ne21-collapsed').hasClass('ne21-collapsed');
-            $(this).text(collapsed ? '+' : '−');
-            $(this).attr('aria-label', collapsed ? '展开' : '收起');
-            // 持久化收起/展开状态
-            try { localStorage.setItem('GPTJsSetting.boxCollapsed', collapsed ? 'true' : 'false'); } catch (_) { /* empty */ }
+            var $box = $('#ne-21box');
+            var minimized = $box.toggleClass('ne21-minimized').hasClass('ne21-minimized');
+            $(this).text(minimized ? '+' : '−');
+            $(this).attr('aria-label', minimized ? '展开' : '最小化');
+            // 持久化最小化状态
+            try { localStorage.setItem('GPTJsSetting.boxCollapsed', minimized ? 'true' : 'false'); } catch (_) { /* empty */ }
         });
-        // 标题栏拖动：拖动结束后写入 localStorage，刷新后保持上次位置
+        // 标题栏拖动 + 浮动球拖动：拖动结束后写入 localStorage，刷新后保持上次位置
         (function () {
             var $box = $('#ne-21box');
             var $header = $box.find('.ne21-header');
-            var dragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+            var dragging = false, wasDragged = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
             $header.on('mousedown', function (e) {
                 if (e.which !== 1) return; // 仅响应鼠标左键
                 if ($(e.target).closest('#ne-21close').length) return; // 点在按钮上不拖动
                 dragging = true;
+                wasDragged = false;
                 var rect = $box[0].getBoundingClientRect();
                 startX = e.clientX;
                 startY = e.clientY;
@@ -730,6 +824,7 @@ function showBox() {
             });
             $(document).on('mousemove.ne21drag', function (e) {
                 if (!dragging) return;
+                wasDragged = true; // 标记发生了实际拖动
                 var nx = startLeft + (e.clientX - startX);
                 var ny = startTop + (e.clientY - startY);
                 var w = $box.outerWidth();
@@ -748,6 +843,14 @@ function showBox() {
                     var rect = $box[0].getBoundingClientRect();
                     localStorage.setItem('GPTJsSetting.boxPosition', JSON.stringify({ left: rect.left, top: rect.top }));
                 } catch (_) { /* empty */ }
+            });
+            // 浮动球点击展开：仅当最小化且未拖拽时
+            $box.on('click', function (e) {
+                if ($box.hasClass('ne21-minimized') && !wasDragged && !$(e.target).closest('#ne-21close').length) {
+                    $box.removeClass('ne21-minimized');
+                    $('#ne-21close').text('−').attr('aria-label', '最小化');
+                    try { localStorage.setItem('GPTJsSetting.boxCollapsed', 'false'); } catch (_) { /* empty */ }
+                }
             });
         })();
 
@@ -819,6 +922,7 @@ function showBox() {
                     saveDeepSeekConfig('deepseekApiKey', apiKeyInput.value.trim());
                     var statusEl = top.document.querySelector('.ne21-uid b:first-child');
                     if (statusEl) statusEl.textContent = apiKeyInput.value.trim() ? '✅ 已配置' : '❌ 未配置';
+                    updateStatusDot();
                 });
             }
             // DeepSeek API 地址输入框：恢复上次值并持久化
@@ -845,6 +949,7 @@ function showBox() {
                     saveDeepSeekConfig('kimiApiKey', kimiApiKeyInput.value.trim());
                     var statusEl = top.document.querySelector('.ne21-uid b:last-child');
                     if (statusEl) statusEl.textContent = kimiApiKeyInput.value.trim() ? '✅ 已配置' : '❌ 未配置';
+                    updateStatusDot();
                 });
             }
             // Kimi API 地址输入框：恢复上次值并持久化
@@ -884,6 +989,8 @@ function showBox() {
     }
     let _apiKeyStatus = getDeepSeekApiKey() ? '✅ 已配置' : '❌ 未配置'
     let _kimiStatus = getKimiApiKey() ? '✅ 已配置' : '❌ 未配置'
+    // 更新状态指示灯颜色
+    updateStatusDot();
     $('#ne-21notice').html(`
         <div id="ne-21-noticeContent">
             <div class="ne21-uid">DeepSeek: <b>${_apiKeyStatus}</b> | Kimi(图片): <b>${_kimiStatus}</b></div>
@@ -898,7 +1005,7 @@ function showBox() {
 
     // 公告弹窗：每个版本首次显示
     (function () {
-        var _ver = GM_info && GM_info.script ? GM_info.script.version : '2.0.0';
+        var _ver = GM_info && GM_info.script ? GM_info.script.version : '2.1.0';
         var _key = 'GPTJsSetting.announcementSeen_' + _ver;
         if (!localStorage.getItem(_key)) {
             localStorage.setItem(_key, 'true');
@@ -917,33 +1024,33 @@ function showBox() {
         overlay.innerHTML =
             '<div id="ne-21-about-popup">' +
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">' +
-            '<b style="font-size:15px;letter-spacing:.3px">AI 学习通助手</b>' +
-            '<span id="ne-21-about-close" style="cursor:pointer;font-size:18px;color:rgba(15,23,42,.5);width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.5);transition:background .2s">×</span>' +
+            '<b style="font-size:15px;letter-spacing:.3px">✨ AI 学习通助手</b>' +
+            '<span id="ne-21-about-close" style="cursor:pointer;font-size:18px;color:rgba(15,23,42,.5);width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.5);">×</span>' +
             '</div>' +
-            '<div style="background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.7);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.8">' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">版本</span><b>v2.0.0</b></div>' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">原作者</span><span>Ne-21</span></div>' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">开发者</span><b>Khihl & Claude</b></div>' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">AI 模型</span><span>DeepSeek + Kimi</span></div>' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">代码规模</span><span>~5300 行</span></div>' +
+            '<div class="ne21-about-card" style="font-size:12px;line-height:1.8">' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 版本</span><b>v2.1.0</b></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">👤 原作者</span><span>Ne-21</span></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🛠️ 开发者</span><b>Khihl & Claude</b></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🧠 AI 模型</span><span>DeepSeek + Kimi</span></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📊 代码规模</span><span>~5500 行</span></div>' +
             '</div>' +
-            '<div style="border-left:2px solid #22c55e;padding-left:10px;margin:10px 0;font-size:12px;line-height:1.8">' +
-            '<b style="color:#16a34a">核心功能</b><br>' +
-            '✦ 双模型智能分流：纯文本 DeepSeek，图片题 Kimi 多模态<br>' +
-            '✦ 文档/PPT 模拟翻阅：逐屏滚动 + 自动提交 + DOM 实时刷新<br>' +
-            '✦ 三级答案匹配：精确 → Levenshtein 模糊 → 字母回退<br>' +
-            '✦ 全任务类型支持：视频/音频/测验/文档/阅读/直播/速课/讨论<br>' +
-            '✦ 智能防卡死：人脸识别检测、任务完成轮询、超时保护<br>' +
-            '✦ 日志系统：统一格式 [模块] [状态]，7级颜色语义<br>' +
-            '✦ Liquid Glass UI：毛玻璃浮窗，可拖拽，位置/状态持久化' +
+            '<div style="border-left:3px solid #22c55e;padding-left:12px;margin:12px 0;font-size:12px;line-height:1.8;background:rgba(34,197,94,.04);border-radius:0 8px 8px 0;padding-right:8px;padding-top:6px;padding-bottom:6px">' +
+            '<b style="color:#16a34a">🌟 核心功能</b><br>' +
+            '🧠 双模型智能分流：纯文本 DeepSeek，图片题 Kimi 多模态<br>' +
+            '📄 文档/PPT 模拟翻阅：逐屏滚动 + 自动提交 + DOM 实时刷新<br>' +
+            '🎯 三级答案匹配：精确 → Levenshtein 模糊 → 字母回退<br>' +
+            '📚 全任务类型支持：视频/音频/测验/文档/阅读/直播/速课/讨论<br>' +
+            '🛡️ 智能防卡死：人脸识别检测、任务完成轮询、超时保护<br>' +
+            '📝 日志系统：统一格式 [模块] [状态]，7级颜色语义<br>' +
+            '💎 Liquid Glass UI：毛玻璃浮窗，可拖拽，位置/状态持久化' +
             '</div>' +
-            '<div style="border-left:2px solid #eab308;padding-left:10px;margin:10px 0;font-size:12px;line-height:1.8">' +
-            '<b style="color:#ca8a04">独家功能</b><br>' +
-            '★ 讨论区 AI 自动回复 — 全网学习通脚本中首个实现<br>' +
-            '★ 任务点跳过按钮 — 卡死时可手动跳过当前任务<br>' +
-            '★ 文档/PPT 自动翻页 — 模拟真实阅读直到页底' +
+            '<div style="border-left:3px solid #eab308;padding-left:12px;margin:12px 0;font-size:12px;line-height:1.8;background:rgba(234,179,8,.04);border-radius:0 8px 8px 0;padding-right:8px;padding-top:6px;padding-bottom:6px">' +
+            '<b style="color:#ca8a04">⭐ 独家功能</b><br>' +
+            '💬 讨论区 AI 自动回复 — 全网学习通脚本中首个实现<br>' +
+            '⏭️ 任务点跳过按钮 — 卡死时可手动跳过当前任务<br>' +
+            '📖 文档/PPT 自动翻页 — 模拟真实阅读直到页底' +
             '</div>' +
-            '<p style="margin:10px 0 0;opacity:.4;font-size:10px;text-align:center">AI 辅助编码 · 人类主导设计 — Khihl & Claude</p>' +
+            '<p style="margin:12px 0 0;opacity:.4;font-size:10px;text-align:center">AI 辅助编码 · 人类主导设计 — Khihl & Claude</p>' +
             '</div>';
         top.document.body.appendChild(overlay);
         // 点击遮罩或关闭按钮收起
@@ -955,6 +1062,21 @@ function showBox() {
             if (e.key === 'Escape') { overlay.remove(); top.document.removeEventListener('keydown', escHandler); }
         };
         top.document.addEventListener('keydown', escHandler);
+    }
+
+    // ===== 状态指示灯：根据 API 配置状态动态变色 =====
+    function updateStatusDot() {
+        var dot = top.document.querySelector('.ne21-dot');
+        if (!dot) return;
+        var hasDS = getDeepSeekApiKey();
+        var hasKimi = getKimiApiKey();
+        if (hasDS && hasKimi) {
+            dot.style.background = 'radial-gradient(circle at 32% 28%, rgba(255,255,255,.98), #22c55e 55%, rgba(34,197,94,.35) 100%)';
+        } else if (hasDS || hasKimi) {
+            dot.style.background = 'radial-gradient(circle at 32% 28%, rgba(255,255,255,.98), #eab308 55%, rgba(234,179,8,.35) 100%)';
+        } else {
+            dot.style.background = 'radial-gradient(circle at 32% 28%, rgba(255,255,255,.98), rgba(255,255,255,.5) 55%, rgba(15,23,42,.18) 100%)';
+        }
     }
 }
 
@@ -978,7 +1100,12 @@ function logger(str, color) {
     var _colorMap = (typeof _ne21LogColorMap !== 'undefined') ? _ne21LogColorMap : {};
     var c = _colorMap[color] || color || '#334155'
     var $p = $('<p><span class="ne21-time">[' + _time + ']</span><span class="ne21-msg" style="color:' + c + ';">' + str + '</span></p>')
-    $('#ne-21log', window.parent.document).append($p)
+    $p.css('border-left-color', c)  // 左侧色彩标识
+    var $log = $('#ne-21log', window.parent.document);
+    $log.append($p)
+    // 自动滚动到底部
+    var logEl = $log[0];
+    if (logEl) { setTimeout(function() { logEl.scrollTop = logEl.scrollHeight; }, 50); }
     return $p
 }
 // 原地更新一条已存在的日志(由 logger 返回的 jQuery <p> 元素)。
@@ -988,6 +1115,7 @@ function updateLogEntry($p, str, color) {
     var _colorMap2 = (typeof _ne21LogColorMap !== 'undefined') ? _ne21LogColorMap : {};
     var c = _colorMap2[color] || color || '#334155'
     $p.find('.ne21-msg').css('color', c).html(str)
+    $p.css('border-left-color', c)  // 同步更新左侧色彩条
 }
 
 function getStr(str, start, end) {
