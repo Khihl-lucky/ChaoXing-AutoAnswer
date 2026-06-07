@@ -2,7 +2,7 @@
 
 > 基于 DeepSeek + Kimi 双模型架构的超星学习通自动刷课/答题用户脚本
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer)
+[![Version](https://img.shields.io/badge/version-2.1.0-blue)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer)
 [![License](https://img.shields.io/badge/license-MIT-green)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer/blob/main/LICENSE)
 
 ## 简介
@@ -37,11 +37,19 @@
 
 ### UI与交互
 
-- **Liquid Glass UI**：iOS毛玻璃风格浮窗，可拖拽，位置/状态持久化
-- **统一日志系统**：`[模块] [状态] 消息` 格式，7级颜色语义
+- **Liquid Glass UI v3.0**：iOS 26 液态毛玻璃风格浮窗
+  - 边缘折射光晕、SVG 噪点纹理、多层光影堆叠
+  - 最小化为 36px 毛玻璃浮动球，可拖拽/点击展开
+  - 按钮涟漪效果、蓝紫/红色光泽 hover 微交互
+  - 状态指示灯根据 API 配置自动变色（绿/黄/灰白）
+  - 自定义 iOS 风格 Toggle 开关，绿色渐变光晕
+  - 输入框蓝色焦点环、设置项逐条入场动画
+- **统一日志系统**：`[模块] [状态] 消息` 格式，7 级颜色语义
   - `[完成]` 绿色 | `[错误]` 红色 | `[跳过]` 橙色 | `[警告]` 黄色 | `[信息]` 蓝色 | `[启动]` 紫色 | `[忽略]` 灰色
-- 设置面板：API密钥、倍速、答题行为、模式开关等
-- 日志面板：支持折叠/展开/隐藏
+  - 日志条目左侧色彩条 + 入场动画 + 自动滚动
+- 设置面板：6 个 emoji 分组（🤖 DeepSeek / 👁️ Kimi / 🎬 视频音频 / 📝 答题 / 📋 测验考试 / ⚙️ 模式）
+- 浮窗全局禁止文字选中（日志区除外），体验接近原生 App
+- 位置/状态持久化，刷新后保持
 
 ## 快速开始
 
@@ -120,7 +128,7 @@
 
 ```
 学习通脚本/
-├── 学习通助手.js    # 主脚本（~5300行）
+├── 学习通助手.js    # 主脚本（~5500行）
 └── README.md        # 项目文档
 ```
 
