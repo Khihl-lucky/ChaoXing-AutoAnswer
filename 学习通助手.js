@@ -1,14 +1,13 @@
 // ==UserScript==
-// @name                AI学习通助手（DeepSeek + Kimi）
-// @version             2.1.0
-// @description         支持DeepSeek/Kimi双模型的学习通自动答题助手，图片题目自动截图识别，用户自行填写API密钥免费使用
-// @author              Khihl & Claude
+// @name                AI学习通助手（DeepSeek 原生多模态）
+// @version             2.3.0
+// @description         基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题，用户自行填写API密钥免费使用
+// @author              Khihl & DeepSeek Harness
 // @originalAuthor      Ne-21
 // @match               *://*.chaoxing.com/*
 // @match               *://*.edu.cn/*
 // @match               *://groupweb.chaoxing.com/*
 // @connect             api.deepseek.com
-// @connect             api.moonshot.cn
 // @connect             zhibo.chaoxing.com
 // @connect             chaoxing.com
 // @connect             groupweb.chaoxing.com
@@ -25,7 +24,7 @@
 // @require             https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js
 // @resource            Table https://gptjs.808860.xyz/libs/table.json
 // @icon                data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDEiIGhlaWdodD0iNDEiIHZpZXdCb3g9IjAgMCA0MSA0MSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBzdHJva2Utd2lkdGg9IjEuNSIgY2xhc3M9ImgtNiB3LTYiIHJvbGU9ImltZyI+PHRpdGxlPkNoYXRHUFQ8L3RpdGxlPjx0ZXh0IHg9Ii05OTk5IiB5PSItOTk5OSI+Q2hhdEdQVDwvdGV4dD48cGF0aCBkPSJNMzcuNTMyNCAxNi44NzA3QzM3Ljk4MDggMTUuNTI0MSAzOC4xMzYzIDE0LjA5NzQgMzcuOTg4NiAxMi42ODU5QzM3Ljg0MDkgMTEuMjc0NCAzNy4zOTM0IDkuOTEwNzYgMzYuNjc2IDguNjg2MjJDMzUuNjEyNiA2LjgzNDA0IDMzLjk4ODIgNS4zNjc2IDMyLjAzNzMgNC40OTg1QzMwLjA4NjQgMy42Mjk0MSAyNy45MDk4IDMuNDAyNTkgMjUuODIxNSAzLjg1MDc4QzI0Ljg3OTYgMi43ODkzIDIzLjcyMTkgMS45NDEyNSAyMi40MjU3IDEuMzYzNDFDMjEuMTI5NSAwLjc4NTU3NSAxOS43MjQ5IDAuNDkxMjY5IDE4LjMwNTggMC41MDAxOTdDMTYuMTcwOCAwLjQ5NTA0NCAxNC4wODkzIDEuMTY4MDMgMTIuMzYxNCAyLjQyMjE0QzEwLjYzMzUgMy42NzYyNCA5LjM0ODUzIDUuNDQ2NjYgOC42OTE3IDcuNDc4MTVDNy4zMDA4NSA3Ljc2Mjg2IDUuOTg2ODYgOC4zNDE0IDQuODM3NyA5LjE3NTA1QzMuNjg4NTQgMTAuMDA4NyAyLjczMDczIDExLjA3ODIgMi4wMjgzOSAxMi4zMTJDMC45NTY0NjQgMTQuMTU5MSAwLjQ5ODkwNSAxNi4yOTg4IDAuNzIxNjk4IDE4LjQyMjhDMC45NDQ0OTIgMjAuNTQ2NyAxLjgzNjEyIDIyLjU0NDkgMy4yNjggMjQuMTI5M0MyLjgxOTY2IDI1LjQ3NTkgMi42NjQxMyAyNi45MDI2IDIuODExODIgMjguMzE0MUMyLjk1OTUxIDI5LjcyNTYgMy40MDcwMSAzMS4wODkyIDQuMTI0MzcgMzIuMzEzOEM1LjE4NzkxIDM0LjE2NTkgNi44MTIzIDM1LjYzMjIgOC43NjMyMSAzNi41MDEzQzEwLjcxNDEgMzcuMzcwNCAxMi44OTA3IDM3LjU5NzMgMTQuOTc4OSAzNy4xNDkyQzE1LjkyMDggMzguMjEwNyAxNy4wNzg2IDM5LjA1ODcgMTguMzc0NyAzOS42MzY2QzE5LjY3MDkgNDAuMjE0NCAyMS4wNzU1IDQwLjUwODcgMjIuNDk0NiA0MC40OTk4QzI0LjYzMDcgNDAuNTA1NCAyNi43MTMzIDM5LjgzMjEgMjguNDQxOCAzOC41NzcyQzMwLjE3MDQgMzcuMzIyMyAzMS40NTU2IDM1LjU1MDYgMzIuMTExOSAzMy41MTc5QzMzLjUwMjcgMzMuMjMzMiAzNC44MTY3IDMyLjY1NDcgMzUuOTY1OSAzMS44MjFDMzcuMTE1IDMwLjk4NzQgMzguMDcyOCAyOS45MTc4IDM4Ljc3NTIgMjguNjg0QzM5Ljg0NTggMjYuODM3MSA0MC4zMDIzIDI0LjY5NzkgNDAuMDc4OSAyMi41NzQ4QzM5Ljg1NTYgMjAuNDUxNyAzOC45NjM5IDE4LjQ1NDQgMzcuNTMyNCAxNi44NzA3Wk0yMi40OTc4IDM3Ljg4NDlDMjAuNzQ0MyAzNy44ODc0IDE5LjA0NTkgMzcuMjczMyAxNy42OTk0IDM2LjE1MDFDMTcuNzYwMSAzNi4xMTcgMTcuODY2NiAzNi4wNTg2IDE3LjkzNiAzNi4wMTYxTDI1LjkwMDQgMzEuNDE1NkMyNi4xMDAzIDMxLjMwMTkgMjYuMjY2MyAzMS4xMzcgMjYuMzgxMyAzMC45Mzc4QzI2LjQ5NjQgMzAuNzM4NiAyNi41NTYzIDMwLjUxMjQgMjYuNTU0OSAzMC4yODI1VjE5LjA1NDJMMjkuOTIxMyAyMC45OThDMjkuOTM4OSAyMS4wMDY4IDI5Ljk1NDEgMjEuMDE5OCAyOS45NjU2IDIxLjAzNTlDMjkuOTc3IDIxLjA1MiAyOS45ODQyIDIxLjA3MDcgMjkuOTg2NyAyMS4wOTAyVjMwLjM4ODlDMjkuOTg0MiAzMi4zNzUgMjkuMTk0NiAzNC4yNzkxIDI3Ljc5MDkgMzUuNjg0MUMyNi4zODcyIDM3LjA4OTIgMjQuNDgzOCAzNy44ODA2IDIyLjQ5NzggMzcuODg0OVpNNi4zOTIyNyAzMS4wMDY0QzUuNTEzOTcgMjkuNDg4OCA1LjE5NzQyIDI3LjcxMDcgNS40OTgwNCAyNS45ODMyQzUuNTU3MTggMjYuMDE4NyA1LjY2MDQ4IDI2LjA4MTggNS43MzQ2MSAyNi4xMjQ0TDEzLjY5OSAzMC43MjQ4QzEzLjg5NzUgMzAuODQwOCAxNC4xMjMzIDMwLjkwMiAxNC4zNTMyIDMwLjkwMkMxNC41ODMgMzAuOTAyIDE0LjgwODggMzAuODQwOCAxNS4wMDczIDMwLjcyNDhMMjQuNzMxIDI1LjExMDNWMjguOTk3OUMyNC43MzIxIDI5LjAxNzcgMjQuNzI4MyAyOS4wMzc2IDI0LjcxOTkgMjkuMDU1NkMyNC43MTE1IDI5LjA3MzYgMjQuNjk4OCAyOS4wODkzIDI0LjY4MjkgMjkuMTAxMkwxNi42MzE3IDMzLjc0OTdDMTQuOTA5NiAzNC43NDE2IDEyLjg2NDMgMzUuMDA5NyAxMC45NDQ3IDM0LjQ5NTRDOS4wMjUwNiAzMy45ODExIDcuMzg3ODUgMzIuNzI2MyA2LjM5MjI3IDMxLjAwNjRaTTQuMjk3MDcgMTMuNjE5NEM1LjE3MTU2IDEyLjA5OTggNi41NTI3OSAxMC45MzY0IDguMTk4ODUgMTAuMzMyN0M4LjE5ODg1IDEwLjQwMTMgOC4xOTQ5MSAxMC41MjI4IDguMTk0OTEgMTAuNjA3MVYxOS44MDhDOC4xOTM1MSAyMC4wMzc4IDguMjUzMzQgMjAuMjYzOCA4LjM2ODIzIDIwLjQ2MjlDOC40ODMxMiAyMC42NjE5IDguNjQ4OTMgMjAuODI2NyA4Ljg0ODYzIDIwLjk0MDRMMTguNTcyMyAyNi41NTQyTDE1LjIwNiAyOC40OTc5QzE1LjE4OTQgMjguNTA4OSAxNS4xNzAzIDI4LjUxNTUgMTUuMTUwNSAyOC41MTczQzE1LjEzMDcgMjguNTE5MSAxNS4xMTA3IDI4LjUxNiAxNS4wOTI0IDI4LjUwODJMNy4wNDA0NiAyMy44NTU3QzUuMzIxMzUgMjIuODYwMSA0LjA2NzE2IDIxLjIyMzUgMy41NTI4OSAxOS4zMDQ2QzMuMDM4NjIgMTcuMzg1OCAzLjMwNjI0IDE1LjM0MTMgNC4yOTcwNyAxMy42MTk0Wk0zMS45NTUgMjAuMDU1NkwyMi4yMzEyIDE0LjQ0MTFMMjUuNTk3NiAxMi40OTgxQzI1LjYxNDIgMTIuNDg3MiAyNS42MzMzIDEyLjQ4MDUgMjUuNjUzMSAxMi40Nzg3QzI1LjY3MjkgMTIuNDc2OSAyNS42OTI4IDEyLjQ4MDEgMjUuNzExMSAxMi40ODc5TDMzLjc2MzEgMTcuMTM2NEMzNC45OTY3IDE3Ljg0OSAzNi4wMDE3IDE4Ljg5ODIgMzYuNjYwNiAyMC4xNjEzQzM3LjMxOTQgMjEuNDI0NCAzNy42MDQ3IDIyLjg0OSAzNy40ODMyIDI0LjI2ODRDMzcuMzYxNyAyNS42ODc4IDM2LjgzODIgMjcuMDQzMiAzNS45NzQzIDI4LjE3NTlDMzUuMTEwMyAyOS4zMDg2IDMzLjk0MTUgMzAuMTcxNyAzMi42MDQ3IDMwLjY2NDFDMzIuNjA0NyAzMC41OTQ3IDMyLjYwNDcgMzAuNDczMyAzMi42MDQ3IDMwLjM4ODlWMjEuMTg4QzMyLjYwNjYgMjAuOTU4NiAzMi41NDc0IDIwLjczMjggMzIuNDMzMiAyMC41MzM4QzMyLjMxOSAyMC4zMzQ4IDMyLjE1NCAyMC4xNjk4IDMxLjk1NSAyMC4wNTU2Wk0zNS4zMDU1IDE1LjAxMjhDMzUuMjQ2NCAxNC45NzY1IDM1LjE0MzEgMTQuOTE0MiAzNS4wNjkgMTQuODcxN0wyNy4xMDQ1IDEwLjI3MTJDMjYuOTA2IDEwLjE1NTQgMjYuNjgwMyAxMC4wOTQzIDI2LjQ1MDQgMTAuMDk0M0MyNi4yMjA2IDEwLjA5NDMgMjUuOTk0OCAxMC4xNTU0IDI1Ljc5NjMgMTAuMjcxMkwxNi4wNzI2IDE1Ljg4NThWMTEuOTk4MkMxNi4wNzE1IDExLjk3ODMgMTYuMDc1MyAxMS45NTg1IDE2LjA4MzcgMTEuOTQwNUMxNi4wOTIxIDExLjkyMjUgMTYuMTA0OCAxMS45MDY4IDE2LjEyMDcgMTEuODk0OUwyNC4xNzE5IDcuMjUwMjVDMjUuNDA1MyA2LjUzOTAzIDI2LjgxNTggNi4xOTM3NiAyOC4yMzgzIDYuMjU0ODJDMjkuNjYwOCA2LjMxNTg5IDMxLjAzNjQgNi43ODA3NyAzMi4yMDQ0IDcuNTk1MDhDMzMuMzcyMyA4LjQwOTM5IDM0LjI4NDIgOS41Mzk0NSAzNC44MzM0IDEwLjg1MzFDMzUuMzgyNiAxMi4xNjY3IDM1LjU0NjQgMTMuNjA5NSAzNS4zMDU1IDE1LjAxMjhaTTE0LjI0MjQgMjEuOTQxOUwxMC44NzUyIDE5Ljk5ODFDMTAuODU3NiAxOS45ODkzIDEwLjg0MjMgMTkuOTc2MyAxMC44MzA5IDE5Ljk2MDJDMTAuODE5NSAxOS45NDQxIDEwLjgxMjIgMTkuOTI1NCAxMC44MDk4IDE5LjkwNThWMTAuNjA3MUMxMC44MTA3IDkuMTgyOTUgMTEuMjE3MyA3Ljc4ODQ4IDExLjk4MTkgNi41ODY5NkMxMi43NDY2IDUuMzg1NDQgMTMuODM3NyA0LjQyNjU5IDE1LjEyNzUgMy44MjI2NEMxNi40MTczIDMuMjE4NjkgMTcuODUyNCAyLjk5NDY0IDE5LjI2NDkgMy4xNzY3QzIwLjY3NzUgMy4zNTg3NiAyMi4wMDg5IDMuOTM5NDEgMjMuMTAzNCA0Ljg1MDY3QzIzLjA0MjcgNC44ODM3OSAyMi45MzcgNC45NDIxNSAyMi44NjY4IDQuOTg0NzNMMTQuOTAyNCA5LjU4NTE3QzE0LjcwMjUgOS42OTg3OCAxNC41MzY2IDkuODYzNTYgMTQuNDIxNSAxMC4wNjI2QzE0LjMwNjUgMTAuMjYxNiAxNC4yNDY2IDEwLjQ4NzcgMTQuMjQ3OSAxMC43MTc1TDE0LjI0MjQgMjEuOTQxOVpNMTYuMDcxIDE3Ljk5OTFMMjAuNDAxOCAxNS40OTc4TDI0LjczMjUgMTcuOTk3NVYyMi45OTg1TDIwLjQwMTggMjUuNDk4M0wxNi4wNzEgMjIuOTk4NVYxNy45OTkxWiIgZmlsbD0iY3VycmVudENvbG9yIj48L3BhdGg+PC9zdmc+
-// @homepage            https://github.com/Khihl/deepseek-xuexitong
+// @homepage            https://github.com/Khihl-lucky/ChaoXing-AutoAnswer
 // ==/UserScript==
 
 
@@ -34,7 +33,9 @@ var setting = {
     // ===== DeepSeek API 配置 =====
     deepseekApiKey: '',   // DeepSeek API密钥，请在浮窗设置中填写或直接在此处填写
     deepseekBaseUrl: 'https://api.deepseek.com',  // DeepSeek API地址
-    deepseekModel: 'deepseek-v4-pro',             // 模型名称: deepseek-v4-flash(快速) / deepseek-v4-pro(强力)
+    deepseekModel: 'deepseek-flash',              // 文本模型: deepseek-flash(默认, 快速且支持图片) / deepseek-v4-pro(强力, 不支持图片)
+    deepseekVisionModel: 'deepseek-flash',        // 多模态模型: deepseek-flash 原生支持图片理解（官方唯一支持视觉的模型）
+    deepseekImgMode: 'auto',                      // 图片题处理方式: auto(自动路由) / vision(全部用多模态模型) / text(只用文本模型)
 
     showBox: 1,     // 显示脚本浮窗，0为关闭，1为开启，不建议关闭
     maskImg: 1,     // 显示皮卡丘，0为关闭，1为开启，默认开启，无实质作用，只是为了减少睿智问题
@@ -62,23 +63,18 @@ var setting = {
 
     autoLogin: 0,   // 自动登录，0为关闭，1为开启，开启此功能请配置登陆配置项
     phone: '',      // 登录配置项：登录手机号/超星号
-    password: '',   // 登录配置项：登录密码
-
-    // ===== Kimi API 配置（图片题目自动使用） =====
-    kimiApiKey: '',   // Kimi API 密钥，从 platform.moonshot.cn 获取
-    kimiBaseUrl: 'https://api.moonshot.cn/v1',  // Kimi API 地址
-    kimiModel: 'kimi-k2.6'                      // Kimi 模型（支持图片理解）
+    password: ''    // 登录配置项：登录密码
 }
 /************************************************************************************************** */
 /*
   ╔══════════════════════════════════════════════════════════════╗
-  ║          AI学习通助手 v2.1.0 (DeepSeek + Kimi)              ║
+  ║        AI学习通助手 v2.3.0 (DeepSeek 原生多模态)            ║
   ╠══════════════════════════════════════════════════════════════╣
   ║  原作者:    Ne-21                                           ║
-  ║  开发者:    Khihl & Claude (AI-Assisted)                    ║
+  ║  开发者:    Khihl & DeepSeek Harness                        ║
   ║  更新:      2026-06-07 · Liquid Glass UI v3.0                ║
   ║                                                             ║
-  ║  DeepSeek(纯文本) + Kimi(图片多模态) 双模型智能分流          ║
+  ║  deepseek-flash 原生视觉识别图片题，无需第三方多模态服务     ║
   ║  文档/PPT模拟翻阅 · 讨论区AI自动回复 · 视频弹题处理          ║
   ║  智能防卡死 · 任务跳过 · DOM状态实时刷新                     ║
   ╚══════════════════════════════════════════════════════════════╝
@@ -102,7 +98,7 @@ function getDeepSeekBaseUrl() {
     return GM_getValue('deepseekBaseUrl', '') || localStorage.getItem('GPTJsSetting.deepseekBaseUrl') || setting.deepseekBaseUrl || 'https://api.deepseek.com';
 }
 function getDeepSeekModel() {
-    return GM_getValue('deepseekModel', '') || localStorage.getItem('GPTJsSetting.deepseekModel') || setting.deepseekModel || 'deepseek-v4-pro';
+    return GM_getValue('deepseekModel', '') || localStorage.getItem('GPTJsSetting.deepseekModel') || setting.deepseekModel || 'deepseek-flash';
 }
 // 保存 DeepSeek API 配置（同时写入 GM_setValue 和 localStorage）
 function saveDeepSeekConfig(key, value) {
@@ -110,15 +106,57 @@ function saveDeepSeekConfig(key, value) {
     localStorage.setItem('GPTJsSetting.' + key, value);
 }
 
-// Kimi API 配置读取（与 DeepSeek 同样的三级优先级策略）
-function getKimiApiKey() {
-    return GM_getValue('kimiApiKey', '') || localStorage.getItem('GPTJsSetting.kimiApiKey') || setting.kimiApiKey || '';
+// 清理 v2.1.0 遗留的 Kimi 配置（该模型已于 v2.2.0 移除，图片题改由 DeepSeek 原生多模态处理）
+(function cleanupLegacyKimiConfig() {
+    try {
+        ['kimiApiKey', 'kimiBaseUrl', 'kimiModel'].forEach(function (k) {
+            localStorage.removeItem('GPTJsSetting.' + k);
+            if (typeof GM_setValue === 'function') GM_setValue(k, '');
+        });
+    } catch (_) { /* 存储不可用时静默 */ }
+})();
+
+// 多模态（图片）模型名读取：deepseek-flash 为官方唯一支持视觉的模型
+function getDeepSeekVisionModel() {
+    return GM_getValue('deepseekVisionModel', '') || localStorage.getItem('GPTJsSetting.deepseekVisionModel') || setting.deepseekVisionModel || 'deepseek-flash';
 }
-function getKimiBaseUrl() {
-    return GM_getValue('kimiBaseUrl', '') || localStorage.getItem('GPTJsSetting.kimiBaseUrl') || setting.kimiBaseUrl || 'https://api.moonshot.cn/v1';
+// 图片题处理方式读取：auto(自动路由) / vision(一律走多模态模型) / text(只用文本模型)
+function getDeepSeekImgMode() {
+    var m = GM_getValue('deepseekImgMode', '') || localStorage.getItem('GPTJsSetting.deepseekImgMode') || setting.deepseekImgMode || 'auto';
+    if (m !== 'auto' && m !== 'vision' && m !== 'text') m = 'auto';
+    return m;
 }
-function getKimiModel() {
-    return GM_getValue('kimiModel', '') || localStorage.getItem('GPTJsSetting.kimiModel') || setting.kimiModel || 'kimi-k2.6';
+// 判断模型是否具备视觉（图片）理解能力。
+// 官方模型：deepseek-flash 支持 Vision；deepseek-v4-pro 不支持。
+// 旧的 deepseek-v4-flash-vision-exp 已下线但名称仍被接受（由 V4.1-Flash 承接），同样视为支持。
+function modelSupportsVision(model) {
+    if (!model) return false;
+    var m = String(model).trim().toLowerCase();
+    if (/vision|vl\b|-vl$/.test(m)) return true;
+    if (m === 'deepseek-flash' || m === 'deepseek-v4-flash' || m === 'deepseek-v4-flash-vision-exp') return true;
+    return false;
+}
+
+// ===== 日志配置 =====
+// 必须定义在脚本最前面：/knowledge/cards 分支是同步执行的，
+// 会在文件后段（原第 1105 行）之前就调用 logger(_logP.NAV + ...)。
+// 若把 _logP 留在后面，遇到"无任务点"的空白页时会抛
+// TypeError: Cannot read properties of undefined (reading 'NAV')，
+// 导致随后的 toNext() 不执行、脚本卡在该页不再跳转。
+var _ne21LogColorMap = {
+    error:   '#dc2626', red:    '#dc2626',
+    success: '#059669', green:  '#059669',
+    skip:    '#ea580c', orange: '#ea580c',
+    warn:    '#ca8a04', yellow: '#ca8a04',
+    info:    '#2563eb', blue:   '#2563eb',
+    hili:    '#7c3aed', purple: '#7c3aed',
+    muted:   '#64748b', gray:   '#64748b', grey: '#64748b'
+}
+var _logP = {
+    VID: '[视频] ', AUD: '[音频] ', QUIZ: '[测验] ', DOC: '[文档] ',
+    READ: '[阅读] ', BOOK: '[读书] ', LIVE: '[直播] ', MICRO: '[速课] ',
+    BBS: '[讨论] ', EXAM: '[考试] ', HW: '[作业] ', AI: '[AI] ',
+    NAV: '[导航] ', SYS: '[系统] ', TASK: '[任务] '
 }
 
 var _mlist, _defaults, _domList, $subBtn, $saveBtn, $frame_c, $okBtn;
@@ -551,7 +589,7 @@ function showBox() {
             #ne-21box.ne21-minimized .ne21-header{position:absolute;inset:0;padding:0;justify-content:center;align-items:center;background:transparent;box-shadow:none;border-bottom:none;cursor:grab;}
             #ne-21box.ne21-minimized .ne21-header::after{display:none;}
             #ne-21box.ne21-minimized .ne21-title{display:none;}
-            #ne-21box.ne21-minimized #ne-21close{display:flex;position:static;margin:0;width:36px;height:36px;font-size:16px;font-weight:600;border-radius:50%;border:none;background:transparent;box-shadow:none;color:rgba(15,23,42,.55);cursor:grab;pointer-events:none;}
+            #ne-21box.ne21-minimized #ne-21close{display:flex;position:static;margin:0;width:36px;height:36px;font-size:16px;font-weight:600;border-radius:50%;border:none;background:transparent;box-shadow:none;color:rgba(15,23,42,.55);cursor:pointer;pointer-events:none;}
             #ne-21box.ne21-minimized #ne-21close:hover{background:transparent;transform:none;box-shadow:none;}
             #ne-21box.ne21-minimized .ne21-body{display:none;}
             #ne-21box.ne21-minimized:hover{transform:scale(1.08);box-shadow:0 0 0 1px rgba(15,23,42,.09),0 12px 28px -8px rgba(15,23,42,.45),0 5px 14px -4px rgba(15,23,42,.25),inset 0 1px 0 rgba(255,255,255,1);}
@@ -700,7 +738,7 @@ function showBox() {
         var box_html = `
             <div id="ne-21box">
                 <div class="ne21-header" title="拖动移动 | 点击 − 最小化">
-                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small style="font-size:10px;font-weight:400;opacity:0.6">v2.0</small></h3>
+                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small style="font-size:10px;font-weight:400;opacity:0.6">v2.3</small></h3>
                     <button id="ne-21close" type="button" aria-label="最小化">−</button>
                 </div>
                 <div class="ne21-body">
@@ -714,20 +752,24 @@ function showBox() {
                             <label title="DeepSeek API 地址，默认 https://api.deepseek.com">
                                 <input type="text" id="GPTJsSetting.deepseekBaseUrl" class="ne21-select" placeholder="https://api.deepseek.com" style="min-width:120px;flex:1;padding:5px 8px;">API 地址
                             </label>
-                            <label title="选择 DeepSeek 模型">
+                            <label title="选择 DeepSeek 模型，默认 deepseek-flash">
                                 <select id="GPTJsSetting.deepseekModel" class="ne21-select">
-                                    <option value="deepseek-v4-pro">deepseek-v4-pro (强力)</option>
-                                    <option value="deepseek-v4-flash">deepseek-v4-flash (快速)</option>
-                                </select>AI 模型
+                                    <option value="deepseek-flash">deepseek-flash (默认·支持图片)</option>
+                                    <option value="deepseek-v4-pro">deepseek-v4-pro (强力·纯文本)</option>
+                                </select>文本模型
                             </label>
                         </div>
                         <div class="ne21-group">
-                            <div class="ne21-group-title">👁️ Kimi（图片题自动使用）</div>
-                            <label title="Kimi API 密钥，从 platform.moonshot.cn 获取">
-                                <input type="text" id="GPTJsSetting.kimiApiKey" class="ne21-select" placeholder="sk-..." style="min-width:120px;flex:1;padding:5px 8px;font-family:monospace;">API 密钥
+                            <div class="ne21-group-title">👁️ DeepSeek 原生多模态（图片题）</div>
+                            <label title="图片题处理方式：自动=图片题自动切到多模态模型、纯文本题用上方文本模型（推荐）；总是用多模态=所有题目都走多模态模型；只用文本模型=图片题不做视觉识别">
+                                <select id="GPTJsSetting.deepseekImgMode" class="ne21-select">
+                                    <option value="auto">自动路由 (推荐)</option>
+                                    <option value="vision">总是用多模态</option>
+                                    <option value="text">只用文本模型</option>
+                                </select>图片题处理
                             </label>
-                            <label title="Kimi API 地址">
-                                <input type="text" id="GPTJsSetting.kimiBaseUrl" class="ne21-select" placeholder="https://api.moonshot.cn/v1" style="min-width:120px;flex:1;padding:5px 8px;">API 地址
+                            <label title="多模态（视觉）模型名。官方当前为 deepseek-flash，是唯一支持图片理解的模型。留空则使用默认值">
+                                <input type="text" id="GPTJsSetting.deepseekVisionModel" class="ne21-select" placeholder="deepseek-flash" style="min-width:120px;flex:1;padding:5px 8px;font-family:monospace;">多模态模型
                             </label>
                         </div>
                         <div class="ne21-group">
@@ -790,67 +832,116 @@ function showBox() {
             }
         })();
 
-        // 最小化按钮：切换 .ne21-minimized → 缩为浮动球 / 展开
-        $('#ne-21close').on('mousedown', function (e) {
-            e.stopPropagation(); // 避免触发标题栏拖动
-        }).on('click', function (e) {
-            e.stopPropagation();
+        // 最小化/展开：统一入口，保证按钮文字、无障碍标签、持久化状态三者一致
+        function setCollapsed(collapsed) {
             var $box = $('#ne-21box');
-            var minimized = $box.toggleClass('ne21-minimized').hasClass('ne21-minimized');
-            $(this).text(minimized ? '+' : '−');
-            $(this).attr('aria-label', minimized ? '展开' : '最小化');
-            // 持久化最小化状态
-            try { localStorage.setItem('GPTJsSetting.boxCollapsed', minimized ? 'true' : 'false'); } catch (_) { /* empty */ }
+            if (!$box.length) return;
+            $box.toggleClass('ne21-minimized', collapsed);
+            $('#ne-21close').text(collapsed ? '+' : '−').attr('aria-label', collapsed ? '展开' : '最小化');
+            try { localStorage.setItem('GPTJsSetting.boxCollapsed', collapsed ? 'true' : 'false'); } catch (_) { /* empty */ }
+        }
+
+        // 最小化按钮：
+        // - 展开 → 点击收起（click 里 preventDefault，避免连带触发下面 box 的 click 又被展开）
+        // - 已收起 → 不处理，交给浮动球的 click 统一展开（避免两条路径互相打架导致"点不开"）
+        $('#ne-21close').on('click', function (e) {
+            e.stopPropagation();
+            if ($('#ne-21box').hasClass('ne21-minimized')) return;
+            e.preventDefault();
+            setCollapsed(true);
         });
         // 标题栏拖动 + 浮动球拖动：拖动结束后写入 localStorage，刷新后保持上次位置
         (function () {
             var $box = $('#ne-21box');
             var $header = $box.find('.ne21-header');
-            var dragging = false, wasDragged = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+            var dragging = false, wasDragged = false, justDragged = false;
+            var startX = 0, startY = 0, startLeft = 0, startTop = 0;
+            var curLeft = 0, curTop = 0;
+            var movedX = 0, movedY = 0;
+            // 拖动判定阈值(px)：低于它视为点击，不吞掉"点击展开"
+            var DRAG_THRESHOLD = 4;
+
             $header.on('mousedown', function (e) {
                 if (e.which !== 1) return; // 仅响应鼠标左键
-                if ($(e.target).closest('#ne-21close').length) return; // 点在按钮上不拖动
+                // 展开状态下点在按钮上不拖动（按钮负责收起）；
+                // 收起状态下浮动球整体就是按钮，必须允许拖动，否则球拖不动。
+                if (!$box.hasClass('ne21-minimized') && $(e.target).closest('#ne-21close').length) return;
                 dragging = true;
-                wasDragged = false;
+                wasDragged = false;   // 新一次手势开始，清理上一次的标志，避免残留导致"点不开"
+                justDragged = false;
                 var rect = $box[0].getBoundingClientRect();
                 startX = e.clientX;
                 startY = e.clientY;
-                startLeft = rect.left;
-                startTop = rect.top;
-                // 清空 right，把 left/top 改为像素值，避免与默认 left:66% 计算冲突
+                // 注意：收起状态 hover 时有 transform:scale(1.08)，getBoundingClientRect()
+                // 返回的是缩放后的盒，直接当 left/top 会让球在开始拖动时"跳"一下。
+                // 用计算样式取未缩放的 left/top，并在需要时把 right 换算成 left。
+                var cs = window.getComputedStyle($box[0]);
+                startLeft = parseFloat(cs.left);
+                startTop = parseFloat(cs.top);
+                if (!isFinite(startLeft)) startLeft = rect.left;
+                if (!isFinite(startTop)) startTop = rect.top;
+                var csRight = parseFloat(cs.right);
+                if (isFinite(csRight)) startLeft = window.innerWidth - csRight - rect.width;
+                curLeft = startLeft;
+                curTop = startTop;
+                movedX = 0;
+                movedY = 0;
+                // 清空 right，把 left/top 改为像素值，避免与默认 left:16% 之类的相对定位冲突
                 $box.css({ left: startLeft + 'px', top: startTop + 'px', right: 'auto' });
                 $('body').css('user-select', 'none');
                 e.preventDefault();
             });
+
             $(document).on('mousemove.ne21drag', function (e) {
                 if (!dragging) return;
+                movedX = e.clientX - startX;
+                movedY = e.clientY - startY;
+                // 超过阈值才算真正的拖动：避免点击时手抖 1~2px 就被判定为拖动、
+                // 反而把"点击展开"吞掉（这是收起后点不开的主因之一）
+                if (!wasDragged && Math.abs(movedX) + Math.abs(movedY) < DRAG_THRESHOLD) return;
                 wasDragged = true; // 标记发生了实际拖动
-                var nx = startLeft + (e.clientX - startX);
-                var ny = startTop + (e.clientY - startY);
                 var w = $box.outerWidth();
                 var vw = window.innerWidth;
                 var vh = window.innerHeight;
                 // 约束：保留至少 40px 标题栏在视窗内，便于回拉
-                nx = Math.max(40 - w, Math.min(nx, vw - 40));
-                ny = Math.max(0, Math.min(ny, vh - 40));
-                $box.css({ left: nx + 'px', top: ny + 'px' });
+                curLeft = Math.max(40 - w, Math.min(startLeft + movedX, vw - 40));
+                curTop = Math.max(0, Math.min(startTop + movedY, vh - 40));
+                $box.css({ left: curLeft + 'px', top: curTop + 'px' });
             }).on('mouseup.ne21drag', function () {
                 if (!dragging) return;
                 dragging = false;
                 $('body').css('user-select', '');
-                // 持久化位置
+                if (!wasDragged) return; // 未达到阈值，视为点击，交给 click 处理
+                justDragged = true;      // 抑制拖动结束后紧跟的那次 click
+                // 持久化位置：直接用拖动过程中维护的坐标，不再反读 getBoundingClientRect()
+                // （后者可能拿到样式尚未刷新的旧值，导致刷新后位置回跳）
                 try {
-                    var rect = $box[0].getBoundingClientRect();
-                    localStorage.setItem('GPTJsSetting.boxPosition', JSON.stringify({ left: rect.left, top: rect.top }));
+                    localStorage.setItem('GPTJsSetting.boxPosition', JSON.stringify({ left: curLeft, top: curTop }));
                 } catch (_) { /* empty */ }
             });
-            // 浮动球点击展开：仅当最小化且未拖拽时
+
+            // 拖到窗口外松手时 mouseup 不会落在 document 上，会导致 dragging 卡住、
+            // 之后不按左键移动鼠标也会拖走浮窗。这里统一兜底清理。
+            function abortDrag(e) {
+                if (!dragging) return;
+                dragging = false;
+                $('body').css('user-select', '');
+                // 若鼠标是在浮窗之外释放的，浏览器不会产生 click，
+                // 此时 justDragged 没人消费，必须在这里清掉，否则下一次点击会被吞掉。
+                var t = e && e.target;
+                if (!t || !(t === $box[0] || $box[0].contains(t))) justDragged = false;
+            }
+            $(window).on('blur', abortDrag);
+            $(document).on('mouseleave.ne21drag', abortDrag);
+
+            // 浮动球点击展开：仅当最小化、未拖动、且不是拖动刚结束的那一次 click
             $box.on('click', function (e) {
-                if ($box.hasClass('ne21-minimized') && !wasDragged && !$(e.target).closest('#ne-21close').length) {
-                    $box.removeClass('ne21-minimized');
-                    $('#ne-21close').text('−').attr('aria-label', '最小化');
-                    try { localStorage.setItem('GPTJsSetting.boxCollapsed', 'false'); } catch (_) { /* empty */ }
-                }
+                if (justDragged) { justDragged = false; return; }
+                if (!$box.hasClass('ne21-minimized')) return;
+                if (wasDragged) { wasDragged = false; return; }
+                // 注意：收起后整球都是 #ne-21close，这里不能再排除它，否则永远点不开
+                setCollapsed(false);
+                e.stopPropagation();
             });
         })();
 
@@ -941,23 +1032,20 @@ function showBox() {
                     saveDeepSeekConfig('deepseekModel', modelSelect.value);
                 });
             }
-            // Kimi API 密钥输入框：恢复上次值并持久化
-            var kimiApiKeyInput = top.document.getElementById('GPTJsSetting.kimiApiKey');
-            if (kimiApiKeyInput) {
-                kimiApiKeyInput.value = getKimiApiKey();
-                kimiApiKeyInput.addEventListener('change', function () {
-                    saveDeepSeekConfig('kimiApiKey', kimiApiKeyInput.value.trim());
-                    var statusEl = top.document.querySelector('.ne21-uid b:last-child');
-                    if (statusEl) statusEl.textContent = kimiApiKeyInput.value.trim() ? '✅ 已配置' : '❌ 未配置';
-                    updateStatusDot();
+            // 图片题处理方式：恢复上次选择并持久化
+            var imgModeSelect = top.document.getElementById('GPTJsSetting.deepseekImgMode');
+            if (imgModeSelect) {
+                imgModeSelect.value = getDeepSeekImgMode();
+                imgModeSelect.addEventListener('change', function () {
+                    saveDeepSeekConfig('deepseekImgMode', imgModeSelect.value);
                 });
             }
-            // Kimi API 地址输入框：恢复上次值并持久化
-            var kimiBaseUrlInput = top.document.getElementById('GPTJsSetting.kimiBaseUrl');
-            if (kimiBaseUrlInput) {
-                kimiBaseUrlInput.value = getKimiBaseUrl();
-                kimiBaseUrlInput.addEventListener('change', function () {
-                    saveDeepSeekConfig('kimiBaseUrl', kimiBaseUrlInput.value.trim() || 'https://api.moonshot.cn/v1');
+            // 多模态模型名：恢复上次值并持久化
+            var visionModelInput = top.document.getElementById('GPTJsSetting.deepseekVisionModel');
+            if (visionModelInput) {
+                visionModelInput.value = getDeepSeekVisionModel();
+                visionModelInput.addEventListener('change', function () {
+                    saveDeepSeekConfig('deepseekVisionModel', visionModelInput.value.trim() || 'deepseek-flash');
                 });
             }
             // 倍速下拉：恢复上次选择并持久化
@@ -988,12 +1076,11 @@ function showBox() {
         $('#ne-21log', window.parent.document).html('')
     }
     let _apiKeyStatus = getDeepSeekApiKey() ? '✅ 已配置' : '❌ 未配置'
-    let _kimiStatus = getKimiApiKey() ? '✅ 已配置' : '❌ 未配置'
     // 更新状态指示灯颜色
     updateStatusDot();
     $('#ne-21notice').html(`
         <div id="ne-21-noticeContent">
-            <div class="ne21-uid">DeepSeek: <b>${_apiKeyStatus}</b> | Kimi(图片): <b>${_kimiStatus}</b></div>
+            <div class="ne21-uid">DeepSeek API: <b>${_apiKeyStatus}</b> | <b>DeepSeek 多模态</b></div>
         </div>
         <div class="ne21-row">
             <button id="moreSettingsBtn" class="ne21-btn ne21-btn-secondary">设置</button>
@@ -1005,7 +1092,7 @@ function showBox() {
 
     // 公告弹窗：每个版本首次显示
     (function () {
-        var _ver = GM_info && GM_info.script ? GM_info.script.version : '2.1.0';
+        var _ver = GM_info && GM_info.script ? GM_info.script.version : '2.3.0';
         var _key = 'GPTJsSetting.announcementSeen_' + _ver;
         if (!localStorage.getItem(_key)) {
             localStorage.setItem(_key, 'true');
@@ -1028,15 +1115,15 @@ function showBox() {
             '<span id="ne-21-about-close" style="cursor:pointer;font-size:18px;color:rgba(15,23,42,.5);width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.5);">×</span>' +
             '</div>' +
             '<div class="ne21-about-card" style="font-size:12px;line-height:1.8">' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 版本</span><b>v2.1.0</b></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 版本</span><b>v2.3.0</b></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">👤 原作者</span><span>Ne-21</span></div>' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🛠️ 开发者</span><b>Khihl & Claude</b></div>' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🧠 AI 模型</span><span>DeepSeek + Kimi</span></div>' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📊 代码规模</span><span>~5500 行</span></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🛠️ 开发者</span><b>Khihl & DeepSeek Harness</b></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🧠 AI 模型</span><span>DeepSeek 原生多模态</span></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📊 代码规模</span><span>~5600 行</span></div>' +
             '</div>' +
             '<div style="border-left:3px solid #22c55e;padding-left:12px;margin:12px 0;font-size:12px;line-height:1.8;background:rgba(34,197,94,.04);border-radius:0 8px 8px 0;padding-right:8px;padding-top:6px;padding-bottom:6px">' +
             '<b style="color:#16a34a">🌟 核心功能</b><br>' +
-            '🧠 双模型智能分流：纯文本 DeepSeek，图片题 Kimi 多模态<br>' +
+            '🧠 DeepSeek 原生多模态：deepseek-flash 直接识别图片题，无需第三方模型<br>' +
             '📄 文档/PPT 模拟翻阅：逐屏滚动 + 自动提交 + DOM 实时刷新<br>' +
             '🎯 三级答案匹配：精确 → Levenshtein 模糊 → 字母回退<br>' +
             '📚 全任务类型支持：视频/音频/测验/文档/阅读/直播/速课/讨论<br>' +
@@ -1050,7 +1137,7 @@ function showBox() {
             '⏭️ 任务点跳过按钮 — 卡死时可手动跳过当前任务<br>' +
             '📖 文档/PPT 自动翻页 — 模拟真实阅读直到页底' +
             '</div>' +
-            '<p style="margin:12px 0 0;opacity:.4;font-size:10px;text-align:center">AI 辅助编码 · 人类主导设计 — Khihl & Claude</p>' +
+            '<p style="margin:12px 0 0;opacity:.4;font-size:10px;text-align:center">人类主导设计 · AI 辅助编码 — Khihl & DeepSeek Harness</p>' +
             '</div>';
         top.document.body.appendChild(overlay);
         // 点击遮罩或关闭按钮收起
@@ -1068,12 +1155,9 @@ function showBox() {
     function updateStatusDot() {
         var dot = top.document.querySelector('.ne21-dot');
         if (!dot) return;
-        var hasDS = getDeepSeekApiKey();
-        var hasKimi = getKimiApiKey();
-        if (hasDS && hasKimi) {
+        // 单一 DeepSeek 密钥即可覆盖全部题型（含图片题）
+        if (getDeepSeekApiKey()) {
             dot.style.background = 'radial-gradient(circle at 32% 28%, rgba(255,255,255,.98), #22c55e 55%, rgba(34,197,94,.35) 100%)';
-        } else if (hasDS || hasKimi) {
-            dot.style.background = 'radial-gradient(circle at 32% 28%, rgba(255,255,255,.98), #eab308 55%, rgba(234,179,8,.35) 100%)';
         } else {
             dot.style.background = 'radial-gradient(circle at 32% 28%, rgba(255,255,255,.98), rgba(255,255,255,.5) 55%, rgba(15,23,42,.18) 100%)';
         }
@@ -1088,12 +1172,6 @@ var _ne21LogColorMap = {
     info:    '#2563eb', blue:   '#2563eb',
     hili:    '#7c3aed', purple: '#7c3aed',
     muted:   '#64748b', gray:   '#64748b', grey: '#64748b'
-}
-var _logP = {
-    VID: '[视频] ', AUD: '[音频] ', QUIZ: '[测验] ', DOC: '[文档] ',
-    READ: '[阅读] ', BOOK: '[读书] ', LIVE: '[直播] ', MICRO: '[速课] ',
-    BBS: '[讨论] ', EXAM: '[考试] ', HW: '[作业] ', AI: '[AI] ',
-    NAV: '[导航] ', SYS: '[系统] ', TASK: '[任务] '
 }
 function logger(str, color) {
     var _time = new Date().toLocaleTimeString()
@@ -4837,7 +4915,7 @@ function hideThinking() {
     }
 }
 
-// ===== 题目区域截图函数（用于 Kimi 多模态） =====
+// ===== 题目区域截图函数（用于 DeepSeek 原生多模态） =====
 
 // 对题目内容截图，返回 base64 data URI（PNG）
 // payload: JSON 字符串（包含 question 字段，内含 <img> 标签）
@@ -4902,7 +4980,7 @@ function payloadHasImages(text) {
 //   - question:      题干
 //   - options:       选项数组(可选)
 //   - answer_format: 答案格式说明(可选,如 "用'|'分割多个答案"、"只回答正确或错误")
-//   - screenshot:    题目区域截图 base64 data URI(可选, Kimi 多模态使用)
+//   - screenshot:    题目区域截图 base64 data URI(可选, 供多模态模型识别图片)
 // 返回 { payload, display, images }:
 //   - payload: 发送给 AI 的 JSON 字符串(更精确,便于 AI 解析)
 //   - display: 用于用户日志展示的简洁文本(仅含题干与选项,不含题型/答案格式等元信息)
@@ -4961,9 +5039,19 @@ function getAnswer(_t, _q, retryCount = 0) {
     }
 
     // 图片处理：有截图直接用，否则从 payload 中的 HTML 渲染截图
-    let _useKimi = _images.length > 0 || _payloadHasImg
+    let _imgMode = getDeepSeekImgMode()
+    // text 模式下不做视觉识别，也就不需要截图（省一次渲染开销）
+    let _wantImage = _imgMode !== 'text'
+    let _useVision = _wantImage && (_images.length > 0 || _payloadHasImg)
+    let _textModel = getDeepSeekModel()
+    let _visionModel = getDeepSeekVisionModel()
+    // 多模态模型名为空时回退到官方默认值
+    if (!_visionModel) _visionModel = 'deepseek-flash'
+
     let imagePrepare
-    if (_images.length > 0) {
+    if (!_useVision) {
+        imagePrepare = Promise.resolve([])
+    } else if (_images.length > 0) {
         // buildPrompt 已传入截图
         imagePrepare = Promise.resolve(_images)
     } else if (_payloadHasImg) {
@@ -4980,8 +5068,33 @@ function getAnswer(_t, _q, retryCount = 0) {
 
     return imagePrepare.then(function (resolvedImages) {
 
+    // 模型路由：官方 deepseek-flash 原生支持图片（Vision），deepseek-v4-pro 不支持。
+    // 需要识别图片 → 用多模态模型；纯文本题 → 用用户选定的文本模型。
+    let model, imageModelInUse = resolvedImages.length > 0
+    if (imageModelInUse) {
+        model = _visionModel
+    } else if (_imgMode === 'vision' && _wantImage) {
+        // 用户要求"总是用多模态"：全部题目都交给多模态模型
+        model = _visionModel
+    } else {
+        model = _textModel
+    }
+    // 兜底：万一被路由到不支持视觉的模型却带着图片，改用多模态模型，
+    // 否则官方 API 会直接返回 400。若多模态模型本身也识别不了，则丢弃图片按纯文本处理。
+    if (imageModelInUse && !modelSupportsVision(model)) {
+        if (modelSupportsVision(_visionModel)) {
+            logger(_logP.AI + '[警告] 模型 ' + model + ' 不支持图片输入，已改用 ' + _visionModel + '。', 'warn')
+            model = _visionModel
+        } else {
+            logger(_logP.AI + '[警告] 模型 ' + model + ' 不支持图片输入，本次丢弃截图按纯文本处理。', 'warn')
+            resolvedImages = []
+            imageModelInUse = false
+            model = _textModel
+        }
+    }
+
     // 创建可折叠的 AI 思考面板
-    let _provider = resolvedImages.length > 0 ? 'Kimi' : 'DeepSeek'
+    let _provider = imageModelInUse ? (model + ' · 多模态') : (model + ' · 文本')
     let _summaryHtml = '<span class="ne21-log-spinner"></span>' + _qPrefix + '思考中...'
     let _detailId = 'ne21-detail-' + Date.now()
     let _time = new Date().toLocaleTimeString()
@@ -4994,28 +5107,16 @@ function getAnswer(_t, _q, retryCount = 0) {
     let $thinkingLog = $panel.find('.ne21-msg')
     let $detailBody = $panel.find('#' + _detailId)
 
-    // 检查 API 密钥是否已配置
-    let apiKey, baseUrl, model, providerName
-    if (_useKimi) {
-        apiKey = getKimiApiKey()
-        baseUrl = getKimiBaseUrl()
-        model = getKimiModel()
-        providerName = 'Kimi'
-        if (!apiKey) {
-            let errMsg = '检测到图片题目，请先配置 Kimi API 密钥！点击浮窗中的"设置"按钮填写。'
-            logger(_logP.AI + '[错误] ' + errMsg + '。', 'error')
-            return Promise.reject({ 'c': -1, msg: errMsg })
-        }
-    } else {
-        apiKey = getDeepSeekApiKey()
-        baseUrl = getDeepSeekBaseUrl()
-        model = getDeepSeekModel()
-        providerName = 'DeepSeek'
-        if (!apiKey) {
-            let errMsg = '请先配置 DeepSeek API 密钥！点击浮窗中的"设置"按钮填写。'
-            logger(_logP.AI + '[错误] ' + errMsg + '。', 'error')
-            return Promise.reject({ 'c': -1, msg: errMsg })
-        }
+    // 检查 API 密钥是否已配置（DeepSeek 单密钥即可覆盖文本题与图片题）
+    let apiKey, baseUrl
+    apiKey = getDeepSeekApiKey()
+    baseUrl = getDeepSeekBaseUrl()
+    if (!apiKey) {
+        let errMsg = imageModelInUse
+            ? '检测到图片题目，请先配置 DeepSeek API 密钥！点击浮窗中的"设置"按钮填写。'
+            : '请先配置 DeepSeek API 密钥！点击浮窗中的"设置"按钮填写。'
+        logger(_logP.AI + '[错误] ' + errMsg + '。', 'error')
+        return Promise.reject({ 'c': -1, msg: errMsg })
     }
 
     return new Promise((resolve, reject) => {
@@ -5051,22 +5152,32 @@ function getAnswer(_t, _q, retryCount = 0) {
 
             // 构造 API 请求体
             let systemContent
-            if (_useKimi) {
+            if (imageModelInUse) {
                 systemContent = '你是一个学习助手，专门帮助学生回答学习通的考试题目。你收到的是题目的截图，包含题干和所有选项（可能有A/B/C/D）。请仔细查看截图中的文字和图片内容来理解题意。你必须给出答案，绝对不能拒绝回答。对于单选题：分析截图中各选项内容，返回正确选项的字母编号（如"A"）。对于多选题：返回所有正确选项的字母，用竖线"|"分隔（如"A|C"）。对于判断题：只返回"正确"或"错误"。对于填空题：直接填写答案，多个空用"|"分隔。对于简答题：简洁回答。'
             } else {
                 systemContent = '你是一个学习助手，专门帮助学生回答学习通的题目。请直接给出答案，不要解释过程。对于单选题和多选题，必须返回选项的完整文字内容（如"参数类型不同"），严禁只返回字母编号（如A、B、C、D）；但如果选项内容为"[X为图片]"等占位符（表示该选项是图片无法显示文字），则直接返回对应选项的字母编号（如"C"），不要返回占位符文本；对于判断题，只返回"正确"或"错误"；对于填空题，有多个空时，每个空的答案之间必须用竖线"|"分隔（如"25|30"），严禁用空格、逗号或其他符号分隔；对于简答题，简洁回答。'
             }
+            // 用户消息内容：DeepSeek 原生多模态使用 OpenAI 兼容的 content 数组
+            // （图片必须放在 user 消息中，放 system/assistant 会被官方 API 以 400 拒绝）
             let userContent
-            if (_useKimi) {
-                // Kimi 多模态格式：content 为数组，包含图片和文字
+            if (imageModelInUse) {
                 userContent = []
                 resolvedImages.forEach(function (imgUrl) {
-                    userContent.push({ type: 'image_url', image_url: { url: imgUrl } })
+                    userContent.push({
+                        type: 'image_url',
+                        // detail: high 保留原始分辨率，截图中的小字/公式更易识别
+                        image_url: { url: imgUrl, detail: 'high' }
+                    })
                 })
                 userContent.push({ type: 'text', text: _payload })
             } else {
-                // DeepSeek 纯文本格式
-                userContent = _payload
+                // 纯文本格式：把 payload 中的 <img> 标签替换为占位符，
+                // 避免纯文本模型面对无意义的 HTML（选项文本为空的图片选项已在 buildPrompt 中标记为 [X为图片]）
+                var _textPayload = _payload
+                if (_payloadHasImg) {
+                    _textPayload = _payload.replace(/<img[^>]*>/gi, '[图片]')
+                }
+                userContent = _textPayload
             }
             let requestBody = {
                 model: model,
