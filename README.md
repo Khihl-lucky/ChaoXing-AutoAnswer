@@ -2,7 +2,7 @@
 
 > 基于 DeepSeek 原生多模态的学习通自动刷课/答题用户脚本
 
-[![Version](https://img.shields.io/badge/version-2.3.0-blue)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer)
+[![Version](https://img.shields.io/badge/version-2.3.1-blue)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer)
 [![License](https://img.shields.io/badge/license-MIT-green)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer/blob/main/LICENSE)
 
 ## 简介
@@ -15,9 +15,15 @@
 
 ## 更新日志
 
+### v2.3.1
+
+- **变更**：脚本文件更名为 `chaoxing-autoanswer.user.js`，符合油猴对 `.user.js` 后缀的识别规则，从链接打开即可触发自动安装
+- **新增**：补充 `@downloadURL` / `@updateURL` / `@supportURL`，装一次之后版本更新可由油猴自动检测
+- 若你此前是通过链接安装的旧文件名版本，请用新链接重装一次；脚本内的 `@name` 未变，Tampermonkey 会提示覆盖更新
+
 ### v2.3.0
 
-- **修复**：`/knowledge/cards` 空白页卡死。`_logP` 原先定义在脚本后段，而该分支为同步执行，会先一步访问 `_logP.NAV` 抛 `TypeError`，导致随后的 `toNext()` 不执行、脚本停在该页不再跳转。现将日志配置前移至文件顶部（[学习通助手.js](学习通助手.js)）
+- **修复**：`/knowledge/cards` 空白页卡死。`_logP` 原先定义在脚本后段，而该分支为同步执行，会先一步访问 `_logP.NAV` 抛 `TypeError`，导致随后的 `toNext()` 不执行、脚本停在该页不再跳转。现将日志配置前移至文件顶部（[chaoxing-autoanswer.user.js](chaoxing-autoanswer.user.js)）
 - **修复**：浮窗收起后无法拖动、点击展开展开时好时坏。最小化状态下拖动被 `#ne-21close` 守卫拦截；补上 4px 拖动阈值后，点击不再被手抖产生的 mousemove 吞掉；收起/展开收敛为单一状态入口
 - **优化**：拖动起始坐标改取未缩放的计算样式，消除浮动球 hover 缩放导致的起始跳变；位置持久化改用拖动过程中维护的坐标，避免刷新后位置回跳
 - **优化**：补充拖动中断兜底（拖到窗口外松手不再让浮窗"粘"在鼠标上）
@@ -78,7 +84,13 @@
 
 ### 2. 安装脚本
 
-在本仓库 [Releases](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer/releases) 下载 `学习通助手.js`，或直接复制源码，在 Tampermonkey 管理面板中新建脚本并粘贴即可。
+点击下面的链接即可自动唤起 Tampermonkey 安装（文件名带 `.user.js` 后缀，油猴会识别为可安装脚本）：
+
+**[➡️ 点此安装 chaoxing-autoanswer.user.js](https://raw.githubusercontent.com/Khihl-lucky/ChaoXing-AutoAnswer/main/chaoxing-autoanswer.user.js)**
+
+也可以从 [Releases](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer/releases) 下载后手动导入，或复制源码在 Tampermonkey 管理面板中新建脚本粘贴。
+
+> 脚本头部已写入 `@downloadURL` / `@updateURL`，安装一次后新版本可由油猴自动检测更新。
 
 ### 3. 配置 API 密钥
 
@@ -167,8 +179,8 @@
 
 ```
 学习通脚本/
-├── 学习通助手.js    # 主脚本（~5600行）
-└── README.md        # 项目文档
+├── chaoxing-autoanswer.user.js   # 主脚本（~5600行，油猴可直接安装）
+└── README.md                     # 项目文档
 ```
 
 ## 技术亮点
@@ -209,7 +221,7 @@ A: 无需改代码。旧的 Kimi 配置项已从脚本中移除，设置里只�
 ## 开发
 
 ```bash
-# 直接编辑学习通助手.js
+# 直接编辑 chaoxing-autoanswer.user.js
 # 在Tampermonkey中加载本地文件即可调试
 ```
 
