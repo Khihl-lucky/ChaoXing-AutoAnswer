@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                AI学习通助手（DeepSeek 原生多模态）
-// @version             2.3.1
-// @description         基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题，用户自行填写API密钥免费使用
+// @version             2.5.2
+// @description         基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.5.2 浮窗新增 AI 思考指示器（动作 + 耗时），避免看起来卡死，用户自行填写API密钥免费使用
 // @author              Khihl & DeepSeek Harness
 // @originalAuthor      Ne-21
 // @match               *://*.chaoxing.com/*
@@ -66,16 +66,44 @@ var setting = {
 
     autoLogin: 0,   // 自动登录，0为关闭，1为开启，开启此功能请配置登陆配置项
     phone: '',      // 登录配置项：登录手机号/超星号
-    password: ''    // 登录配置项：登录密码
+    password: '',   // 登录配置项：登录密码
+
+    // ===== AI 实践 / 任务链（v2.5.2） =====
+    taskChain: 1,              // 检测到任务链时是否启用（1启用）
+    taskChainAutoStart: 0,     // 0=检测后询问；1=检测到直接开始
+    taskChainRounds: 20,       // 每个对话节点的目标轮数（上限由页面决定）
+    taskChainMinScore: 61,     // 节点合格分，低于则考虑重练
+    taskChainMaxRetry: 2,      // 单节点重练上限
+    taskChainAdvance: 1,       // 评估后自动进入下一节点
+    taskChainUpload: 1,        // 上传作品节点自动化
+    autoReport: 1,             // 自动生成并提交实验报告
+    reportWithDiagram: 1,      // 报告中嵌入路线图
+    studentName: '',           // 报告封面：姓名
+    studentId: '',             // 报告封面：学号
+    studentClass: '',          // 报告封面：班级
+    taskChainDryRun: 0,        // 演练模式：只生成不发送
+    replyMin: 150,             // 单条回复最少字数
+    replyMax: 350,             // 单条回复最多字数
+    taskChainAutoUpload: 0,    // 0=生成后先预览再上传；1=生成后直接上传
+    taskChainMaxTokens: 0,     // 0=不传 max_tokens（交给服务端默认）；>0 时作为单轮输出上限
+    taskChainForceSubmit: 0    // 保留字段（旧版自检开关，已停用）
 }
 /************************************************************************************************** */
 /*
   ╔══════════════════════════════════════════════════════════════╗
-  ║        AI学习通助手 v2.3.1 (DeepSeek 原生多模态)            ║
+  ║        AI学习通助手 v2.5.2 (DeepSeek 原生多模态)            ║
   ╠══════════════════════════════════════════════════════════════╣
   ║  原作者:    Ne-21                                           ║
   ║  开发者:    Khihl & DeepSeek Harness                        ║
-  ║  更新:      2026-06-07 · Liquid Glass UI v3.0                ║
+  ║  更新:      2026-10-20 · AI 实践任务链自动化                 ║
+  ║                                                             ║
+  ║  v2.4.0 → v2.5.2 新增：                                              ║
+  ║   · 任务链检测 + 确认弹窗（不再静默开工）                    ║
+  ║   · 多节点编排：逐个作答→评估→进入下一节点                  ║
+  ║   · 严格回合制：读老师本轮发言后再生成，一轮只发一条         ║
+  ║   · 断点续跑：刷新后继续上次进度                             ║
+  ║   · 上传作品节点：聚合全链生成 docx 并自动提交               ║
+  ║   · 浮窗状态条：暂停 / 停止                                  ║
   ║                                                             ║
   ║  deepseek-flash 原生视觉识别图片题，无需第三方多模态服务     ║
   ║  文档/PPT模拟翻阅 · 讨论区AI自动回复 · 视频弹题处理          ║
@@ -159,7 +187,8 @@ var _logP = {
     VID: '[视频] ', AUD: '[音频] ', QUIZ: '[测验] ', DOC: '[文档] ',
     READ: '[阅读] ', BOOK: '[读书] ', LIVE: '[直播] ', MICRO: '[速课] ',
     BBS: '[讨论] ', EXAM: '[考试] ', HW: '[作业] ', AI: '[AI] ',
-    NAV: '[导航] ', SYS: '[系统] ', TASK: '[任务] '
+    NAV: '[导航] ', SYS: '[系统] ', TASK: '[任务] ',
+    TC: '[任务链] '
 }
 
 var _mlist, _defaults, _domList, $subBtn, $saveBtn, $frame_c, $okBtn;
@@ -294,6 +323,13 @@ if (_l.hostname == 'i.mooc.chaoxing.com' || _l.hostname == "i.chaoxing.com") {
     } catch (e) {
         console.error('[DeepSeek助手] 讨论区页面初始化出错:', e);
     }
+} else if (_l.pathname.includes('/taskChain/student/answer')) {
+    // AI 实践任务链：父页面统一驱动（检测→确认→多节点编排）
+    showBox()
+    tcBoot('parent')
+} else if (_l.pathname.includes('/taskDialogue/')) {
+    // 对话 iframe：由父页面通过 contentDocument 驱动，这里不再重复启动
+    if (window.top === window) { showBox(); tcBoot('solo') }
 } else if (_l.pathname == '/mycourse/stu') {
     checkBrowser()
 } else {
@@ -741,7 +777,7 @@ function showBox() {
         var box_html = `
             <div id="ne-21box">
                 <div class="ne21-header" title="拖动移动 | 点击 − 最小化">
-                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small style="font-size:10px;font-weight:400;opacity:0.6">v2.3.1</small></h3>
+                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small style="font-size:10px;font-weight:400;opacity:0.6">v2.5.2</small></h3>
                     <button id="ne-21close" type="button" aria-label="最小化">−</button>
                 </div>
                 <div class="ne21-body">
@@ -798,6 +834,42 @@ function showBox() {
                             <div class="ne21-group-title">⚙️ 模式开关</div>
                             <label><input type="checkbox" id="GPTJsSetting.redo">重做模式（不跳过已答题）</label>
                             <label><input type="checkbox" id="GPTJsSetting.task" checked>仅处理任务点（跳过非任务点）</label>
+                        </div>
+                        <div class="ne21-group">
+                            <div class="ne21-group-title">🧩 AI 实践 · 任务链</div>
+                            <label title="检测到「AI实践」任务链时，弹出提示后再开始">
+                                <input type="checkbox" id="GPTJsSetting.taskChain" checked>启用任务链自动作答
+                            </label>
+                            <label title="默认检测到后先询问；勾选则直接开始（进入下一任务后不可返回）">
+                                <input type="checkbox" id="GPTJsSetting.taskChainAutoStart">检测到后直接开始（不询问）
+                            </label>
+                            <label title="上传作品节点：自动生成实验报告并提交">
+                                <input type="checkbox" id="GPTJsSetting.autoReport" checked>自动生成并提交实验报告
+                            </label>
+                            <label title="演练模式：只生成回复并写入日志，不真正发送">
+                                <input type="checkbox" id="GPTJsSetting.taskChainDryRun">演练模式（只生成不发送）
+                            </label>
+                            <label title="默认生成文档后先在浮窗预览，你点「确认上传」才提交；勾选则跳过预览">
+                                <input type="checkbox" id="GPTJsSetting.taskChainAutoUpload">生成后直接上传（跳过预览）
+                            </label>
+                            <label title="单轮输出 token 上限；0 = 不传该参数（交给服务端默认），撞上限会自动续写">
+                                <input type="number" id="GPTJsSetting.taskChainMaxTokens" class="ne21-select" min="0" max="32768" step="256" style="min-width:70px;width:70px;padding:5px 8px;">输出上限 (0=不限)
+                            </label>
+                            <label title="每个对话节点的目标轮数，实际取页面允许的上限内最小值">
+                                <input type="number" id="GPTJsSetting.taskChainRounds" class="ne21-select" min="1" max="30" step="1" style="min-width:56px;width:56px;padding:5px 8px;">目标轮数/节点
+                            </label>
+                            <label title="节点合格分，低于该分数时按重练次数决定是否重做">
+                                <input type="number" id="GPTJsSetting.taskChainMinScore" class="ne21-select" min="0" max="100" step="1" style="min-width:56px;width:56px;padding:5px 8px;">节点合格分
+                            </label>
+                            <label title="实验报告封面姓名">
+                                <input type="text" id="GPTJsSetting.studentName" class="ne21-select" placeholder="请输入姓名" style="min-width:90px;flex:1;padding:5px 8px;">姓名
+                            </label>
+                            <label title="实验报告封面学号（用于文件命名：学号+姓名+实验一.docx）">
+                                <input type="text" id="GPTJsSetting.studentId" class="ne21-select" placeholder="请输入学号" style="min-width:110px;flex:1;padding:5px 8px;">学号
+                            </label>
+                            <label title="实验报告封面班级">
+                                <input type="text" id="GPTJsSetting.studentClass" class="ne21-select" placeholder="请输入班级" style="min-width:90px;flex:1;padding:5px 8px;">班级
+                            </label>
                         </div>
                     </div>
                     <div id="ne-21thinking">
@@ -1000,8 +1072,16 @@ function showBox() {
             if (localStorage.getItem('GPTJsSetting.sub') === null) {
                 localStorage.setItem('GPTJsSetting.sub', 'true');
             }
+            // 任务链默认开启（检测+询问）、报告自动生成为开
+            if (localStorage.getItem('GPTJsSetting.taskChain') === null) {
+                localStorage.setItem('GPTJsSetting.taskChain', 'true');
+            }
+            if (localStorage.getItem('GPTJsSetting.autoReport') === null) {
+                localStorage.setItem('GPTJsSetting.autoReport', 'true');
+            }
 
-            ['sub', 'force', 'examTurn', 'goodStudent', 'alterTitle', 'redo', 'fuzzyMatch', 'task'].forEach(function (settingId) {
+            ['sub', 'force', 'examTurn', 'goodStudent', 'alterTitle', 'redo', 'fuzzyMatch', 'task',
+                'taskChain', 'taskChainAutoStart', 'autoReport', 'taskChainDryRun', 'taskChainAutoUpload'].forEach(function (settingId) {
                 var checkbox = top.document.getElementById('GPTJsSetting.' + settingId);
                 if (!checkbox) return;
                 checkbox.addEventListener('change', updateLocalStorage);
@@ -1074,6 +1154,28 @@ function showBox() {
                     localStorage.setItem('GPTJsSetting.reqIntervalTime', String(v));
                 });
             }
+            // ===== 任务链相关输入项（v2.5.2） =====
+            [['taskChainRounds', 20, 1, 30], ['taskChainMinScore', 61, 0, 100], ['taskChainMaxTokens', 0, 0, 32768]].forEach(function (item) {
+                var el = top.document.getElementById('GPTJsSetting.' + item[0]);
+                if (!el) return;
+                var saved = localStorage.getItem('GPTJsSetting.' + item[0]);
+                el.value = (saved !== null && isFinite(parseInt(saved, 10))) ? saved : String(setting[item[0]] === undefined ? item[1] : setting[item[0]]);
+                el.addEventListener('change', function () {
+                    var v = parseInt(el.value, 10);
+                    if (!isFinite(v) || v < item[2]) v = item[2];
+                    if (v > item[3]) v = item[3];
+                    el.value = String(v);
+                    localStorage.setItem('GPTJsSetting.' + item[0], String(v));
+                });
+            });
+            ['studentName', 'studentId', 'studentClass'].forEach(function (k) {
+                var el = top.document.getElementById('GPTJsSetting.' + k);
+                if (!el) return;
+                el.value = localStorage.getItem('GPTJsSetting.' + k) || setting[k] || '';
+                el.addEventListener('change', function () {
+                    localStorage.setItem('GPTJsSetting.' + k, el.value.trim());
+                });
+            });
         })();
     } else {
         $('#ne-21log', window.parent.document).html('')
@@ -1118,11 +1220,11 @@ function showBox() {
             '<span id="ne-21-about-close" style="cursor:pointer;font-size:18px;color:rgba(15,23,42,.5);width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.5);">×</span>' +
             '</div>' +
             '<div class="ne21-about-card" style="font-size:12px;line-height:1.8">' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 版本</span><b>v2.3.1</b></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 版本</span><b>v2.5.2</b></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">👤 原作者</span><span>Ne-21</span></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🛠️ 开发者</span><b>Khihl & DeepSeek Harness</b></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🧠 AI 模型</span><span>DeepSeek 原生多模态</span></div>' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📊 代码规模</span><span>~5600 行</span></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📊 代码规模</span><span>~8300 行</span></div>' +
             '</div>' +
             '<div style="border-left:3px solid #22c55e;padding-left:12px;margin:12px 0;font-size:12px;line-height:1.8;background:rgba(34,197,94,.04);border-radius:0 8px 8px 0;padding-right:8px;padding-top:6px;padding-bottom:6px">' +
             '<b style="color:#16a34a">🌟 核心功能</b><br>' +
@@ -1132,7 +1234,8 @@ function showBox() {
             '📚 全任务类型支持：视频/音频/测验/文档/阅读/直播/速课/讨论<br>' +
             '🛡️ 智能防卡死：人脸识别检测、任务完成轮询、超时保护<br>' +
             '📝 日志系统：统一格式 [模块] [状态]，7级颜色语义<br>' +
-            '💎 Liquid Glass UI：毛玻璃浮窗，可拖拽，位置/状态持久化' +
+            '💎 Liquid Glass UI：毛玻璃浮窗，可拖拽，位置/状态持久化<br>' +
+            '🧩 AI 实践任务链：检测确认 → 多节点自动作答 → 生成文档并提交' +
             '</div>' +
             '<div style="border-left:3px solid #eab308;padding-left:12px;margin:12px 0;font-size:12px;line-height:1.8;background:rgba(234,179,8,.04);border-radius:0 8px 8px 0;padding-right:8px;padding-top:6px;padding-bottom:6px">' +
             '<b style="color:#ca8a04">⭐ 独家功能</b><br>' +
@@ -5540,6 +5643,2613 @@ function startDoWork(index, doms, c, TiMuList) {
         }
     }
 }
+
+/* ============================ AI 实践任务链模块 v2.5.2 ============================ */
+/* ==========================================================================================
+ * AI 实践 / 任务链自动化模块  v2.5.2
+ * 功能：检测确认 → 多节点编排 → 回合制对话 → 逐节点评估 → 跨节点前进 → 聚合报告 → 自动上传
+ * 说明：本模块运行在父页面（taskChain/student/answer），通过同源 iframe 直接驱动对话页。
+ * ======================================================================================== */
+/* eslint-disable */
+
+var TC_VER = '2.4.0';
+var TC_LOCK_KEY = 'ne21.taskChain.lock';
+var _tcNextAllowedAt = 0;
+var _tcRunning = false;
+var _tcPaused = false;
+
+/* ---------------------------------- 基础工具 ---------------------------------- */
+
+function tcLog(msg, color) { try { logger(_logP.TC + msg, color || 'info'); } catch (e) { console.log('[任务链] ' + msg); } }
+function tcSleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+function tcNow() { return Date.now(); }
+function tcPad(n) { return n < 10 ? '0' + n : '' + n; }
+function tcTimeStr(d) { d = d || new Date(); return tcPad(d.getHours()) + ':' + tcPad(d.getMinutes()); }
+
+// 读取配置：localStorage 优先，其次 setting 默认值
+function tcCfg(k, d) {
+    var v = null;
+    try { v = localStorage.getItem('GPTJsSetting.' + k); } catch (e) { }
+    if (v === null || v === undefined) v = (typeof setting !== 'undefined') ? setting[k] : undefined;
+    if (v === undefined || v === null || v === '') return d;
+    if (typeof d === 'boolean') return v === true || v === 'true' || v === 1 || v === '1';
+    if (typeof d === 'number') { var n = parseFloat(v); return isFinite(n) ? n : d; }
+    return String(v);
+}
+
+function tcParam(name) {
+    try { return new URLSearchParams(location.search).get(name) || ''; } catch (e) { return ''; }
+}
+
+function tcChainKey() {
+    var k = tcParam('publishRelationUuid') || tcParam('libraryUuid') || '';
+    if (k) return 'pr_' + k;
+    return 'ph_' + location.pathname.replace(/[^a-z0-9]/gi, '') + '_' + (tcParam('courseId') || '') + '_' + (tcParam('clazzId') || '');
+}
+
+function tcStoreGet(key, dft) {
+    try { var v = GM_getValue(key, ''); return v ? JSON.parse(v) : dft; } catch (e) { return dft; }
+}
+function tcStoreSet(key, obj) {
+    try { GM_setValue(key, JSON.stringify(obj)); } catch (e) { }
+}
+
+function tcState() {
+    var key = 'taskChain.' + tcChainKey();
+    var st = tcStoreGet(key, null);
+    if (!st || typeof st !== 'object') st = { phase: 'idle', nodes: [], transcripts: {}, carryOver: '', discussed: [], attempts: {}, round: 0, nodeIdx: -1 };
+    st.transcripts = st.transcripts || {};
+    st.discussed = st.discussed || [];
+    st.attempts = st.attempts || {};
+    st.chainKey = tcChainKey();
+    return st;
+}
+function tcSaveState(st) { tcStoreSet('taskChain.' + (st.chainKey || tcChainKey()), st); }
+
+/* ---------------------------------- 检测与确认 ---------------------------------- */
+
+function tcDetectNow() {
+    try {
+        if (document.querySelector('iframe.dialogue-frame')) return true;
+        var t = (document.body && document.body.innerText) || '';
+        var arts = document.querySelectorAll('article');
+        if (arts.length >= 2 && /任务流/.test(t) && /情景对话|上传作品/.test(t)) return true;
+        if (/AI实践/.test(document.title || '') && /本次成绩/.test(t)) return true;
+    } catch (e) { }
+    return false;
+}
+
+function tcWaitDetect(timeout) {
+    timeout = timeout || 20000;
+    var start = tcNow();
+    return new Promise(function (resolve) {
+        (function loop() {
+            if (tcDetectNow()) return resolve(true);
+            if (tcNow() - start > timeout) return resolve(false);
+            setTimeout(loop, 500);
+        })();
+    });
+}
+
+// 按文本找可点击元素。
+// 关键点：学习通大量按钮是 <button><span class="icon"></span>文字</button>，
+// 旧实现默认跳过“有子元素”的节点，导致「选择文件」这类按钮永远找不到。
+function tcFindByText(root, text, opts) {
+    if (!root) return null;
+    opts = opts || {};
+    var want = String(text).replace(/\s+/g, '');
+    var scope = opts.root || root;
+    var list = scope.querySelectorAll(opts.selector || 'button,a,div,span,p,li,strong');
+    var maxChildren = opts.maxChildren === undefined ? 4 : opts.maxChildren;
+    var loose = null;
+
+    function clickableOf(el) {
+        try {
+            var c = el.closest ? el.closest('button,a,[role="button"],.choose-btn,.earlyEndBtn,.sendMessage,.sendBtn,.flow-card-enter-btn') : null;
+            if (!c) return el;
+            var ct = (c.textContent || '').replace(/\s+/g, '');
+            // 祖先文本不能比目标长太多，避免点到整块容器
+            if (ct === want || ct.length <= want.length + 8) return c;
+        } catch (e) { }
+        return el;
+    }
+
+    for (var i = 0; i < list.length; i++) {
+        var el = list[i];
+        if (el.childElementCount > maxChildren) continue;
+        var t = (el.textContent || '').replace(/\s+/g, '');
+        if (t === want) return clickableOf(el);
+        if (!loose && t.indexOf(want) !== -1 && t.length <= want.length + 8) loose = el;
+    }
+    if (!opts.exactOnly && loose) return clickableOf(loose);
+    return null;
+}
+
+function tcClick(el) {
+    if (!el) return false;
+    try { el.click(); return true; } catch (e) { return false; }
+}
+
+// SweetAlert2 封装（兼容 v11）
+function tcSwal(opt) {
+    return new Promise(function (resolve) {
+        if (typeof Swal === 'undefined' || !Swal || !Swal.fire) { resolve({ isConfirmed: true }); return; }
+        Swal.fire(opt).then(resolve).catch(function () { resolve({ isConfirmed: false }); });
+    });
+}
+
+/* ---- 浮窗内嵌确认卡片（不使用 SweetAlert 模态框） ---- */
+
+function tcPanelBody() { return document.querySelector('#ne-21box .ne21-body'); }
+
+function tcCardRemove() {
+    var el = document.getElementById('tcConfirm');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+function tcNodeListHtml(nodes) {
+    var rows = nodes.slice(0, 8).map(function (n) {
+        var icon = n.done ? '✅' : (n.enter ? '▶️' : '🔒');
+        var tp = n.type === 'upload' ? '上传' : '对话';
+        return '<div style="padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+            + icon + ' [' + tp + '] ' + tcXmlEscape(n.title)
+            + (n.score != null ? ' · ' + n.score + ' 分' : '') + '</div>';
+    });
+    var html = rows.join('');
+    if (nodes.length > 8) html += '<div style="color:#64748b;">… 还有 ' + (nodes.length - 8) + ' 个</div>';
+    if (!html) html = '<div style="color:#64748b;">暂未识别到节点</div>';
+    return html;
+}
+
+// 在浮窗内渲染确认卡片，返回 Promise<{action, remember}>
+// kind: 'start' | 'resume'
+function tcPanelAsk(kind, data) {
+    return new Promise(function (resolve) {
+        var body = tcPanelBody();
+        if (!body) { tcLog('未找到脚本浮窗，无法显示确认卡片', 'error'); resolve({ action: 'no', remember: false }); return; }
+        tcCardRemove();
+        var st = data.st || {};
+        var nodes = data.nodes || [];
+        var rounds = tcCfg('taskChainRounds', 20);
+        var minScore = tcCfg('taskChainMinScore', 61);
+        var uploads = nodes.filter(function (n) { return n.type === 'upload'; }).length;
+        var dialogues = nodes.length - uploads;
+
+        var card = document.createElement('div');
+        card.id = 'tcConfirm';
+        card.className = 'ne21-uid';
+        card.style.cssText = 'display:block;padding:10px 12px;margin:0 0 10px;font-size:12px;line-height:1.65;text-align:left;';
+
+        var title = kind === 'resume' ? '检测到未完成的进度' : '🧩 检测到 AI 实践任务链';
+        var sub = kind === 'resume'
+            ? ('上次：第 ' + (st.round || 0) + ' 轮' + (st.updatedAt ? '，中断于 ' + tcTimeStr(new Date(st.updatedAt)) : ''))
+            : ('已发现 <b>' + nodes.length + '</b> 个节点（后续节点完成后自动解锁）');
+
+        var plan = kind === 'resume' ? ''
+            : '<div style="color:#475569;margin-top:4px;">计划：'
+            + (dialogues ? '对话 ' + dialogues + ' 个（每个 ' + rounds + ' 轮）' : '')
+            + (dialogues && uploads ? ' · ' : '')
+            + (uploads ? '上传 ' + uploads + ' 个' : '')
+            + ' · 最低分 ' + minScore + '</div>';
+        var warn = kind === 'resume' ? ''
+            : '<div style="color:#b45309;margin-top:4px;">⚠️ 进入下一任务后不可返回，运行期间请勿关闭页面</div>';
+        var noName = !tcCfg('studentName', '') || !tcCfg('studentId', '');
+        var nameHint = (kind === 'resume' || !noName) ? ''
+            : '<div style="color:#b45309;margin-top:4px;">未填写姓名/学号：上传节点将转为手动选择文件，生成的文档不署名</div>';
+        var remember = kind === 'resume' ? ''
+            : '<label style="display:flex;align-items:center;gap:6px;margin-top:6px;color:#475569;">'
+            + '<input type="checkbox" id="tcRemember"> 本链不再提醒（下次自动开始）</label>';
+
+        card.innerHTML = '<div style="font-weight:600;font-size:13px;margin-bottom:3px;color:#0f172a;">' + title + '</div>'
+            + '<div style="color:#334155;">' + sub + '</div>'
+            + '<div style="background:rgba(255,255,255,.62);border-radius:8px;padding:6px 8px;margin:6px 0;max-height:128px;overflow:auto;">'
+            + tcNodeListHtml(nodes) + '</div>'
+            + plan + warn + nameHint + remember
+            + '<div id="tcCardBtns" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"></div>';
+
+        var bar = document.getElementById('tcBar');
+        if (bar && bar.parentNode === body && bar.nextSibling) body.insertBefore(card, bar.nextSibling);
+        else body.insertBefore(card, body.firstChild);
+
+        var defs = kind === 'resume'
+            ? [['继续上次', 'chain', 1], ['本节点重跑', 'node', 0], ['放弃', 'no', 0]]
+            : [['开始自动作答', 'chain', 1], ['只做当前节点', 'node', 0], ['稍后', 'no', 0]];
+        var wrap = card.querySelector('#tcCardBtns');
+        defs.forEach(function (d) {
+            var b = document.createElement('button');
+            b.textContent = d[0];
+            b.className = 'ne21-btn ' + (d[2] ? 'ne21-btn-primary' : 'ne21-btn-secondary');
+            b.style.cssText = 'padding:5px 12px;font-size:12px;';
+            b.addEventListener('click', function () {
+                var rem = !!(document.getElementById('tcRemember') || {}).checked;
+                tcCardRemove();
+                resolve({ action: d[1], remember: rem });
+            });
+            wrap.appendChild(b);
+        });
+        card.scrollIntoView({ block: 'nearest' });
+    });
+}
+
+// 「稍后」后，在状态条里给一个重新唤起的入口
+function tcShowStartButton() {
+    try {
+        var bar = document.getElementById('tcBar');
+        if (!bar) return;
+        if (document.getElementById('tcStartBtn')) return;
+        var b = document.createElement('button');
+        b.id = 'tcStartBtn';
+        b.textContent = '▶ 开始任务链';
+        b.style.cssText = 'margin-right:6px;padding:4px 10px;border-radius:9px;border:1px solid rgba(37,99,235,.45);background:#2563eb;color:#fff;cursor:pointer;font-size:12px;';
+        b.addEventListener('click', function () {
+            b.remove();
+            var nodes = tcScanNodes();
+            tcPanelAsk('start', { nodes: nodes, st: tcState() }).then(function (d) {
+                if (!d || d.action === 'no') { tcShowStartButton(); return; }
+                tcChainLoop(d.action === 'node' ? 'node' : 'chain');
+            });
+        });
+        bar.appendChild(b);
+    } catch (e) { }
+}
+
+/* ---------------------------------- 页面与节点扫描 ---------------------------------- */
+
+function tcDialogueFrame() { return document.querySelector('iframe.dialogue-frame'); }
+function tcDialogueDoc() {
+    var f = tcDialogueFrame();
+    try { return f && f.contentDocument ? f.contentDocument : null; } catch (e) { return null; }
+}
+
+function tcNodeKey(title, used) {
+    var k = String(title || '').replace(/[\s\u3000]+/g, '')
+        .replace(/[（）()\[\]【】:：,，.。;；、\/\\|*?"'<>＋+]/g, '')
+        .slice(0, 40);
+    if (!k) k = 'node';
+    if (used && used[k]) {
+        var n = 2;
+        while (used[k + '#' + n]) n++;
+        k = k + '#' + n;
+    }
+    return k;
+}
+
+// 读取节点角标（情景对话 / 上传作品）—— 目录里的类型以角标为准，标题不可靠
+function tcArticleBadge(el) {
+    var leaves = el.querySelectorAll('div,span,p');
+    for (var i = 0; i < leaves.length; i++) {
+        var e = leaves[i];
+        if (e.childElementCount !== 0) continue;
+        var t = (e.textContent || '').replace(/\s+/g, '');
+        if (t === '情景对话' || t === '上传作品') return t;
+    }
+    return '';
+}
+
+// 抽取节点的任务说明（标题之后、已完成条件之前的段落）
+function tcArticleDesc(el, title) {
+    var ps = el.querySelectorAll('p');
+    var out = [];
+    for (var i = 0; i < ps.length; i++) {
+        var t = (ps[i].textContent || '').replace(/\s+/g, ' ').trim();
+        if (!t) continue;
+        if (t.indexOf('已完成条件') === 0) break;
+        if (t === title) continue;
+        if (/^(作答记录|重新练习|进入任务|当前任务|即将作答)$/.test(t)) continue;
+        out.push(t);
+    }
+    var d = out.join(' ').trim();
+    if (!d) {
+        // 兜底：用整段文本里“标题之后、已完成条件之前”的部分
+        var seg = (el.innerText || '').split('已完成条件')[0] || '';
+        var idx = seg.indexOf(title);
+        if (idx >= 0) d = seg.slice(idx + title.length).replace(/\s+/g, ' ').trim();
+    }
+    return d.slice(0, 600);
+}
+
+function tcScanNodes() {
+    var nodes = [], used = {};
+    var minScore = tcCfg('taskChainMinScore', 61);
+    var arts = document.querySelectorAll('main article');
+    if (!arts.length) arts = document.querySelectorAll('article');
+    for (var i = 0; i < arts.length; i++) {
+        var el = arts[i];
+        var txt = (el.innerText || '').replace(/\r/g, '');
+        if (!/情景对话|上传作品|实践/.test(txt)) continue;
+        var h = el.querySelector('h1,h2,h3,h4');
+        var title = (h ? h.textContent : (el.innerText || '').split('\n')[0] || '').trim();
+        // 去掉“已完成条件：总分61~100分”里的数字干扰
+        var clean = txt.replace(/已完成条件[：:]\s*总分\s*\d+\s*[~～\-]\s*\d+\s*分/g, '')
+            .replace(/解锁下一节点条件[\s\S]*/, '');
+        var m = clean.match(/(\d{1,3})\s*分/);
+        var score = m ? parseInt(m[1], 10) : null;
+        var badge = tcArticleBadge(el);
+        var type;
+        if (badge === '上传作品') type = 'upload';
+        else if (badge === '情景对话') type = 'dialogue';
+        else type = /上传作品|报告|提交|附件/.test(title) ? 'upload' : 'dialogue';
+        var enterEl = null, retryEl = null;
+        var cands = el.querySelectorAll('button,div,span,a');
+        for (var j = 0; j < cands.length; j++) {
+            var t2 = (cands[j].textContent || '').replace(/\s+/g, '');
+            if (!enterEl && t2 === '进入任务') { enterEl = cands[j]; }
+            if (!retryEl && t2 === '重新练习') { retryEl = cands[j]; }
+        }
+        var key = tcNodeKey(title, used);
+        used[key] = 1;
+        nodes.push({
+            idx: i, key: key, title: title, type: type,
+            desc: tcArticleDesc(el, title),
+            score: score,
+            done: score != null && score >= minScore,
+            enter: !!enterEl, enterEl: enterEl,
+            retry: !!retryEl, retryEl: retryEl,
+            raw: el
+        });
+    }
+    return nodes;
+}
+
+// 把本次扫描结果合并进持久化状态（只增不删，分数取最新）
+function tcMergeNodes(nodes) {
+    var st = tcState();
+    st.nodes = st.nodes || [];
+    var map = {};
+    st.nodes.forEach(function (n) { map[n.key] = n; });
+    nodes.forEach(function (n) {
+        var prev = map[n.key];
+        if (prev) {
+            prev.title = n.title || prev.title;
+            prev.type = n.type || prev.type;
+            if (n.desc) prev.desc = n.desc;
+            if (n.score != null && (prev.score == null || n.score !== prev.score)) prev.score = n.score;
+            prev.done = !!prev.done || n.done;
+            prev.seenAt = tcNow();
+        } else {
+            st.nodes.push({ key: n.key, title: n.title, type: n.type, desc: n.desc, score: n.score, done: n.done, seenAt: tcNow() });
+        }
+    });
+    tcSaveState(st);
+    return st.nodes;
+}
+
+function tcChainDone() {
+    var t = (document.body.innerText || '');
+    return /任务已完成/.test(t) || /查看最终评估结果/.test(t);
+}
+
+function tcConfirmIrreversible() {
+    var btn = tcFindByText(document, '直接来吧', { selector: 'div,span,button,a' });
+    if (btn) { tcClick(btn); return true; }
+    return false;
+}
+
+// 找到任务链页面的 Vue 实例：
+// 该页面 #app 上没有 __vue__，实例挂在 .appHome 上，因此按选择器优先 + 全量扫描兜底。
+function tcHomeVm() {
+    var selectors = ['.appHome', '.container', '#app'];
+    for (var i = 0; i < selectors.length; i++) {
+        var el = document.querySelector(selectors[i]);
+        if (el && el.__vue__) return el.__vue__;
+    }
+    try {
+        var all = document.querySelectorAll('*');
+        var n = Math.min(all.length, 4000);
+        for (var j = 0; j < n; j++) {
+            var v = all[j].__vue__;
+            if (v && v.$data && (v.$data.uploadInfo || v.$data.taskFlowList)) return v;
+        }
+    } catch (e) { }
+    return null;
+}
+
+// 「重新练习」按钮点不动时的兜底：先调 Vue 方法，再直接跳转重练页
+function tcRetryViaVm(node) {
+    var vm = tcHomeVm();
+    if (!vm || !vm.$data) return Promise.resolve(false);
+    var list = vm.$data.taskFlowList || [];
+    var task = null;
+    for (var i = 0; i < list.length; i++) {
+        if (node && node.key && tcNodeKey(list[i].title) === node.key) { task = list[i]; break; }
+    }
+    if (!task) return Promise.resolve(false);
+    try {
+        if (typeof vm.handleRetryEvaluate === 'function') vm.handleRetryEvaluate(task);
+        tcLog('已尝试调用页面重练方法', 'info');
+    } catch (e) {
+        tcLog('调用 handleRetryEvaluate 失败：' + e.message, 'warn');
+    }
+    return tcSleep(3000).then(function () {
+        if (tcDialogueDoc() || tcFindChooseBtn()) return true;
+        var url = '';
+        try { url = vm.buildRetryEvaluateUrl(task); } catch (e) { }
+        if (url) {
+            tcLog('按钮无响应，直接跳转重练页', 'warn');
+            location.href = url;
+        }
+        return false;
+    });
+}
+
+function tcEnterNode(node) {
+    if (!node) return Promise.resolve(false);
+    var btn = node.enterEl || tcFindByText(node.raw, '进入任务', { selector: 'button,div,span,a' });
+    var isRetry = false;
+    if (!btn && node.retryEl) { btn = node.retryEl; isRetry = true; }
+    if (!btn) return Promise.resolve(false);
+    if (isRetry) {
+        tcLog('节点分数偏低，点击「重新练习」重做本节点', 'warn');
+        tcClick(btn);
+        return tcSleep(1500).then(function () {
+            return tcWait(function () {
+                return (tcDialogueDoc() || tcFindChooseBtn()) ? true : false;
+            }, 6000, 500);
+        }).then(function (ok) {
+            if (ok) return true;
+            return tcRetryViaVm(node);
+        }).then(function () { return true; });
+    }
+    tcClick(btn);
+    return tcSleep(1200).then(function () {
+        if (tcConfirmIrreversible()) tcLog('已确认「进入下一任务」不可逆提示', 'warn');
+        return tcSleep(1800);
+    }).then(function () {
+        // 部分上传节点在「进入任务」后还有一层「开始作答/去完成」按钮
+        if (tcDialogueDoc()) return true;
+        if (tcFindByText(document, '选择文件', { selector: 'button,div,span,a' })) return true;
+        var startBtn = tcFindByText(document, '开始作答', { selector: 'button,div,span,a' })
+            || tcFindByText(document, '开始答题', { selector: 'button,div,span,a' })
+            || tcFindByText(document, '去完成', { selector: 'button,div,span,a' })
+            || tcFindByText(document, '立即作答', { selector: 'button,div,span,a' })
+            || tcFindByText(document, '开始实践', { selector: 'button,div,span,a' });
+        if (startBtn) {
+            tcClick(startBtn);
+            tcLog('已点击中间页按钮：' + (startBtn.textContent || '').trim());
+            return tcSleep(2000);
+        }
+        return true;
+    });
+}
+
+/* ---------------------------------- 对话页读取 ---------------------------------- */
+
+function tcReadCtx(doc) {
+    var body = (doc.body && doc.body.innerText) || '';
+    var roles = tcReadRoles(doc, body);
+    var roundM = body.match(/任务完成条件\s*(\d+)\s*\/\s*(\d+)\s*轮/) || body.match(/(\d+)\s*\/\s*(\d+)\s*轮/);
+    var leftM = body.match(/剩余练习次数\s*(\d+)/) || body.match(/已练习\s*(\d+)\s*次/);
+    var titleEl = doc.querySelector('h1,h2,h3');
+    var descEl = doc.querySelector('[class*="taskDesc"],[class*="desc"]');
+    return {
+        title: titleEl ? titleEl.textContent.trim() : (document.title || ''),
+        desc: descEl ? descEl.textContent.trim() : body.split('\n').slice(0, 12).join(' ').slice(0, 300),
+        roles: roles,
+        round: roundM ? parseInt(roundM[1], 10) : 0,
+        roundMax: roundM ? parseInt(roundM[2], 10) : 30,
+        leftTimes: leftM ? parseInt(leftM[1], 10) : null
+    };
+}
+
+function tcReadRoles(doc, body) {
+    var out = { student: '我', teacher: '老师' };
+    try {
+        var lis = doc.querySelectorAll('li');
+        var names = [];
+        for (var i = 0; i < lis.length && names.length < 2; i++) {
+            var t = (lis[i].innerText || '').split('\n')[0].trim();
+            if (t && !/我$|智能体$/.test(t) && t.length <= 20) names.push(t);
+        }
+        if (names.length === 2) { out.student = names[0]; out.teacher = names[1]; }
+    } catch (e) { }
+    if (out.student === out.teacher) { out.student = '我'; out.teacher = '老师'; }
+    return out;
+}
+
+function tcIsNoiseLine(line) {
+    return /^(沉浸模式|语音播报|任务说明|回到当前对话|结束对话并评估|出场角色|发送|点击继续|AI评估结果|总结|正在生成评估结果)/.test(line)
+        || /^(任务完成条件|剩余练习次数|已练习)/.test(line)
+        || /^\d+\s*\/\s*\d+\s*轮?$/.test(line)
+        || /^得分\s*\d+/.test(line)
+        || /^(问题分析深度|解决方案可行性|角色专业度|沟通与逻辑表达)/.test(line)
+        || /^(我|智能体|老师|学生)$/.test(line)
+        || line === '分' || line === '轮' || line === '/';
+}
+
+function tcParseMessages(doc, roles) {
+    var body = (doc.body && doc.body.innerText) || '';
+    var lines = body.split('\n');
+    var msgs = [], cur = null;
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line) continue;
+        if (line === roles.student || line === roles.teacher) {
+            if (cur && cur.text) msgs.push(cur);
+            cur = { role: line === roles.teacher ? 'teacher' : 'student', text: '' };
+            continue;
+        }
+        if (tcIsNoiseLine(line)) continue;
+        if (!cur) continue;
+        // 跳过节点标题（首行短标题）
+        if (cur.text === '' && line.length < 12 && /调试|设计|实现|适配|梳理|优化/.test(line)) continue;
+        cur.text += (cur.text ? '\n' : '') + line;
+    }
+    if (cur && cur.text) msgs.push(cur);
+    return msgs;
+}
+
+function tcTextarea(doc) { return doc.querySelector('textarea.messageInput') || doc.querySelector('textarea'); }
+function tcSendBtn(doc) { return doc.querySelector('.sendBtn') || doc.querySelector('.sendMessage'); }
+function tcContinueBtn(doc) { return doc.querySelector('.continue'); }
+
+function tcDrain(doc) {
+    // 每次调用只点一次“点击继续”：调用方以轮询方式反复调用，
+    // 这样既不会阻塞主线程，也能覆盖被分页成多段的长回复。
+    var c = tcContinueBtn(doc);
+    if (!c) return 0;
+    tcClick(c);
+    return 1;
+}
+
+function tcWait(fn, timeout, interval) {
+    timeout = timeout || 30000; interval = interval || 500;
+    var start = tcNow();
+    return new Promise(function (resolve) {
+        (function loop() {
+            var v = false;
+            try { v = fn(); } catch (e) { v = false; }
+            if (v) return resolve(v);
+            if (tcNow() - start > timeout) return resolve(false);
+            setTimeout(loop, interval);
+        })();
+    });
+}
+
+function tcWaitDoc(timeout) {
+    return tcWait(function () {
+        var d = tcDialogueDoc();
+        return d && d.body ? d : false;
+    }, timeout || 30000, 500);
+}
+
+function tcTurnReady(doc) {
+    var ta = tcTextarea(doc);
+    if (!ta) return false;
+    if (ta.disabled) return false;
+    if (/还未轮到你发言/.test(ta.getAttribute('placeholder') || '')) return false;
+    if (tcContinueBtn(doc)) return false;
+    return true;
+}
+
+/* ---------------------------------- DeepSeek 对话通道 ---------------------------------- */
+
+function tcPickContent(obj) {
+    try {
+        var ch = obj && obj.choices && obj.choices[0];
+        if (!ch) return '';
+        var m = ch.message || {};
+        var c = m.content;
+        if (typeof c === 'string' && c.trim()) return c.trim();
+        if (Object.prototype.toString.call(c) === '[object Array]') {
+            var t = c.map(function (p) {
+                if (typeof p === 'string') return p;
+                if (p && typeof p.text === 'string') return p.text;
+                if (p && typeof p.content === 'string') return p.content;
+                return '';
+            }).join('').trim();
+            if (t) return t;
+        }
+        if (m.reasoning_content && String(m.reasoning_content).trim()) return String(m.reasoning_content).trim();
+        if (m.reasoning && String(m.reasoning).trim()) return String(m.reasoning).trim();
+        if (typeof ch.text === 'string' && ch.text.trim()) return ch.text.trim();
+    } catch (e) { }
+    return '';
+}
+
+function tcJsonFromText(txt) {
+    var s = String(txt || '').trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+    try { return JSON.parse(s); } catch (e) { }
+    var i = s.indexOf('{'), j = s.lastIndexOf('}');
+    if (i >= 0 && j > i) {
+        try { return JSON.parse(s.slice(i, j + 1)); } catch (e2) { }
+    }
+    throw new Error('无法解析 JSON（长度 ' + s.length + '）');
+}
+
+var _tcNoReasoningField = false;   // 服务端不接受 reasoning_effort 时置 true
+
+function tcChat(messages, opt) {
+    opt = opt || {};
+    var apiKey = getDeepSeekApiKey();
+    if (!apiKey) return Promise.reject({ c: -1, msg: '未配置 DeepSeek API 密钥' });
+    var baseUrl = getDeepSeekBaseUrl();
+    var model = opt.model || getDeepSeekModel() || 'deepseek-flash';
+
+    function once(cfg) {
+        tcBusyStart('AI 正在思考…');
+        var interval = Math.min(60, Math.max(0, tcCfg('reqIntervalTime', 0) || 0)) * 1000;
+        var now = tcNow();
+        var waitMs = Math.max(0, _tcNextAllowedAt - now);
+        _tcNextAllowedAt = Math.max(now, _tcNextAllowedAt) + interval;
+
+        var body = {
+            model: model,
+            messages: cfg.messages,
+            stream: false,
+            temperature: cfg.temperature
+        };
+        // maxTokens 为 0/未设置 => 不传，交给服务端默认（“不设上限”）
+        if (cfg.maxTokens) body.max_tokens = cfg.maxTokens;
+        // 尝试压低思考开销；服务端不认会自动去掉重试
+        if (!_tcNoReasoningField && opt.reasoning !== false) body.reasoning_effort = opt.reasoning || 'low';
+
+        return new Promise(function (resolve) { setTimeout(resolve, waitMs); }).then(function () {
+            return new Promise(function (resolve2, reject2) {
+                GM_xmlhttpRequest({
+                    method: 'POST',
+                    url: baseUrl + '/chat/completions',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+                    data: JSON.stringify(body),
+                    timeout: opt.timeout || 180000,
+                    onload: function (xhr) {
+                        if (xhr.status === 200) {
+                            var obj = null;
+                            try { obj = JSON.parse(xhr.responseText) || {}; }
+                            catch (e) { return reject2({ c: -1, msg: 'JSON 解析失败: ' + e.message, raw: (xhr.responseText || '').slice(0, 300) }); }
+                            if (opt.metaOut) {
+                                opt.metaOut.finish_reason = obj.choices && obj.choices[0] && obj.choices[0].finish_reason;
+                                opt.metaOut.usage = obj.usage;
+                                opt.metaOut.model = obj.model;
+                            }
+                            var c = tcPickContent(obj);
+                            if (!c) return reject2({ c: 0, msg: 'AI 返回为空', empty: true, raw: (xhr.responseText || '').slice(0, 400) });
+                            resolve2(c);
+                        } else {
+                            var msg = 'HTTP ' + xhr.status;
+                            try { var o = JSON.parse(xhr.responseText); if (o.error && o.error.message) msg = o.error.message; } catch (e) { }
+                            reject2({ c: xhr.status, msg: msg, bodyHadReasoning: !!body.reasoning_effort });
+                        }
+                    },
+                    ontimeout: function () { reject2({ c: 666, msg: '请求超时' }); },
+                    onerror: function () { reject2({ c: -1, msg: '网络错误' }); }
+                });
+            });
+        }).then(function (v) {
+            tcBusyStop();
+            return v;
+        }, function (e) {
+            tcBusyStop();
+            throw e;
+        });
+    }
+
+    function run(cfg) {
+        return once(cfg).catch(function (err) {
+            if (err && err.bodyHadReasoning && (err.c === 400 || err.c === 422) && !_tcNoReasoningField) {
+                _tcNoReasoningField = true;
+                tcLog('服务端不接受 reasoning_effort，去掉该字段重试', 'warn');
+                return run(cfg);
+            }
+            throw err;
+        });
+    }
+
+    var baseCfg = {
+        messages: messages,
+        temperature: (opt.temperature === undefined ? 0.8 : opt.temperature),
+        maxTokens: opt.maxTokens || 0
+    };
+
+    return run(baseCfg).catch(function (err) {
+        if (err && err.empty) {
+            tcLog('AI 返回为空，追加指令重试一次…', 'warn');
+            var msgs = (messages || []).concat([{
+                role: 'user',
+                content: '请直接输出正文，不要输出思考过程、不要解释、不要留空。'
+            }]);
+            return run({ messages: msgs, temperature: 0.3, maxTokens: opt.maxTokens || 0 })
+                .catch(function (e2) {
+                    if (e2 && e2.raw) tcLog('原始响应片段：' + String(e2.raw).replace(/\s+/g, ' ').slice(0, 200), 'muted');
+                    throw e2;
+                });
+        }
+        if (err && (err.c === 429 || err.c >= 500 || err.c === 666)) {
+            tcLog('请求异常（' + (err.msg || err.c) + '），5 秒后重试', 'warn');
+            return tcSleep(5000).then(function () { return run(baseCfg); });
+        }
+        throw err;
+    });
+}
+
+/* ---------------------------------- 提示词 ---------------------------------- */
+
+function tcComposeReply(ctx, teacherText, history, discussed, carryOver) {
+    var rounds = tcCfg('taskChainRounds', 20);
+    var sys = '你在超星「AI 实践」任务链中扮演「' + ctx.roles.student + '」，与「' + ctx.roles.teacher + '」进行技术对话。\n'
+        + '硬性要求：\n'
+        + '1) 一次把老师本轮提出的所有问题答完，不要反问、不要等待补充；\n'
+        + '2) 只输出中文纯文本，禁止 Markdown（不要 **、#、表格、代码围栏）；\n'
+        + '3) 长度 150-350 字，必须给出具体技术细节（状态、判定条件、步骤、边界处理）与明确结论；\n'
+        + '4) 不要重复此前说过的内容，要推进到新的子话题；\n'
+        + '5) 本轮节点主题：' + (ctx.title || '') + '；任务说明：' + (ctx.desc || '').slice(0, 200) + '\n'
+        + (carryOver ? '6) 上一节点结论（可引用，不要复述）：' + carryOver + '\n' : '')
+        + (discussed && discussed.length ? '7) 已讨论要点（禁止重复）：' + discussed.slice(-12).join('、') + '\n' : '')
+        + '输出只有回复正文，不要任何前缀说明。';
+
+    var hist = (history || []).slice(-7).map(function (m) {
+        return (m.role === 'teacher' ? '老师：' : '我：') + m.text.slice(0, 200);
+    }).join('\n');
+
+    var user = (hist ? '【最近对话】\n' + hist + '\n\n' : '')
+        + '【老师最后一条消息（必须直接回应它）】\n' + (teacherText || '（首轮，请根据任务说明主动做结构化分析并给出方案）') + '\n\n'
+        + '若老师在质疑你没有回答问题或重复提问，请先正面回答他的问题，不要继续罗列上一轮的内容。\n\n'
+        + '【要求】请给出你的本轮回复（纯文本，150-350 字，答完本轮所有问题，不反问）。';
+
+    return tcChat([{ role: 'system', content: sys }, { role: 'user', content: user }], { temperature: 0.85, maxTokens: 900 });
+}
+
+function tcCleanReply(text) {
+    var t = String(text || '').trim();
+    t = t.replace(/^```[a-z]*\s*/i, '').replace(/```$/i, '').trim();
+    t = t.replace(/\*\*/g, '').replace(/^#+\s*/gm, '');
+    t = t.replace(/\n{3,}/g, '\n\n');
+    return t;
+}
+
+function tcGate(text, sentHashes) {
+    var t = tcCleanReply(text);
+    var min = tcCfg('replyMin', 150), max = tcCfg('replyMax', 350);
+    if (t.length < min * 0.6) return { ok: false, reason: '过短(' + t.length + ')' };
+    if (t.length > max * 1.8) t = t.slice(0, Math.round(max * 1.8)).replace(/[，。；]$/, '') + '。';
+    var h = t.replace(/\s+/g, '').slice(0, 40);
+    if (sentHashes && sentHashes.indexOf(h) !== -1) return { ok: false, reason: '与历史重复' };
+    return { ok: true, text: t, hash: h };
+}
+
+/* ---------------------------------- 发消息 / 等回合 ---------------------------------- */
+
+function tcSend(doc, text) {
+    var ta = tcTextarea(doc);
+    if (!ta) return false;
+    var setter = null;
+    try { setter = Object.getOwnPropertyDescriptor(doc.defaultView.HTMLTextAreaElement.prototype, 'value').set; } catch (e) { }
+    try {
+        ta.focus();
+        if (setter) setter.call(ta, text); else ta.value = text;
+        ta.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+        ta.dispatchEvent(new Event('change', { bubbles: true }));
+    } catch (e) { tcLog('设置输入框失败：' + e.message, 'error'); return false; }
+    var btn = tcSendBtn(doc);
+    if (!btn) return false;
+    tcClick(btn);
+    return true;
+}
+
+function tcWaitAdvance(doc, baseRound, timeout) {
+    timeout = timeout || 180000;
+    var start = tcNow();
+    return new Promise(function (resolve) {
+        (function loop() {
+            tcDrain(doc);
+            var ctx = tcReadCtx(doc);
+            if (ctx.round > baseRound && tcTurnReady(doc)) return resolve(true);
+            if (tcNow() - start > timeout) return resolve(false);
+            setTimeout(loop, 700);
+        })();
+    });
+}
+
+/* ---------------------------------- 消息读取（DOM 优先） ---------------------------------- */
+
+function tcTeacherText(el) {
+    if (!el) return '';
+    var box = el.querySelector('.agentAnswer .answer_content') || el.querySelector('.agentAnswer');
+    var t = box ? box.innerText : (el.innerText || '');
+    var name = el.querySelector('.agentName');
+    if (name && t.indexOf(name.innerText) === 0) t = t.slice(name.innerText.length);
+    return String(t || '').trim();
+}
+
+// 按 DOM 读取整条对话：老师 .agent / 我方 .user-chat-item
+function tcReadThread(doc, roles) {
+    var out = [];
+    try {
+        var wrap = doc.querySelector('.wrap1000') || doc.body;
+        if (!wrap) return out;
+        var nodes = wrap.querySelectorAll('.agent, .user-chat-item');
+        for (var i = 0; i < nodes.length; i++) {
+            var el = nodes[i];
+            if (el.classList && el.classList.contains('agent')) {
+                var nm = el.querySelector('.agentName');
+                out.push({
+                    role: 'teacher',
+                    name: (nm ? nm.innerText : (roles && roles.teacher) || '老师').trim(),
+                    text: tcTeacherText(el)
+                });
+            } else {
+                var txt = (el.innerText || '').trim();
+                var sname = (roles && roles.student) || '';
+                if (sname && txt.indexOf(sname) === 0) txt = txt.slice(sname.length).trim();
+                out.push({ role: 'student', name: sname, text: txt });
+            }
+        }
+    } catch (e) { }
+    if (!out.length) {
+        // 兜底：文本解析
+        try { out = tcParseMessages(doc, roles || { student: '我', teacher: '老师' }); } catch (e) { }
+    }
+    return out;
+}
+
+function tcLastTeacher(thread) {
+    for (var i = (thread || []).length - 1; i >= 0; i--) {
+        if (thread[i].role === 'teacher') return thread[i].text;
+    }
+    return '';
+}
+
+function tcSnapshotThread(doc) {
+    var els = [];
+    try { els = doc.querySelectorAll('.wrap1000 > .agent'); } catch (e) { }
+    var last = els.length ? tcTeacherText(els[els.length - 1]) : '';
+    return { count: els.length, lastText: last, lastLen: last.length, ts: tcNow() };
+}
+
+// 等老师这条消息真正打完：条数+1 或文本变化 → 长度连续 3 次不增长
+function tcWaitTeacherReply(doc, snap, timeout) {
+    timeout = timeout || 180000;
+    var start = tcNow();
+    var matched = false;
+    var stable = 0;
+    var lastLen = -1;
+
+    tcBusyStart('等待老师回复…');
+    return new Promise(function (resolve) {
+        (function loop() {
+            try { tcDrain(doc); } catch (e) { }
+            var els = [];
+            try { els = doc.querySelectorAll('.wrap1000 > .agent'); } catch (e) { }
+            var last = els.length ? tcTeacherText(els[els.length - 1]) : '';
+            var len = last.length;
+
+            if (!matched && (els.length > snap.count || last !== snap.lastText)) {
+                matched = true;
+                tcLog('检测到老师新消息（' + (snap.count ? snap.count : 0) + '→' + els.length + ' 条，长度 0→' + len + '）', 'muted');
+            }
+            if (matched) {
+                tcBusySetLabel('老师正在输入…（' + len + ' 字）');
+                if (len > 0 && len === lastLen) stable++; else stable = 0;
+                lastLen = len;
+                if (stable >= 3 && !tcContinueBtn(doc) && tcTurnReady(doc)) {
+                    tcLog('老师消息已输出完毕（' + len + ' 字，稳定 ' + (stable * 0.4).toFixed(1) + 's）', 'muted');
+                    tcBusyStop();
+                    return resolve(last);
+                }
+            }
+            if (tcNow() - start > timeout) {
+                tcLog('等待老师回复超时（' + Math.round(timeout / 1000) + 's），按当前文本继续', 'warn');
+                tcBusyStop();
+                return resolve(last);
+            }
+            setTimeout(loop, 400);
+        })();
+    });
+}
+
+/* ---------------------------------- 单节点：对话 ---------------------------------- */
+
+function tcDialogueNode(node, entered) {
+    var st = tcState();
+    var _doc = null;
+    st.phase = 'dialogue';
+    st.nodeIdx = node.idx;
+    st.updatedAt = tcNow();
+    tcSaveState(st);
+
+    return (entered ? Promise.resolve(true) : tcEnterNode(node)).then(function () {
+        return tcWaitDoc(30000);
+    }).then(function (doc) {
+        if (!doc) throw new Error('对话页未加载');
+        _doc = doc;
+        var startBtn = tcFindByText(doc, '开始对话', { selector: 'div,span,button,a,p' });
+        if (startBtn) { tcClick(startBtn); tcLog('已点击「开始对话」'); }
+        return tcSleep(2500).then(function () { return doc; });
+    }).then(function (doc) {
+        var ctx = tcReadCtx(doc);
+        var key = node.key || String(node.idx);
+        st.transcripts[key] = st.transcripts[key] || [];
+        tcLog('节点「' + (ctx.title || node.title) + '」开始，当前轮次 ' + ctx.round + '/' + ctx.roundMax);
+
+        var target = tcCfg('taskChainRounds', 20) || ctx.roundMax;
+        target = Math.min(target, ctx.roundMax || 30);
+        if (target < 1) target = Math.min(20, ctx.roundMax || 20);
+
+        var lastSentTeacher = '';
+        var pauseLoggedAt = 0;
+        return new Promise(function (resolve, reject) {
+            (function loop() {
+                if (!_tcRunning) return resolve('stopped');
+                if (_tcPaused) {
+                    if (tcNow() - pauseLoggedAt > 30000) { tcLog('已暂停，等待恢复…', 'warn'); pauseLoggedAt = tcNow(); }
+                    return setTimeout(loop, 2000);
+                }
+                var cur = tcReadCtx(doc);
+                if (cur.round >= target) return resolve('reached');
+                tcUpdateStatusBar('任务链：第 ' + (cur.round + 1) + '/' + target + ' 轮 · 等待老师回复');
+                // 等输入框可用（老师上一轮确实结束）
+                tcWait(function () { return tcTurnReady(doc); }, 120000, 600).then(function () {
+                    var thread = tcReadThread(doc, cur.roles);
+                    var teacher = tcLastTeacher(thread);
+                    if (!teacher) teacher = lastSentTeacher;
+                    var history = thread.slice(-8);
+                    var snap = tcSnapshotThread(doc);
+                    // 老师还没产生新回复时不要重复发送
+                    if (teacher && teacher === lastSentTeacher) {
+                        tcLog('老师尚未给出新回复，5 秒后再检查（不重复发送）', 'warn');
+                        return setTimeout(loop, 5000);
+                    }
+                    var preview = String(teacher || '开场').replace(/\s+/g, ' ').slice(0, 50);
+                    tcLog('第 ' + (cur.round + 1) + ' 轮：老师「' + preview + '…」', 'info');
+                    if (/始终回避|答非所问|请正面回答|我两次询问|不要罗列/.test(teacher)) {
+                        tcLog('老师指出答非所问，本轮必须直接回应其问题', 'warn');
+                    }
+                    return tcComposeReply(cur, teacher, history, st.discussed, st.carryOver).then(function (raw) {
+                        var g = tcGate(raw, st.transcripts[key].map(function (m) { return m.hash; }));
+                        if (!g.ok) {
+                            tcLog('回复未通过闸门（' + g.reason + '），重写一次', 'warn');
+                            return tcComposeReply(cur, teacher, history, st.discussed, st.carryOver).then(function (raw2) {
+                                return tcCleanReply(raw2);
+                            });
+                        }
+                        return g.text;
+                    }).then(function (reply) {
+                        // 与我方上一条高度重复 → 换角度重写一次
+                        var lastStudent = '';
+                        for (var i = thread.length - 1; i >= 0; i--) { if (thread[i].role === 'student') { lastStudent = thread[i].text; break; } }
+                        if (lastStudent && typeof stringSimilarity === 'function' && stringSimilarity(reply, lastStudent) > 0.85) {
+                            tcLog('回复与上一条过于相似，换角度重写一次', 'warn');
+                            return tcComposeReply(cur, teacher + '\n（注意：换一个角度回答，不要重复上一轮已说过的内容）', history, st.discussed, st.carryOver)
+                                .then(function (r2) { return tcCleanReply(r2); });
+                        }
+                        return reply;
+                    }).then(function (reply) {
+                        if (tcCfg('taskChainDryRun', false)) {
+                            tcLog('[DryRun] 拟发送：' + reply.slice(0, 120) + '…', 'skip');
+                            return 'dryrun';
+                        }
+                        if (!tcSend(doc, reply)) throw new Error('发送失败');
+                        st.transcripts[key].push({ role: 'student', text: reply, hash: reply.replace(/\s+/g, '').slice(0, 40), round: cur.round + 1, ts: tcNow() });
+                        st.round = cur.round + 1;
+                        st.updatedAt = tcNow();
+                        tcSaveState(st);
+                        tcLog('已发送第 ' + st.round + ' 轮（' + reply.length + ' 字），等待老师回复…', 'success');
+                        lastSentTeacher = teacher;
+                        // 关键：等老师这条消息逐字打完再进入下一轮
+                        return tcWaitTeacherReply(doc, snap, 180000).then(function (finalText) {
+                            if (!finalText || finalText === snap.lastText) {
+                                tcLog('本轮未检测到新的老师消息，下次循环会继续等待', 'warn');
+                            }
+                            return true;
+                        });
+                    });
+                }).then(function (r) {
+                    if (r === 'dryrun') return resolve('dryrun');
+                    setTimeout(loop, 300);
+                }).catch(function (e) {
+                    tcLog('本轮失败：' + (e && (e.msg || e.message) || e), 'error');
+                    reject(e);
+                });
+            })();
+        });
+    }).then(function (why) {
+        tcLog('对话循环结束（' + why + '）');
+        if (why === 'dryrun') { tcLog('演练模式：跳过结束评估', 'skip'); return null; }
+        return tcFinishNode(_doc, node, st);
+    }).catch(function (e) {
+        tcLog('节点执行失败：' + (e && (e.msg || e.message) || e), 'error');
+        throw e;
+    });
+}
+
+function tcFinishNode(doc, node, st) {
+    var btn = doc.querySelector('.earlyEndBtn') || tcFindByText(doc, '结束对话并评估', { selector: 'div,span,button,a,p' });
+    if (!btn) { tcLog('未找到「结束对话并评估」按钮', 'warn'); return null; }
+    tcClick(btn);
+    tcLog('已点击「结束对话并评估」，等待评分…');
+    tcBusyStart('等待评分…');
+    return tcWait(function () {
+        var t = (doc.body && doc.body.innerText) || '';
+        return /(得分|本次成绩)\s*(\d{1,3})\s*分/.test(t);
+    }, 180000, 2000).then(function (ok) {
+        tcBusyStop();
+        var m = ((doc.body && doc.body.innerText) || '').match(/(得分|本次成绩)\s*(\d{1,3})\s*分/);
+        var score = m ? parseInt(m[2], 10) : null;
+        if (score != null) {
+            tcLog('节点评分：' + score + ' 分', score >= tcCfg('taskChainMinScore', 61) ? 'success' : 'warn');
+            var nk = node.key || String(node.idx);
+            st.nodeScores = st.nodeScores || {};
+            st.nodeScores[nk] = score;
+            // 同步更新已发现节点列表里的分数
+            (st.nodes || []).forEach(function (n) { if (n.key === nk) { n.score = score; n.done = score >= tcCfg('taskChainMinScore', 61); } });
+            st.phase = 'advance';
+            st.updatedAt = tcNow();
+            tcSaveState(st);
+        } else {
+            tcLog('未能解析到分数，请手动确认', 'warn');
+        }
+        return score;
+    });
+}
+
+/* ---------------------------------- 报告生成（ZIP + DOCX） ---------------------------------- */
+
+function tcCRC32(buf) {
+    var table = tcCRC32.table;
+    if (!table) {
+        table = new Uint32Array(256);
+        for (var i = 0; i < 256; i++) {
+            var c = i;
+            for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+            table[i] = c >>> 0;
+        }
+        tcCRC32.table = table;
+    }
+    var crc = 0 ^ (-1);
+    for (var j = 0; j < buf.length; j++) crc = (crc >>> 8) ^ table[(crc ^ buf[j]) & 0xFF];
+    return (crc ^ (-1)) >>> 0;
+}
+
+function tcDeflate(bytes) {
+    if (typeof CompressionStream === 'undefined' || typeof Blob === 'undefined') return Promise.resolve(null);
+    try {
+        var cs = new CompressionStream('deflate-raw');
+        var stream = new Blob([bytes]).stream().pipeThrough(cs);
+        return new Response(stream).arrayBuffer().then(function (ab) { return new Uint8Array(ab); }).catch(function () { return null; });
+    } catch (e) { return Promise.resolve(null); }
+}
+
+function tcZip(entries) {
+    var enc = new TextEncoder();
+    return Promise.all(entries.map(function (e) {
+        return (e.store ? Promise.resolve(null) : tcDeflate(e.data)).then(function (comp) {
+            return { name: e.name, data: e.data, comp: comp, method: comp ? 8 : 0 };
+        });
+    })).then(function (list) {
+        var parts = [], central = [], offset = 0;
+        list.forEach(function (e) {
+            var nameBytes = enc.encode(e.name);
+            var payload = e.comp || e.data;
+            var crc = tcCRC32(e.data);
+            var local = new Uint8Array(30 + nameBytes.length);
+            var dv = new DataView(local.buffer);
+            dv.setUint32(0, 0x04034b50, true);
+            dv.setUint16(4, 20, true);
+            dv.setUint16(6, 0, true);
+            dv.setUint16(8, e.method, true);
+            dv.setUint16(10, 0, true);
+            dv.setUint16(12, 0x21, true);
+            dv.setUint32(14, crc, true);
+            dv.setUint32(18, payload.length, true);
+            dv.setUint32(22, e.data.length, true);
+            dv.setUint16(26, nameBytes.length, true);
+            dv.setUint16(28, 0, true);
+            local.set(nameBytes, 30);
+            parts.push(local, payload);
+
+            var cen = new Uint8Array(46 + nameBytes.length);
+            var cv = new DataView(cen.buffer);
+            cv.setUint32(0, 0x02014b50, true);
+            cv.setUint16(4, 20, true);
+            cv.setUint16(6, 20, true);
+            cv.setUint16(8, 0, true);
+            cv.setUint16(10, e.method, true);
+            cv.setUint16(12, 0, true);
+            cv.setUint16(14, 0x21, true);
+            cv.setUint32(16, crc, true);
+            cv.setUint32(20, payload.length, true);
+            cv.setUint32(24, e.data.length, true);
+            cv.setUint16(28, nameBytes.length, true);
+            cv.setUint16(30, 0, true);
+            cv.setUint16(32, 0, true);
+            cv.setUint16(34, 0, true);
+            cv.setUint16(36, 0, true);
+            cv.setUint32(38, 0, true);
+            cv.setUint32(42, offset, true);
+            cen.set(nameBytes, 46);
+            central.push(cen);
+            offset += local.length + payload.length;
+        });
+        var cdSize = central.reduce(function (a, c) { return a + c.length; }, 0);
+        var eocd = new Uint8Array(22);
+        var ev = new DataView(eocd.buffer);
+        ev.setUint32(0, 0x06054b50, true);
+        ev.setUint16(4, 0, true);
+        ev.setUint16(6, 0, true);
+        ev.setUint16(8, list.length, true);
+        ev.setUint16(10, list.length, true);
+        ev.setUint32(12, cdSize, true);
+        ev.setUint32(16, offset, true);
+        ev.setUint16(20, 0, true);
+        var all = parts.concat(central, [eocd]);
+        var total = all.reduce(function (a, c) { return a + c.length; }, 0);
+        var out = new Uint8Array(total), pos = 0;
+        all.forEach(function (c) { out.set(c, pos); pos += c.length; });
+        return out;
+    });
+}
+
+function tcXmlEscape(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&apos;')
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+}
+
+function tcDocxPara(text, opt) {
+    opt = opt || {};
+    var font = opt.font || '宋体';
+    var asciiFont = opt.font === 'Consolas' ? 'Consolas' : 'Times New Roman';
+    var size = opt.size || 21; // half-points
+    var pPr = '<w:pPr>'
+        + '<w:spacing w:before="' + (opt.before || 0) + '" w:after="' + (opt.after === undefined ? 120 : opt.after) + '" w:line="360" w:lineRule="auto"/>'
+        + (opt.indent === false ? '' : '<w:ind w:firstLine="' + (opt.size >= 24 ? 0 : 420) + '"/>')
+        + (opt.align ? '<w:jc w:val="' + opt.align + '"/>' : '')
+        + '</w:pPr>';
+    var rPr = '<w:rPr><w:rFonts w:ascii="' + asciiFont + '" w:hAnsi="' + asciiFont + '" w:eastAsia="' + font + '"/>'
+        + (opt.bold ? '<w:b/>' : '')
+        + '<w:sz w:val="' + size + '"/><w:szCs w:val="' + size + '"/>'
+        + (opt.color ? '<w:color w:val="' + opt.color + '"/>' : '')
+        + '</w:rPr>';
+    var lines = String(text == null ? '' : text).split('\n');
+    var runs = lines.map(function (ln, i) {
+        return '<w:r>' + rPr + '<w:t xml:space="preserve">' + tcXmlEscape(ln) + '</w:t></w:r>' + (i < lines.length - 1 ? '<w:r>' + rPr + '<w:br/></w:r>' : '');
+    }).join('');
+    return '<w:p>' + pPr + runs + '</w:p>';
+}
+
+function tcDocxHeading(text, level) {
+    var size = level <= 1 ? 32 : (level === 2 ? 26 : 23);
+    var font = '黑体';
+    return '<w:p><w:pPr><w:spacing w:before="' + (level <= 1 ? 320 : 220) + '" w:after="120"/><w:outlineLvl w:val="' + (level - 1) + '"/></w:pPr>'
+        + '<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="' + font + '"/><w:b/>'
+        + '<w:sz w:val="' + size + '"/><w:szCs w:val="' + size + '"/><w:color w:val="1F3A5F"/></w:rPr>'
+        + '<w:t xml:space="preserve">' + tcXmlEscape(text) + '</w:t></w:r></w:p>';
+}
+
+function tcDocxTable(rows, widths) {
+    if (!rows || !rows.length) return '';
+    widths = widths || [];
+    var n = rows[0].length;
+    var total = 8300;
+    if (!widths.length) { for (var i = 0; i < n; i++) widths.push(Math.round(total / n)); }
+    var grid = widths.map(function (w) { return '<w:gridCol w:w="' + w + '"/>'; }).join('');
+    var body = rows.map(function (row) {
+        var cells = row.map(function (c, ci) {
+            return '<w:tc><w:tcPr><w:tcW w:w="' + widths[ci] + '" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>'
+                + tcDocxPara(c, { size: 18, indent: false, after: 40, align: 'center' }) + '</w:tc>';
+        }).join('');
+        return '<w:tr>' + cells + '</w:tr>';
+    }).join('');
+    return '<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:jc w:val="center"/>'
+        + '<w:tblBorders>'
+        + '<w:top w:val="single" w:sz="4" w:color="BFBFBF"/><w:left w:val="single" w:sz="4" w:color="BFBFBF"/>'
+        + '<w:bottom w:val="single" w:sz="4" w:color="BFBFBF"/><w:right w:val="single" w:sz="4" w:color="BFBFBF"/>'
+        + '<w:insideH w:val="single" w:sz="4" w:color="D9D9D9"/><w:insideV w:val="single" w:sz="4" w:color="D9D9D9"/>'
+        + '</w:tblBorders></w:tblPr><w:tblGrid>' + grid + '</w:tblGrid>' + body + '</w:tbl>'
+        + tcDocxPara('', { size: 12, indent: false, after: 60 });
+}
+
+function tcDocxImage(relId, cx, cy, id, name) {
+    return '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="120" w:after="80"/></w:pPr><w:r><w:drawing>'
+        + '<wp:inline distT="0" distB="0" distL="0" distR="0">'
+        + '<wp:extent cx="' + cx + '" cy="' + cy + '"/><wp:docPr id="' + id + '" name="' + name + '"/>'
+        + '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+        + '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        + '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        + '<pic:nvPicPr><pic:cNvPr id="' + id + '" name="' + name + '"/><pic:cNvPicPr/></pic:nvPicPr>'
+        + '<pic:blipFill><a:blip r:embed="' + relId + '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+        + '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>'
+        + '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+        + '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+}
+
+function tcBuildDocxXml(model, hasImage) {
+    var body = '';
+    // 封面
+    body += tcDocxPara(model.coverTitle || '实验报告', { size: 44, bold: true, indent: false, align: 'center', after: 240, font: '黑体' });
+    if (model.coverSub) body += tcDocxPara(model.coverSub, { size: 24, indent: false, align: 'center', after: 360 });
+    (model.meta || []).forEach(function (m) {
+        body += tcDocxPara(m[0] + '：' + m[1], { size: 22, indent: false, align: 'center', after: 80 });
+    });
+    body += tcDocxPara('', { size: 22, indent: false, after: 240 });
+    // 目录式概述
+    if (model.abstract) {
+        body += tcDocxHeading('摘要', 1);
+        body += tcDocxPara(model.abstract, { size: 21 });
+    }
+    (model.sections || []).forEach(function (sec) {
+        body += tcDocxHeading(sec.h, sec.level || 1);
+        (sec.p || []).forEach(function (p) { body += tcDocxPara(p, { size: 21 }); });
+        if (sec.table) body += tcDocxTable(sec.table.rows, sec.table.widths);
+        if (sec.image && hasImage) {
+            body += tcDocxImage('rIdImg', 5400000, Math.round(5400000 * (sec.image.h / sec.image.w)), 1, 'diagram.png');
+            if (sec.caption) body += tcDocxPara(sec.caption, { size: 18, indent: false, align: 'center', after: 160 });
+        }
+    });
+    var sect = '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1474" w:bottom="1440" w:left="1474" w:header="851" w:footer="992" w:gutter="0"/></w:sectPr>';
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+        + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+        + ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"'
+        + ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+        + ' xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        + '<w:body>' + body + sect + '</w:body></w:document>';
+}
+
+function tcBuildDocx(parts) {
+    var enc = new TextEncoder();
+    var contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        + '<Default Extension="xml" ContentType="application/xml"/>'
+        + '<Default Extension="png" ContentType="image/png"/>'
+        + '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+        + '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
+        + '</Types>';
+    var rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
+        + '</Relationships>';
+    var styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        + '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Times New Roman" w:eastAsia="宋体" w:hAnsi="Times New Roman"/>'
+        + '<w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr></w:rPrDefault>'
+        + '<w:pPrDefault><w:pPr><w:spacing w:line="360" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>'
+        + '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>'
+        + '</w:styles>';
+    var docRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+        + (parts.png ? '<Relationship Id="rIdImg" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/diagram.png"/>' : '')
+        + '</Relationships>';
+
+    var entries = [
+        { name: '[Content_Types].xml', data: enc.encode(contentTypes) },
+        { name: '_rels/.rels', data: enc.encode(rels) },
+        { name: 'word/document.xml', data: enc.encode(parts.documentXml) },
+        { name: 'word/styles.xml', data: enc.encode(styles) },
+        { name: 'word/_rels/document.xml.rels', data: enc.encode(docRels) }
+    ];
+    if (parts.png) entries.push({ name: 'word/media/diagram.png', data: parts.png, store: true });
+    return tcZip(entries);
+}
+
+/* ---------------------------------- 报告内容 ---------------------------------- */
+
+function tcFallbackSections(st, nodes) {
+    var secs = [];
+    var order = ['一、实验目的与任务概述', '二、需求分析与规范', '三、总体设计与实现路径', '四、关键实现要点', '五、测试与结果分析', '六、问题分析与解决', '七、总结与心得'];
+    var per = nodes.map(function (n) {
+        var tr = st.transcripts[String(n.idx)] || [];
+        var said = tr.filter(function (m) { return m.role === 'student'; }).slice(0, 3).map(function (m) { return m.text.slice(0, 90); });
+        return { title: n.title, score: (st.nodeScores || {})[String(n.idx)], said: said };
+    });
+    secs.push({ h: order[0], p: ['本实验依据任务链「' + (st.chainTitle || 'AI 实践') + '」完成，共 ' + nodes.length + ' 个节点，覆盖从规则梳理、方案设计、核心实现到测试优化的完整流程。', '目标是掌握该实验的核心方法，并能在给定样例与边界条件下得到稳定、可验证的结果。'] });
+    secs.push({ h: order[1], p: ['每个节点均给出明确的输入、输出与完成条件：对话需达到规定轮次并取得不低于 ' + tcCfg('taskChainMinScore', 61) + ' 分的评估；上传节点需提交符合命名规范的实验报告。', '实现过程遵循先分析、再设计、后验证的顺序，避免直接堆砌代码。'] });
+    secs.push({
+        h: order[2], p: ['整体按“任务拆解 → 关键设计 → 编码实现 → 测试验证 → 问题修正”推进，各节点结论逐级传递。'],
+        table: {
+            rows: [['节点', '主题', '得分']].concat(per.map(function (p, i) { return ['0' + (i + 1), p.title, p.score == null ? '—' : String(p.score)]; })),
+            widths: [900, 5200, 1200]
+        }
+    });
+    per.forEach(function (p) {
+        secs.push({ h: '节点' + (per.indexOf(p) + 1) + '：' + p.title, level: 2, p: p.said.length ? p.said.map(function (s) { return '要点：' + s + '…'; }) : ['该节点的分析要点已在对话中逐轮确认。'] });
+    });
+    secs.push({ h: order[4], p: ['测试按“样例用例 → 边界用例 → 回归比对”三层进行，全部用例通过后才进入下一节点。'], table: { rows: [['层次', '内容', '结论'], ['样例', '给定测试用例逐字比对', '通过'], ['边界', '空输入、末尾无换行、特殊字符等', '通过'], ['回归', '修改后重跑全部用例', '通过']], widths: [1200, 4800, 1300] } });
+    secs.push({ h: order[5], p: ['主要问题集中在边界处理与语义歧义上，通过“最小复现 → 状态日志 → 参考实现比对 → 性质断言”四层方法定位并修正。'] });
+    secs.push({ h: order[6], p: ['本实验的关键在于把边界情况显式建模，而不是事后修补；同时把测试用例沉淀为可重复执行的回归集合。', '后续可继续补充随机测试与性能测试，提升稳健性。'] });
+    return secs;
+}
+
+function tcAskAiReport(st, nodes) {
+    var tr = [];
+    nodes.forEach(function (n) {
+        var arr = st.transcripts[String(n.idx)] || [];
+        if (!arr.length) return;
+        tr.push('【节点' + (n.idx + 1) + '：' + n.title + '】');
+        arr.slice(-14).forEach(function (m) { tr.push((m.role === 'teacher' ? '老师：' : '我：') + m.text.slice(0, 160)); });
+        tr.push('得分：' + ((st.nodeScores || {})[String(n.idx)] == null ? '—' : st.nodeScores[String(n.idx)]));
+    });
+    var sys = '你是严谨的实验报告撰写助手。根据给定的任务链对话记录，输出一个 JSON 对象，键为：'
+        + '{"title":"报告标题","abstract":"150字摘要","sections":[{"h":"一、实验目的","p":["段落1","段落2"]}]}。'
+        + '要求：sections 至少 6 个，标题用“一、二、三…”中文序号；每节 2-3 段，每段 80-160 字；'
+        + '内容必须来自对话记录与任务说明，不得编造具体测试数字；只输出 JSON，不要代码围栏。';
+    var user = '任务链：' + (st.chainTitle || '') + '\n节点：' + nodes.map(function (n) { return n.title; }).join('、') + '\n\n对话记录：\n' + tr.join('\n').slice(0, 12000);
+    return tcChat([{ role: 'system', content: sys }, { role: 'user', content: user }], { temperature: 0.5, maxTokens: 2600 }).then(function (txt) {
+        var obj = tcJsonFromText(txt);
+        if (!obj || !Array.isArray(obj.sections) || !obj.sections.length) throw new Error('结构不符');
+        return obj;
+    });
+}
+
+function tcDrawRoadmap(steps) {
+    if (typeof document === 'undefined') return null;
+    try {
+        var W = 1200, H = 300;
+        var cv = document.createElement('canvas');
+        cv.width = W; cv.height = H;
+        var g = cv.getContext('2d');
+        g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+        var n = steps.length || 1;
+        var bw = Math.min(180, (W - 80) / n - 20), bh = 70;
+        var gap = (W - 80 - bw * n) / Math.max(1, n - 1);
+        for (var i = 0; i < n; i++) {
+            var x = 40 + i * (bw + gap), y = H / 2 - bh / 2;
+            g.fillStyle = '#eef2ff'; g.strokeStyle = '#2563eb'; g.lineWidth = 2;
+            g.beginPath();
+            if (g.roundRect) g.roundRect(x, y, bw, bh, 10); else g.rect(x, y, bw, bh);
+            g.fill(); g.stroke();
+            g.fillStyle = '#1e293b'; g.font = 'bold 16px "Microsoft YaHei",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+            var label = String(steps[i]).slice(0, 10);
+            g.fillText(label, x + bw / 2, y + bh / 2);
+            if (i < n - 1) {
+                var ax = x + bw, ay = H / 2, ex = x + bw + gap;
+                g.strokeStyle = '#64748b'; g.beginPath(); g.moveTo(ax, ay); g.lineTo(ex - 8, ay); g.stroke();
+                g.beginPath(); g.moveTo(ex - 8, ay); g.lineTo(ex - 18, ay - 6); g.lineTo(ex - 18, ay + 6); g.closePath(); g.fillStyle = '#64748b'; g.fill();
+            }
+        }
+        var b64 = cv.toDataURL('image/png').split(',')[1];
+        var bin = atob(b64), arr = new Uint8Array(bin.length);
+        for (var j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
+        return { bytes: arr, w: W, h: H };
+    } catch (e) { return null; }
+}
+
+function tcBuildReportModel(st, nodes) {
+    var who = {
+        name: tcCfg('studentName', '') || '—',
+        id: tcCfg('studentId', '') || '—',
+        cls: tcCfg('studentClass', '') || '—'
+    };
+    var coverTitle = (st.chainTitle || 'AI 实践') + ' 实验报告';
+    return tcAskAiReport(st, nodes).then(function (ai) {
+        return {
+            coverTitle: ai.title || coverTitle,
+            coverSub: '——任务链自动作答与实验复盘',
+            meta: [['姓　　名', who.name], ['学　　号', who.id], ['班　　级', who.cls], ['完成时间', new Date().toLocaleDateString()]],
+            abstract: ai.abstract || '',
+            sections: ai.sections,
+            source: 'ai'
+        };
+    }).catch(function (e) {
+        tcLog('AI 撰写报告失败（' + (e && (e.msg || e.message) || e) + '），使用本地模板', 'warn');
+        return {
+            coverTitle: coverTitle,
+            coverSub: '——任务链自动作答与实验复盘',
+            meta: [['姓　　名', who.name], ['学　　号', who.id], ['班　　级', who.cls], ['完成时间', new Date().toLocaleDateString()]],
+            abstract: '本报告记录了本次 AI 实践任务链的完整过程：按节点拆解任务，逐轮确认设计要点，完成实现与测试，并在边界条件下做了针对性修正。',
+            sections: tcFallbackSections(st, nodes),
+            source: 'template'
+        };
+    });
+}
+
+// 按节点任务说明写作（上传节点专用）
+// 从题目描述派生文档结构：对象、维度、是否需要表格（不依赖评分表）
+function tcDeriveDocPlan(desc) {
+    var d = String(desc || '').replace(/\s+/g, ' ').trim();
+    var plan = { type: 'general', objects: [], dimensions: [], needsTable: false };
+
+    if (/对比|比较|调研|选型|优缺点/.test(d)) plan.type = 'compare';
+
+    // 对比对象：取“对比/比较/调研”之后到“等”为止的并列项
+    var objM = d.match(/(?:对比|比较|调研|分析)\s*([^，。；;]{4,90})/);
+    if (objM) {
+        var raw = objM[1].replace(/等.*$/, '');
+        var objs = raw.split(/[、,，]|\s+和\s+|及|与|\s+\/\s+/).map(function (x) { return x.trim(); })
+            .filter(function (x) { return x.length >= 2 && x.length <= 40; });
+        if (objs.length >= 2) plan.objects = objs.slice(0, 6);
+    }
+
+    // 对比维度：第一个“的”之后、句读之前的并列名词串
+    var dimM = d.match(/的\s*([^，。；;]{3,80}?)(?:[，。；;]|并|$)/);
+    if (dimM) {
+        var dims = dimM[1].split(/[、,，\/]|和|及|与/).map(function (x) { return x.trim(); })
+            .filter(function (x) { return x.length >= 2 && x.length <= 14; });
+        if (dims.length >= 2) plan.dimensions = dims.slice(0, 8);
+    }
+    if (!plan.dimensions.length) {
+        // 兜底：题目里最长的顿号并列串
+        var m2 = d.match(/([^，。；;]{2,10}(?:、[^，。；;]{2,10}){2,})/);
+        if (m2) plan.dimensions = m2[1].split('、').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 8);
+    }
+    plan.needsTable = plan.type === 'compare' || plan.objects.length >= 2;
+    return plan;
+}
+
+// Markdown → 文档模型（失败也保留全文，不丢内容）
+function tcParseMarkdownDoc(text) {
+    var raw = String(text || '').replace(/\r/g, '').trim();
+    if (!raw) return { title: '', sections: [], raw: '' };
+    // 去掉开头解释性文字：从第一个标题行开始
+    var idx = raw.search(/(^|\n)#{1,4}\s+/);
+    var body = idx > 0 ? raw.slice(idx + (raw[idx] === '\n' ? 1 : 0)) : raw;
+
+    var lines = body.split('\n');
+    var sections = [], cur = null, title = '';
+
+    function flush() { if (cur && ((cur.p && cur.p.length) || cur.table)) sections.push(cur); cur = null; }
+
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        var h = line.match(/^\s*#{1,4}\s+(.*)$/);
+        if (h) {
+            flush();
+            cur = { h: h[1].trim(), p: [] };
+            if (!title) title = cur.h;
+            continue;
+        }
+        if (/^\s*\|.*\|\s*$/.test(line)) {
+            var rows = [];
+            while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+                var cells = lines[i].trim().replace(/^\||\|$/g, '').split('|').map(function (c) { return c.trim(); });
+                var isSep = cells.every(function (c) { return c === '' || /^:?-{2,}:?$/.test(c.replace(/\s/g, '')); });
+                if (!isSep) rows.push(cells);
+                i++;
+            }
+            i--;
+            if (rows.length) {
+                if (!cur) cur = { h: '表格', p: [] };
+                cur.table = { rows: rows, widths: [] };
+            }
+            continue;
+        }
+        var t = line.replace(/^\s*[-*+]\s+/, '').replace(/^\s*\d+[.)]\s+/, '').trim();
+        if (!t) continue;
+        if (!cur) cur = { h: '正文', p: [] };
+        cur.p.push(t);
+    }
+    flush();
+
+    if (!sections.length) {
+        sections.push({ h: '正文', p: raw.split(/\n{2,}/).map(function (x) { return x.trim(); }).filter(Boolean) });
+    }
+    return { title: title, sections: sections, raw: raw };
+}
+
+// 文档质量闸门
+function tcDocQuality(model) {
+    var secs = (model && model.sections) || [];
+    var tables = secs.filter(function (x) { return x.table && x.table.rows && x.table.rows.length > 1; });
+    var text = secs.map(function (x) { return (x.p || []).join(''); }).join('');
+    var tableText = tables.map(function (t) {
+        return t.table.rows.map(function (r) { return r.join(''); }).join('');
+    }).join('');
+    var totalLen = (text + tableText).replace(/\s/g, '').length;
+    var needsTable = !!(model && model.plan && model.plan.needsTable);
+    var minSecs = needsTable ? 4 : 3;
+    var minLen = needsTable ? 700 : 450;
+    var reasons = [];
+    if (secs.length < minSecs) reasons.push('章节不足(' + secs.length + ')');
+    if (!tables.length && needsTable) reasons.push('缺少对比表格');
+    if (!/推荐|建议选择|首选|最终选择|结论/.test(text)) reasons.push('缺少明确结论');
+    if (totalLen < minLen) reasons.push('内容过短(' + totalLen + '字)');
+    return { ok: reasons.length === 0, reasons: reasons, hasTable: tables.length > 0 };
+}
+
+// 已知对象的事实表（仅用于本地兜底，保证有内容可读）
+function tcKnownFacts(name) {
+    var n = String(name || '').toLowerCase();
+    if (n.indexOf('visual') >= 0 || n.indexOf('vs') === 0) {
+        return {
+            price: 'Community 社区版免费（个人/小团队）；Professional 约 $45/用户/月，Enterprise 约 $250/用户/月',
+            platform: 'Windows 为主，macOS 版（VS for Mac）已停止更新',
+            feature: '一体化 IDE：IntelliSense、MSBuild、调试器、性能分析器、Azure/.NET 集成',
+            perf: 'MSVC 编译器优化成熟，支持 PGO/LTCG；大型解决方案增量编译较慢',
+            scale: 'Windows 桌面与 .NET 生态的主流选择，全球开发者数百万级'
+        };
+    }
+    if (n.indexOf('gcc') >= 0 || n.indexOf('gnu') >= 0) {
+        return {
+            price: '完全开源免费（GPLv3），无商业授权费用',
+            platform: 'Linux/Unix 原生，Windows 经 MinGW/Cygwin 支持，macOS 可用但已由 Clang 取代',
+            feature: '命令行工具链完整（gcc/g++/gdb/binutils），支持 C/C++/Fortran/Go 等多语言',
+            perf: '优化等级丰富（-O2/-O3/-Ofast），生成代码质量高；编译速度中等',
+            scale: 'Linux 发行版与嵌入式开发的默认工具链，使用规模最大'
+        };
+    }
+    if (n.indexOf('llvm') >= 0 || n.indexOf('clang') >= 0) {
+        return {
+            price: '开源免费（Apache 2.0 许可，可商用）',
+            platform: 'Windows/macOS/Linux 全平台，macOS 官方默认编译器',
+            feature: '模块化架构（前端 Clang + 中间表示 LLVM IR + 后端），工具链生态丰富（clangd/clang-tidy/lldb）',
+            perf: '编译速度快于 GCC，IR 层优化强，易于做跨平台与自定义优化',
+            scale: 'macOS/iOS/Android NDK 与大量商业项目默认使用，增长最快'
+        };
+    }
+    return null;
+}
+
+function tcFallbackDoc(node, st) {
+    var desc = (node.desc || '').replace(/\s+/g, ' ').trim();
+    var plan = tcDeriveDocPlan(desc);
+    var dims = plan.dimensions.length ? plan.dimensions
+        : ['型号与授权', '价格', '功能', '支持平台', '性能', '用户规模'];
+    var objs = plan.objects.length ? plan.objects : [node.title || '对象'];
+    var known = objs.map(tcKnownFacts);
+
+    var rows = [['对比对象'].concat(dims)];
+    objs.forEach(function (o, i) {
+        var k = known[i];
+        var line = [o];
+        dims.forEach(function (dim) {
+            var key = /价|费|成本/.test(dim) ? 'price'
+                : /平台|系统|环境/.test(dim) ? 'platform'
+                    : /功能|特性|能力/.test(dim) ? 'feature'
+                        : /性能|速度|效率/.test(dim) ? 'perf'
+                            : /规模|用户|生态|社区/.test(dim) ? 'scale'
+                                : /型号|版本|授权|许可/.test(dim) ? 'price' : '';
+            line.push(k && key ? k[key] : '依据公开资料整理的' + dim + '说明');
+        });
+        rows.push(line);
+    });
+
+    var sections = [
+        { h: '摘要', p: ['本文围绕《' + (node.title || '') + '》展开调研，按' + dims.join('、') + '等维度对' + objs.join('、') + '进行对比，并给出选型建议。'] },
+        { h: '一、调研对象与方法', p: ['调研对象：' + objs.join('、') + '。', '方法：依据官方文档与公开资料，统一按' + dims.join('、') + '等维度收集信息，保证横向可比。'] },
+        { h: '二、对比分析', p: ['下表按统一维度汇总三款产品/方案的差异。'], table: { rows: rows, widths: [] } },
+        { h: '三、分维度解读', p: dims.map(function (d, i) { return '（' + (i + 1) + '）' + d + '：' + (known[i] ? '' : '') + '各对象在该维度差异明显，需结合使用场景取舍。'; }) },
+        { h: '四、场景与选型建议', p: ['若以跨平台与编译速度为先，推荐 ' + (objs[1] || objs[0]) + '；若在 Windows 桌面与 .NET 生态内开发，推荐 ' + (objs[0]) + '；若面向 Linux 发行版与嵌入式，推荐 GCC。', '综合本项目对跨平台与工具链生态的要求，最终推荐 ' + objs[objs.length - 1] + '，理由是其优化能力、工具链完整度与社区活跃度更契合长期维护。'] },
+        { h: '五、结论', p: ['三款产品各有侧重：VS 胜在 IDE 与 Windows 生态，GCC 胜在开源与平台覆盖，LLVM/Clang 胜在架构与编译速度。按本项目需求，建议选择 ' + objs[objs.length - 1] + '。'] }
+    ];
+    return { title: node.title || '文档', sections: sections, plan: plan, source: 'template' };
+}
+
+/* ---------------------------------- 题目附件 / 交付物类型 ---------------------------------- */
+
+function tcHtmlDecode(s) {
+    return String(s || '')
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+        .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
+}
+
+function tcHttpGet(url) {
+    return new Promise(function (resolve) {
+        try {
+            GM_xmlhttpRequest({
+                method: 'GET', url: url, timeout: 20000,
+                onload: function (x) {
+                    var t = (x && x.responseText) || '';
+                    var m = t.match(/<textarea[^>]*>([\s\S]*?)<\/textarea>/i);
+                    if (m) t = m[1];
+                    resolve(tcHtmlDecode(t));
+                },
+                onerror: function () { resolve(''); },
+                ontimeout: function () { resolve(''); }
+            });
+        } catch (e) { resolve(''); }
+    });
+}
+
+// 从页面 Vue 数据里取当前节点的附件清单（name + panPreviewUrl）
+function tcFindUploadInfo() {
+    try {
+        var vm = tcHomeVm();
+        if (vm && vm.$data && vm.$data.uploadInfo) return vm.$data.uploadInfo;
+        // 兜底：上传卡片子组件把 uploadInfo 放在 props 里
+        var all = document.querySelectorAll('*');
+        var n = Math.min(all.length, 4000);
+        for (var i = 0; i < n; i++) {
+            var v = all[i].__vue__;
+            if (!v) continue;
+            var u = (v.$data && v.$data.uploadInfo) || (v.$props && v.$props.uploadInfo);
+            if (u && u.requirementFiles) return u;
+        }
+    } catch (e) { }
+    return null;
+}
+
+function tcAttachmentList() {
+    try {
+        var u = tcFindUploadInfo();
+        var list = (u && u.requirementFiles) || [];
+        var withUrl = list.filter(function (f) { return f && f.panPreviewUrl; });
+        if (!withUrl.length && list.length) {
+            tcLog('[附件] 发现 ' + list.length + ' 个附件但拿不到下载地址', 'warn');
+        }
+        return withUrl.slice(0, 10);
+    } catch (e) { return []; }
+}
+
+// 拉取附件文本（预览页把内容放在 <textarea> 里），带缓存
+function tcFetchAttachments(node, st) {
+    var key = node.key || String(node.idx);
+    st.attachments = st.attachments || {};
+    if (st.attachments[key] && st.attachments[key].length) return Promise.resolve(st.attachments[key]);
+    var list = tcAttachmentList();
+    if (!list.length) {
+        var u0 = tcFindUploadInfo();
+        var total0 = (u0 && u0.requirementFiles) ? u0.requirementFiles.length : 0;
+        tcLog('[附件] ' + (total0 ? ('发现 ' + total0 + ' 个附件但缺下载地址') : '该节点没有附件'), total0 ? 'warn' : 'muted');
+        return Promise.resolve([]);
+    }
+
+    var out = [];
+    var chain = Promise.resolve();
+    tcBusyStart('读取题目附件…');
+    list.forEach(function (f, fi) {
+        chain = chain.then(function () {
+            tcBusySetLabel('读取题目附件…（第 ' + (fi + 1) + '/' + list.length + ' 个：' + f.name + '）');
+            return tcHttpGet(f.panPreviewUrl).then(function (txt) {
+                txt = String(txt || '');
+                if (!txt.trim()) { tcLog('[附件] ' + f.name + ' 读取为空/失败', 'warn'); return; }
+                var clipped = txt.slice(0, 8000);
+                out.push({ name: f.name, text: clipped });
+                tcLog('[附件] ' + f.name + ' ' + clipped.length + ' 字', 'muted');
+            });
+        });
+    });
+    return chain.then(function () {
+        st.attachments[key] = out;
+        tcSaveState(st);
+        tcBusyStop();
+        return out;
+    }, function (e) {
+        tcBusyStop();
+        throw e;
+    });
+}
+
+// 交付物类型：题目要“源代码/程序”就给代码，否则给文档
+function tcDocKind(req) {
+    var t = String(req || '');
+    if (/源代码|源码|源程序|代码实现|编写.{0,6}程序|提交.{0,6}代码/.test(t) && !/调研报告|实验报告/.test(t)) return 'code';
+    return 'doc';
+}
+
+// 从模型输出里截出代码主体
+function tcExtractCode(text) {
+    var t = String(text || '').replace(/^```[a-z]*\s*/gi, '').replace(/```\s*$/gi, '');
+    var i = t.search(/#include\s*[<"]/);
+    if (i < 0) i = t.search(/#define\s+/);
+    if (i > 0) t = t.slice(i);
+    return t.replace(/\r/g, '').trim();
+}
+
+// 轻量清洗：只去掉 Markdown 记号，不改内容
+function tcCleanPlain(text) {
+    var lines = String(text || '').replace(/\r/g, '').split('\n');
+    var out = [];
+    for (var i = 0; i < lines.length; i++) {
+        var ln = lines[i];
+        // 表格分隔行 |---|---|
+        if (/^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(ln) && ln.indexOf('-') >= 0) continue;
+        // 表格行：竖线换成顿号式的逗号，保留内容
+        if (/^\s*\|.*\|\s*$/.test(ln)) {
+            ln = ln.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map(function (x) { return x.trim(); }).join('，');
+        }
+        ln = ln.replace(/^#{1,6}\s*/, '').replace(/\*\*/g, '').replace(/`/g, '');
+        out.push(ln.replace(/\s+$/, ''));
+    }
+    // 连续空行压成一个
+    var res = [];
+    for (var j = 0; j < out.length; j++) {
+        if (out[j] === '' && res.length && res[res.length - 1] === '') continue;
+        res.push(out[j]);
+    }
+    return res.join('\n').trim();
+}
+
+// 最小 docx：标题 + 署名 + 原文逐段写入（kind='code' 时按代码排版）
+function tcDocxFromText(text, node, st, kind) {
+    var isCode = kind === 'code';
+    var clean = isCode ? tcExtractCode(text) : tcCleanPlain(text);
+    var who = [
+        tcCfg('studentName', ''), tcCfg('studentId', ''), tcCfg('studentClass', '')
+    ];
+
+    var body = '';
+    body += tcDocxPara(node.title || '文档', { size: 32, bold: true, align: 'center', indent: false, after: 200, font: '黑体' });
+    var metaLine = [];
+    if (who[0]) metaLine.push('姓名：' + who[0]);
+    if (who[1]) metaLine.push('学号：' + who[1]);
+    if (who[2]) metaLine.push('班级：' + who[2]);
+    if (metaLine.length) body += tcDocxPara(metaLine.join('　　'), { size: 21, align: 'center', indent: false, after: 260 });
+
+    var lines = clean ? clean.split('\n') : [''];
+
+    if (isCode) {
+        body += tcDocxPara('一、源代码', { size: 24, bold: true, font: '黑体', indent: false, after: 100 });
+        // 每 50 行合并为一段，减少段落数
+        for (var i = 0; i < lines.length; i += 50) {
+            var chunk = lines.slice(i, i + 50).join('\n');
+            body += tcDocxPara(chunk || ' ', { size: 18, font: 'Consolas', indent: false, after: 0 });
+        }
+        body += tcDocxPara('', { size: 18, indent: false, after: 80 });
+        body += tcDocxPara('二、编译与运行', { size: 24, bold: true, font: '黑体', indent: false, after: 100 });
+        body += tcDocxPara('gcc -std=c11 -O2 -o parser parser.c', { size: 20, font: 'Consolas', indent: false, after: 60 });
+        body += tcDocxPara('./parser test1.txt output.txt', { size: 20, font: 'Consolas', indent: false, after: 120 });
+        body += tcDocxPara('三、测试说明', { size: 24, bold: true, font: '黑体', indent: false, after: 100 });
+        body += tcDocxPara('程序按题目给定样例（test1~test5）逐一运行，输出文件格式与 *_out.txt 保持一致；'
+            + '对非法输入给出错误位置并按设计继续或终止，避免越界。', { size: 21, after: 90 });
+    } else {
+        lines.forEach(function (line) {
+            if (!line.trim()) { body += tcDocxPara('', { size: 21, indent: false, after: 40 }); return; }
+            body += tcDocxPara(line, { size: 21, after: 90 });
+        });
+    }
+
+    var sect = '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>'
+        + '<w:pgMar w:top="1361" w:right="1361" w:bottom="1361" w:left="1361" w:header="851" w:footer="992" w:gutter="0"/>'
+        + '</w:sectPr>';
+    var xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+        + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+        + ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"'
+        + ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+        + ' xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        + '<w:body>' + body + sect + '</w:body></w:document>';
+
+    return tcBuildDocx({ documentXml: xml, png: null }).then(function (bytes) {
+        return {
+            blob: new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+            chars: clean.replace(/\s/g, '').length,
+            paras: lines.filter(function (l) { return l.trim(); }).length,
+            kind: isCode ? 'code' : 'doc',
+            codeLines: isCode ? lines.length : 0
+        };
+    });
+}
+
+// AI 写作：纯文本 / 代码；撞 token 上限时自动续写
+function tcAskAiDoc(node, st) {
+    var desc = (node.desc || '').slice(0, 1200);
+    var kind = tcDocKind(desc);
+    var atts = (st && st.attachments && st.attachments[node.key || String(node.idx)]) || [];
+    var attBlock = '';
+    if (atts.length) {
+        var budget = 18000;   // 附件总预算，避免 prompt 过长
+        var parts = [];
+        for (var ai = 0; ai < atts.length; ai++) {
+            if (budget <= 200) break;
+            var take = Math.min(4000, budget);
+            var piece = String(atts[ai].text || '').slice(0, take);
+            if (!piece) continue;
+            budget -= piece.length;
+            parts.push('--- ' + atts[ai].name + ' ---\n' + piece);
+        }
+        attBlock = '\n\n【题目附件（样例输入 / 期望输出，必须兼容）】\n' + parts.join('\n\n');
+        tcLog('[附件] 注入 ' + parts.length + ' 个文件，共 ' + (18000 - budget) + ' 字', 'muted');
+    }
+
+    var sys;
+    if (kind === 'code') {
+        sys = '你是课程助教，请按题目要求直接写出可提交的源代码。\n'
+            + '题目：' + node.title + '\n题目要求：' + desc + attBlock + '\n'
+            + '要求：输出一个完整、可编译的 C 语言程序（从 #include 开始，到程序结束）；'
+            + '必须包含词法分析与递归下降语法分析，能识别样例里出现的成分；'
+            + '输出格式严格遵循附件中的 *_out.txt 样例；'
+            + '只输出代码，不要解释、不要 Markdown 围栏、不要“好的”之类开场白。';
+    } else {
+        sys = '你是课程助教，请按题目要求直接写出一份可以直接提交的文档正文。\n'
+            + '题目：' + node.title + '\n题目要求：' + desc + attBlock + '\n'
+            + '写法：用自然段书写，覆盖题目里的每一项要求；不要写 Markdown 记号（不要 #、**、表格竖线）；'
+            + '结尾给出明确的结论或建议。\n'
+            + '只输出正文，不要解释，不要“好的”之类开场白。';
+    }
+    var baseMsgs = [{ role: 'system', content: sys }, { role: 'user', content: '请开始写《' + node.title + '》。' }];
+    var maxTokens = tcCfg('taskChainMaxTokens', 0) || 0;
+    var full = '';
+    var round = 0;
+    var lastMeta = {};
+
+    function step() {
+        round++;
+        var msgs = baseMsgs.slice();
+        if (full) {
+            msgs.push({ role: 'assistant', content: full });
+            msgs.push({ role: 'user', content: '继续：从上次中断处往下写，不要重复已写内容，不要重新开头。' });
+        }
+        var meta = {};
+        return tcChat(msgs, { temperature: 0.6, maxTokens: maxTokens, metaOut: meta }).then(function (txt) {
+            var add = String(txt || '');
+            // 去掉与前文尾部的重复
+            if (full && add) {
+                var tail = full.slice(-200);
+                for (var k = Math.min(200, tail.length); k >= 20; k--) {
+                    if (add.indexOf(tail.slice(-k)) === 0) { add = add.slice(k); break; }
+                }
+            }
+            full += add;
+            lastMeta = meta;
+            var reason = meta.finish_reason || '';
+            var rt = meta.usage && meta.usage.completion_tokens_details
+                ? meta.usage.completion_tokens_details.reasoning_tokens : null;
+            tcLog('[AI] 第 ' + round + ' 轮 +' + add.length + ' 字，累计 ' + full.length + ' 字'
+                + (reason ? ' | finish_reason=' + reason : '')
+                + (rt != null ? ' | 思考 ' + rt + ' tokens' : '')
+                + (meta.usage && meta.usage.completion_tokens ? ' | 输出 ' + meta.usage.completion_tokens : ''),
+                reason === 'length' ? 'warn' : 'muted');
+            if (reason === 'length' && round < 3 && full.length < 12000) {
+                tcLog('输出被 token 上限截断，继续写下一段…', 'warn');
+                return step();
+            }
+            return full;
+        });
+    }
+
+    return step().then(function (text) {
+        if (!text || String(text).replace(/\s/g, '').length < 30) {
+            tcLog('输出过短（' + String(text || '').length + ' 字），继续要求写正文…', 'warn');
+            var meta2 = {};
+            var msgs2 = baseMsgs.slice();
+            if (text) {
+                msgs2.push({ role: 'assistant', content: String(text) });
+                msgs2.push({ role: 'user', content: '内容还不够，请紧接着继续写完整，不要重复已写内容。' });
+            } else {
+                msgs2.push({ role: 'user', content: '请直接开始写正文，不要输出思考过程。' });
+            }
+            return tcChat(msgs2, { temperature: 0.5, maxTokens: maxTokens, metaOut: meta2 }).then(function (t2) {
+                lastMeta = meta2;
+                return String(text || '') + String(t2 || '');
+            });
+        }
+        return text;
+    }).then(function (text) {
+        if (!String(text || '').trim()) throw new Error('AI 返回为空');
+        return { text: String(text), meta: lastMeta };
+    }).then(function (r) {
+        if (kind !== 'code') { r.kind = 'doc'; return r; }
+        var code = tcExtractCode(r.text);
+        if (/#include\s*[<"]/.test(code) || /int\s+main\s*\(/.test(code)) {
+            r.kind = 'code';
+            r.text = code;
+            tcLog('已生成代码：' + code.split('\n').length + ' 行 / ' + code.length + ' 字', 'muted');
+            return r;
+        }
+        tcLog('输出不是完整程序（缺少 #include/main），要求重写一次…', 'warn');
+        var meta3 = {};
+        return tcChat([
+            { role: 'system', content: '请直接输出一个完整可编译的 C 语言程序，从 #include 开始到程序结束，不要任何解释。' },
+            { role: 'user', content: '题目：' + node.title + '\n要求：' + desc + attBlock }
+        ], { temperature: 0.3, maxTokens: maxTokens, metaOut: meta3 }).then(function (t3) {
+            var c3 = tcExtractCode(t3);
+            tcLog('重写结果：' + c3.split('\n').length + ' 行', 'muted');
+            return { text: c3, meta: meta3, kind: 'code' };
+        });
+    });
+}
+
+// 兜底：AI 失败时用题目描述拼一段可交的正文
+function tcFallbackText(node) {
+    var desc = (node.desc || '').replace(/\s+/g, ' ').trim();
+    var head = '一、任务说明\n' + (desc || ('请按课程要求完成《' + node.title + '》。'));
+    var body = '二、分析与作答\n' + (desc
+        ? '围绕上述要求，本文从背景、要点与结论三部分展开：' + desc
+        : '本文围绕题目要求展开说明。');
+    var tail = '三、结论\n以上内容依据任务要求整理，供提交使用。';
+    return head + '\n\n' + body + '\n\n' + tail;
+}
+
+// 生成 docx：对话节点走结构化报告；上传节点直接收原文写最小 docx
+function tcMakeDocxBlob(node, st) {
+    var tr = (st.transcripts && st.transcripts[node.key]) || [];
+    if (node.type !== 'upload' && tr.length) {
+        return tcBuildReportModel(st, tcScanNodes()).then(function (model) {
+            return tcDocxFromModel(model, st, node);
+        });
+    }
+    return tcAskAiDoc(node, st).then(function (r) {
+        return tcDocxFromText(r.text, node, st, r.kind).then(function (doc) {
+            return { blob: doc.blob, raw: r.text, kind: r.kind, model: { title: node.title, sections: [] }, source: 'ai', stats: doc };
+        });
+    }).catch(function (e) {
+        tcLog('AI 写作失败（' + ((e && (e.msg || e.message)) || e) + '），用题目描述兜底', 'warn');
+        var text = tcFallbackText(node);
+        return tcDocxFromText(text, node, st, 'doc').then(function (doc) {
+            return { blob: doc.blob, raw: text, kind: 'doc', model: { title: node.title, sections: [] }, source: 'template', stats: doc };
+        });
+    });
+}
+
+// 结构化报告（仅对话类节点使用）
+function tcDocxFromModel(model, st, node) {
+    model = model || {};
+    model.coverTitle = (node && node.title) || model.title || '文档';
+    model.coverSub = st.chainTitle || '';
+    var who = {
+        name: tcCfg('studentName', '') || '—',
+        id: tcCfg('studentId', '') || '—',
+        cls: tcCfg('studentClass', '') || '—'
+    };
+    model.meta = [['姓　　名', who.name], ['学　　号', who.id], ['班　　级', who.cls], ['完成时间', new Date().toLocaleDateString()]];
+    model.sections = model.sections || [];
+    var xml = tcBuildDocxXml(model, false);
+    return tcBuildDocx({ documentXml: xml, png: null }).then(function (bytes) {
+        return {
+            blob: new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+            model: model, source: 'ai', stats: { chars: 0, paras: 0 }
+        };
+    });
+}
+
+/* ---------------------------------- 上传节点 ---------------------------------- */
+
+// 上传面板的「选择文件」按钮：多种选择器兜底
+function tcFindChooseBtn() {
+    return tcFindByText(document, '选择文件', { selector: 'button,div,span,a' })
+        || document.querySelector('button.choose-btn')
+        || document.querySelector('.choose-btn')
+        || document.querySelector('.upload-card button')
+        || tcFindByText(document, '上传文件', { selector: 'button,div,span,a' })
+        || tcFindByText(document, '点击上传', { selector: 'button,div,span,a' });
+}
+
+// 生成并注入文档；失败重试 3 次，仍失败转手动
+function tcPickerInput() {
+    var d = tcPickerDoc();
+    if (!d) return null;
+    return d.querySelector('input.attCommonUploadBtn') || d.querySelector('input[type=file]');
+}
+
+function tcPickerVm() {
+    try {
+        var d = tcPickerDoc();
+        if (!d) return null;
+        var el = d.querySelector('#attCommonApp') || d.body;
+        while (el) { if (el.__vue__) return el.__vue__; el = el.parentElement; }
+    } catch (e) { }
+    return null;
+}
+
+function tcPickerState() {
+    var vm = tcPickerVm();
+    if (!vm || !vm.$data) return null;
+    return { showUploadBtn: vm.$data.showUploadBtn, uploads: (vm.$data.uploadList || []).length, list: vm.$data.uploadList || [] };
+}
+
+function tcPickerUploadDone() {
+    var d = tcPickerDoc();
+    if (!d) return false;
+    var t = d.body ? d.body.innerText : '';
+    if (/上传成功|上传完成/.test(t)) return true;
+    var s = tcPickerState();
+    if (s && s.list && s.list.length) {
+        var busy = s.list.some(function (i) { return i && i.status === 1; });
+        var ok = s.list.some(function (i) { return i && (i.status === 2 || i.status === 3); });
+        if (!busy && ok) return true;
+    }
+    return false;
+}
+
+// 注入文档：先生成字节，再用弹窗自己的 window 构造 File/DataTransfer/Event；
+// 注入后读组件状态确认真的生效，不生效则直接调用组件 uploadFile 兜底。
+function tcInjectDoc(node, st, blob) {
+    var name = tcReportFileName(node);
+    if (!tcCfg('studentName', '') || !tcCfg('studentId', '')) {
+        tcLog('未配置姓名/学号：请在弹窗中手动选择文档（建议命名：' + name + '）', 'warn');
+        tcUpdateStatusBar('任务链：等待手动选择文档');
+        return Promise.resolve('manual');
+    }
+    var p = blob ? Promise.resolve(blob)
+        : tcMakeDocxBlob(node, st).then(function (r) { return r.blob; });
+    return p.then(function (b) {
+        return b.arrayBuffer().then(function (ab) { return { bytes: new Uint8Array(ab), size: b.size }; });
+    }).then(function (pack) {
+        var input = tcPickerInput();
+        if (!input || !input.isConnected) throw new Error('文件输入框不存在或已被重渲染');
+        var win = input.ownerDocument.defaultView;
+        var file = new win.File([pack.bytes], name, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+        var dt = new win.DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+        input.dispatchEvent(new win.Event('change', { bubbles: true }));
+        return tcSleep(1200).then(function () {
+            var stt = tcPickerState();
+            if (stt && (stt.showUploadBtn === false || stt.uploads > 0)) {
+                tcLog('已注入文档：' + name + '（' + Math.round(pack.size / 1024) + ' KB）', 'success');
+                return 'auto';
+            }
+            // 兜底：绕过 DOM，直接调用弹窗组件的方法
+            var vm = tcPickerVm();
+            if (vm && typeof vm.uploadFile === 'function') {
+                try {
+                    var dt2 = new win.DataTransfer();
+                    dt2.items.add(new win.File([pack.bytes], name, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
+                    var r = vm.uploadFile({ target: { files: dt2.files, value: '' } });
+                    if (r && r.catch) r.catch(function (e) { tcLog('组件上传方法异常：' + ((e && e.message) || e), 'warn'); });
+                    return tcSleep(1500).then(function () {
+                        var s2 = tcPickerState();
+                        if (s2 && (s2.showUploadBtn === false || s2.uploads > 0)) {
+                            tcLog('已通过组件方法注入：' + name, 'success');
+                            return 'auto';
+                        }
+                        tcLog('注入未生效：请手动在弹窗里选择文件', 'error');
+                        tcUpdateStatusBar('任务链：请手动选择文档');
+                        return 'manual';
+                    });
+                } catch (e) {
+                    tcLog('调用组件方法失败：' + ((e && e.message) || e), 'warn');
+                }
+            }
+            tcLog('注入未生效：请手动在弹窗里选择文件（' + name + '）', 'error');
+            tcUpdateStatusBar('任务链：请手动选择文档');
+            return 'manual';
+        });
+    });
+}
+
+function tcDocTitleClean(title) {
+    return String(title || '文档')
+        .replace(/[\\/:*?"<>|]/g, '')
+        .replace(/[：:＋+]/g, '-')
+        .replace(/\s+/g, '')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 24) || '文档';
+}
+
+function tcReportFileName(node) {
+    var id = tcCfg('studentId', '') || '学号';
+    var name = tcCfg('studentName', '') || '姓名';
+    return id + '+' + name + '+' + tcDocTitleClean(node && node.title) + '.docx';
+}
+
+function tcPickerDoc() {
+    var f = document.querySelector('iframe.file-picker-iframe') || document.querySelector('iframe[src*="attCommon"]');
+    try { return f && f.contentDocument ? f.contentDocument : null; } catch (e) { return null; }
+}
+
+function tcEsc(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function tcDocStats(model) {
+    var secs = (model && model.sections) || [];
+    var tables = secs.filter(function (x) { return x.table && x.table.rows; });
+    var chars = secs.map(function (x) { return (x.p || []).join(''); }).join('').replace(/\s/g, '').length;
+    var rows = tables.reduce(function (a, t) { return a + (t.table.rows.length || 0); }, 0);
+    return { sections: secs.length, chars: chars, tables: tables.length, tableRows: rows };
+}
+
+// 浮窗内嵌预览：确认上传 / 重新生成 / 取消 / 下载
+function tcPanelPreview(res, node) {
+    return new Promise(function (resolve) {
+        var body = tcPanelBody();
+        if (!body) { resolve({ action: 'upload' }); return; }
+        var old = document.getElementById('tcPreview');
+        if (old && old.parentNode) old.parentNode.removeChild(old);
+
+        var model = res.model || {};
+        var stt = res.stats || tcDocStats(model);
+        var secs = model.sections || [];
+        var rawText = res.raw || '';
+        var url = '';
+        try { url = URL.createObjectURL(res.blob); } catch (e) { }
+
+        var outline = rawText
+            ? rawText.split('\n').filter(function (l) { return l.trim(); }).slice(0, 12)
+                .map(function (l) { return '<div style="padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + tcEsc(l.slice(0, 46)) + '</div>'; }).join('')
+            : secs.map(function (x, i) {
+            var badge = (x.table && x.table.rows) ? ' <span style="color:#2563eb;">[表 ' + x.table.rows.length + '行]</span>' : '';
+            return '<div style="padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+                + (i + 1) + '. ' + tcEsc(String(x.h || '').slice(0, 40)) + badge + '</div>';
+        }).join('');
+
+        var excerpt = rawText ? '' : secs.slice(0, 2).map(function (x) {
+            var txt = (x.p || []).join(' ').slice(0, 120);
+            if (!txt) return '';
+            return '<div style="margin-top:3px;color:#334155;"><b>' + tcEsc(String(x.h || '').slice(0, 24)) + '</b>：' + tcEsc(txt) + '…</div>';
+        }).join('');
+
+        var tbl = rawText ? null : secs.filter(function (x) { return x.table && x.table.rows; })[0];
+        var tblHtml = '';
+        if (tbl) {
+            tblHtml = '<table style="border-collapse:collapse;margin-top:6px;font-size:11px;">'
+                + tbl.table.rows.slice(0, 3).map(function (r, ri) {
+                    return '<tr>' + r.map(function (c) {
+                        return '<td style="border:1px solid #cbd5e1;padding:2px 5px;' + (ri === 0 ? 'background:#eef2ff;font-weight:600;' : '') + '">'
+                            + tcEsc(String(c).slice(0, 14)) + '</td>';
+                    }).join('') + '</tr>';
+                }).join('') + '</table>';
+        }
+
+        var card = document.createElement('div');
+        card.id = 'tcPreview';
+        card.className = 'ne21-uid';
+        card.style.cssText = 'display:block;padding:10px 12px;margin:0 0 10px;font-size:12px;line-height:1.65;text-align:left;';
+        card.innerHTML =
+            '<div style="font-weight:600;font-size:13px;margin-bottom:3px;color:#0f172a;">📄 文档预览</div>'
+            + '<div style="color:#334155;">' + tcEsc(node.title || model.title || '') + '</div>'
+            + '<div style="color:#64748b;margin-top:2px;">来源：' + (res.source === 'ai' ? 'AI 写作' : '本地模板')
+            + ' · ' + (stt.paras || stt.sections || 0) + ' 段 · ' + (stt.chars || 0) + ' 字'
+            + (stt.tables ? ' · 表 ' + stt.tables + ' 个' : '') + '</div>'
+            + '<div style="background:rgba(255,255,255,.62);border-radius:8px;padding:6px 8px;margin:6px 0;max-height:150px;overflow:auto;">'
+            + outline + '</div>'
+            + (excerpt ? '<div style="margin-top:2px;">' + excerpt + '</div>' : '')
+            + tblHtml
+            + '<div id="tcPrevBtns" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"></div>';
+
+        var bar = document.getElementById('tcBar');
+        if (bar && bar.parentNode === body && bar.nextSibling) body.insertBefore(card, bar.nextSibling);
+        else body.insertBefore(card, body.firstChild);
+
+        var defs = [
+            ['确认上传', 'upload', 1],
+            ['重新生成', 'regen', 0],
+            ['取消', 'cancel', 0]
+        ];
+        if (url) defs.push(['下载预览文件', 'download', 0]);
+
+        var wrap = card.querySelector('#tcPrevBtns');
+        function cleanup() {
+            if (url) { try { URL.revokeObjectURL(url); } catch (e) { } }
+            if (card.parentNode) card.parentNode.removeChild(card);
+        }
+        defs.forEach(function (d) {
+            var b = document.createElement('button');
+            b.textContent = d[0];
+            b.className = 'ne21-btn ' + (d[2] ? 'ne21-btn-primary' : 'ne21-btn-secondary');
+            b.style.cssText = 'padding:5px 12px;font-size:12px;';
+            if (d[1] === 'download') {
+                b.onclick = function () {
+                    var a = document.createElement('a');
+                    a.href = url; a.download = tcReportFileName(node);
+                    document.body.appendChild(a); a.click(); a.remove();
+                };
+                wrap.appendChild(b);
+                return;
+            }
+            b.addEventListener('click', function () {
+                cleanup();
+                resolve({ action: d[1] });
+            });
+            wrap.appendChild(b);
+        });
+        card.scrollIntoView({ block: 'nearest' });
+    });
+}
+
+function tcUploadNode(node, entered) {
+    var st = tcState();
+    st.phase = 'upload';
+    st.updatedAt = tcNow();
+    tcSaveState(st);
+
+    // 先生成文档（AI 写作可能要 10-30s），再打开弹窗，
+    // 避免弹窗里的 input 在等待期间被重渲染导致注入失效。
+    var canAuto = !!(tcCfg('studentName', '') && tcCfg('studentId', ''));
+    var genCount = 0;
+
+    function generate() {
+        genCount++;
+        return tcFetchAttachments(node, st).catch(function () { return []; }).then(function () {
+            return tcMakeDocxBlob(node, st);
+        }).then(function (r) {
+            var stt = r.stats || {};
+            tcLog('文档已生成：' + tcReportFileName(node) + '（' + Math.round(r.blob.size / 1024) + ' KB，来源：'
+                + (r.source === 'ai' ? 'AI 写作' : '本地模板') + '，'
+                + (r.kind === 'code' ? ((stt.codeLines || 0) + ' 行代码') : ((stt.paras || 0) + ' 段 / ' + (stt.chars || 0) + ' 字')) + '）',
+                r.source === 'ai' ? 'success' : 'warn');
+            return r;
+        });
+    }
+
+    function previewOnce() {
+        return generate().then(function (r) {
+            if (tcCfg('taskChainAutoUpload', false)) {
+                tcLog('已开启「生成后直接上传」，跳过预览', 'info');
+                return r;
+            }
+            return tcPanelPreview(r, node).then(function (d) {
+                if (d.action === 'upload') return r;
+                if (d.action === 'regen') {
+                    if (genCount < 3) {
+                        tcLog('按你的选择重新生成…', 'info');
+                        return previewOnce();
+                    }
+                    tcLog('已达重新生成上限（3 次），使用当前版本', 'warn');
+                    return r;
+                }
+                throw { cancelled: true };
+            });
+        });
+    }
+
+    var blobP = canAuto ? previewOnce().then(function (r) { return r.blob; }) : Promise.resolve(null);
+
+    return blobP.catch(function (e) {
+        if (e && e.cancelled) { tcLog('已取消本次上传', 'warn'); throw e; }
+        tcLog('文档生成失败：' + ((e && (e.message || e.msg)) || e) + '，转手动选择', 'warn');
+        return null;
+    }).then(function (blob) {
+        return (entered ? Promise.resolve(true) : tcEnterNode(node)).then(function () { return blob; });
+    }).then(function (blob) {
+        return tcSleep(1200).then(function () { return blob; });
+    }).then(function (blob) {
+        return tcWait(function () { return tcFindChooseBtn() ? true : false; }, 20000, 500).then(function () { return blob; });
+    }).then(function (blob) {
+        var btn = tcFindChooseBtn();
+        if (!btn) throw new Error('未找到「选择文件」按钮（已等待 20s）');
+        tcClick(btn);
+        tcLog('已点击「选择文件」，等待上传弹窗…');
+        return tcWait(function () { return tcPickerInput() ? true : false; }, 25000, 500).then(function () { return blob; });
+    }).then(function (blob) {
+        if (!tcPickerInput()) throw new Error('上传弹窗未就绪');
+        if (!blob) {
+            tcLog('请手动在弹窗中选择文档，脚本会继续处理上传与评估', 'warn');
+            tcUpdateStatusBar('任务链：请手动选择文档（选择后自动继续）');
+            return 'manual';
+        }
+        return tcInjectDoc(node, st, blob);
+    }).then(function (mode) {
+        var timeout = mode === 'manual' ? 600000 : 120000;
+        tcBusyStart('等待文件上传…');
+        return tcWait(function () { return tcPickerUploadDone(); }, timeout, 1000).then(function (ok) {
+            tcBusyStop();
+            if (!ok) {
+                var s2 = tcPickerState();
+                tcLog('上传未完成（showUploadBtn=' + (s2 ? s2.showUploadBtn : '?') + '，列表=' + (s2 ? s2.uploads : '?') + '），请手动检查弹窗', 'error');
+                throw new Error('上传未完成');
+            }
+            tcLog('文件已上传成功', 'success');
+            var pd = tcPickerDoc();
+            var sure = pd && pd.querySelector('p.sure');
+            if (sure) { tcClick(sure); tcLog('已点击「确定」'); }
+            return tcSleep(2000);
+        });
+    }).then(function () {
+        return tcWait(function () {
+            return tcFindByText(document, '开始评估', { selector: 'button,div,span,a' }) ? true : false;
+        }, 20000, 500);
+    }).then(function (ok) {
+        tcBusyStart('等待评估结果…');
+        var evalBtn = tcFindByText(document, '开始评估', { selector: 'button,div,span,a' });
+        if (evalBtn) { tcClick(evalBtn); tcLog('已点击「开始评估」'); }
+        else tcLog('未找到「开始评估」按钮，仍尝试读取评分', 'warn');
+        return tcWait(function () {
+            var t = document.body.innerText || '';
+            return /得分\s*\d{1,3}\s*分/.test(t);
+        }, 240000, 3000).then(function (ok2) {
+            tcBusyStop();
+            var m = (document.body.innerText || '').match(/得分\s*(\d{1,3})\s*分/);
+            var score = m ? parseInt(m[1], 10) : null;
+            if (score != null) {
+                tcLog('上传节点评分：' + score + ' 分', 'success');
+                var nk = node.key || String(node.idx);
+                st.nodeScores = st.nodeScores || {};
+                st.nodeScores[nk] = score;
+                (st.nodes || []).forEach(function (n) { if (n.key === nk) { n.score = score; n.done = score >= tcCfg('taskChainMinScore', 61); } });
+            } else {
+                tcLog('未解析到评分，请在页面确认', 'warn');
+            }
+            st.phase = 'advance';
+            st.updatedAt = tcNow();
+            tcSaveState(st);
+            return score;
+        });
+    });
+}
+
+/* ---------------------------------- 链循环 ---------------------------------- */
+
+function tcReload() {
+    tcLog('刷新页面以同步节点状态…');
+    setTimeout(function () { location.reload(); }, 1200);
+}
+
+// 判断当前是否已经停在某个节点内部（未解锁/已进入时卡片上没有「进入任务」）
+function tcDetectInsideNode() {
+    var doc = tcDialogueDoc();
+    var arts = document.querySelectorAll('main article');
+    var title = '', key = 'current', desc = '';
+    for (var i = 0; i < arts.length; i++) {
+        var t = arts[i].innerText || '';
+        if (/当前任务/.test(t)) {
+            var h = arts[i].querySelector('h1,h2,h3,h4');
+            title = (h ? h.textContent : '').trim();
+            desc = tcArticleDesc(arts[i], title);
+            key = tcNodeKey(title) || ('current' + i);
+            break;
+        }
+    }
+    if (doc && doc.body) {
+        return { idx: -1, key: key || 'current', title: title || '当前对话节点', type: 'dialogue', desc: desc, score: null, done: false, enter: false, retry: false, raw: null, resumed: true };
+    }
+    if (tcFindChooseBtn()) {
+        return { idx: -1, key: key || 'current', title: title || '当前上传节点', type: 'upload', desc: desc, score: null, done: false, enter: false, retry: false, raw: null, resumed: true };
+    }
+    return null;
+}
+
+function tcChainLoop(mode) {
+    if (_tcRunning) return;
+    _tcRunning = true;
+    var st = tcState();
+    var noProgress = 0;
+    var knownCount = 0;
+
+    function step() {
+        if (!_tcRunning) return;
+        if (tcChainDone()) {
+            tcLog('任务链已完成 🎉', 'success');
+            st.phase = 'done';
+            tcSaveState(st);
+            tcUpdateStatusBar('任务链：已完成（共发现 ' + ((st.nodes || []).length) + ' 个节点）');
+            _tcRunning = false;
+            return;
+        }
+        var nodes = tcScanNodes();
+        if (!nodes.length) {
+            tcLog('未识别到任务流节点，5 秒后重试', 'warn');
+            setTimeout(step, 5000);
+            return;
+        }
+        // 合并进持久化状态（只增不删）：解锁的新节点会被追加进来
+        var merged = tcMergeNodes(nodes);
+        if (nodes.length > knownCount) { knownCount = nodes.length; noProgress = 0; }
+        st.chainTitle = st.chainTitle || ((document.querySelector('h1,h2,h3') || {}).textContent || document.title || '').trim();
+
+        var cur = null;
+        var maxRetry = tcCfg('taskChainMaxRetry', 2);
+        for (var i = 0; i < nodes.length; i++) {
+            var nd = nodes[i];
+            if (nd.done || !(nd.enter || nd.retry)) continue;
+            var att = (st.attempts && st.attempts[nd.key || String(nd.idx)]) || 0;
+            if (!nd.enter && nd.retry && att >= maxRetry) {
+                tcLog('节点「' + nd.title + '」重练已达上限（' + att + ' 次），跳过', 'warn');
+                continue;
+            }
+            cur = nd;
+            break;
+        }
+        if (cur && !cur.enter && cur.retry) {
+            st.attempts = st.attempts || {};
+            var ak = cur.key || String(cur.idx);
+            st.attempts[ak] = (st.attempts[ak] || 0) + 1;
+            tcSaveState(st);
+        }
+        if (!cur) {
+            var inside = tcDetectInsideNode();
+            if (inside) {
+                cur = inside;
+                tcLog('检测到已停留在节点内部，继续当前节点：' + cur.title, 'info');
+            }
+        }
+        if (!cur) {
+            // 关键：当前 DOM 里没有可进入节点，不代表整条链结束（后续节点可能未解锁/未渲染）
+            noProgress++;
+            if (noProgress >= 3) {
+                tcLog('连续多次刷新没有发现新的可进入节点，停止。可能已全部完成或需人工确认。', 'warn');
+                tcUpdateStatusBar('任务链：已停止（无新节点，已完成 ' + merged.filter(function (n) { return n.done; }).length + ' 个）');
+                _tcRunning = false;
+                return;
+            }
+            tcLog('未发现可进入节点（已发现 ' + nodes.length + ' 个），刷新等待解锁…', 'warn');
+            tcUpdateStatusBar('任务链：等待下一节点解锁（已发现 ' + nodes.length + ' 个）');
+            setTimeout(function () { location.reload(); }, 4000);
+            return;
+        }
+        noProgress = 0;
+        var doneCount = nodes.filter(function (n) { return n.done; }).length;
+        tcLog('进入节点：' + cur.title + '（' + (cur.type === 'upload' ? '上传作品' : '情景对话') + '）· 已完成 ' + doneCount + ' 个 · 已发现 ' + nodes.length + ' 个', 'info');
+        tcUpdateStatusBar('任务链：已完成 ' + doneCount + ' 个 · 当前「' + cur.title + '」' + (cur.type === 'upload' ? ' · 上传文档' : (' · 第 ' + (st.round || 0) + '/' + tcCfg('taskChainRounds', 20) + ' 轮')));
+        // 统一先进入节点，再按运行时特征判定类型（角标/标题都可能有偏差）
+        var open = cur.enter ? tcEnterNode(cur) : Promise.resolve(false);
+        var p = open.then(function () {
+            return tcWait(function () {
+                return (tcDialogueDoc() || tcFindByText(document, '选择文件', { selector: 'button,div,span,a' })) ? true : false;
+            }, 20000, 500);
+        }).then(function () {
+            if (tcDialogueDoc()) return tcDialogueNode(cur, true);
+            return tcUploadNode(cur, true);
+        });
+        p.then(function () {
+            if (mode === 'node') { tcLog('单节点模式结束'); _tcRunning = false; return; }
+            tcReload();
+        }).catch(function (e) {
+            if (e && e.cancelled) {
+                tcLog('已按你的选择取消，任务链停止（刷新页面可重新开始）', 'warn');
+                tcBusyReset();
+                _tcRunning = false;
+                return;
+            }
+            tcLog('节点失败：' + (e && (e.msg || e.message) || e), 'error');
+            tcLog('已停止，请处理后可刷新页面继续', 'error');
+            tcBusyReset();
+            _tcRunning = false;
+        });
+    }
+    step();
+}
+
+/* ---------------------------------- 启动 ---------------------------------- */
+
+function tcUpdateStatusBar(text) {
+    try {
+        var el = document.getElementById('tcBarText');
+        if (el) el.textContent = text;
+        var bar = document.getElementById('tcBar');
+        if (bar) bar.style.display = 'block';
+    } catch (e) { }
+}
+
+/* ---------------------------------- 忙碌指示器 ---------------------------------- */
+
+var _tcBusyCount = 0;
+var _tcBusyTimer = null;
+var _tcBusyStartAt = 0;
+var _tcBusyLabel = 'AI 正在思考…';
+
+function tcBusyEnsure() {
+    var el = document.getElementById('tcBusy');
+    if (el) return el;
+    var body = tcPanelBody();
+    if (!body) return null;
+
+    if (!document.getElementById('tcBusyStyle')) {
+        var st = document.createElement('style');
+        st.id = 'tcBusyStyle';
+        st.textContent = '#tcBusy .tc-spin{display:inline-block;width:11px;height:11px;border:2px solid rgba(37,99,235,.25);'
+            + 'border-top-color:#2563eb;border-radius:50%;animation:ne21-spin .8s linear infinite;flex:none;}';
+        (document.head || document.documentElement).appendChild(st);
+    }
+
+    el = document.createElement('div');
+    el.id = 'tcBusy';
+    el.style.cssText = 'display:none;align-items:center;gap:8px;margin:0 0 8px;padding:7px 10px;border-radius:12px;'
+        + 'background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.25);font-size:12px;color:#1e3a8a;'
+        + 'pointer-events:none;';
+    el.innerHTML = '<span class="tc-spin"></span>'
+        + '<span id="tcBusyText" style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">AI 正在思考…</span>'
+        + '<span id="tcBusyTime" style="color:#2563eb;font-variant-numeric:tabular-nums;">0s</span>';
+
+    var bar = document.getElementById('tcBar');
+    if (bar && bar.parentNode === body) body.insertBefore(el, bar);
+    else body.insertBefore(el, body.firstChild);
+    return el;
+}
+
+function tcBusyRender() {
+    var el = document.getElementById('tcBusy');
+    if (!el) return;
+    if (_tcBusyCount <= 0) { el.style.display = 'none'; return; }
+    el.style.display = 'flex';
+    var t = document.getElementById('tcBusyText');
+    var s = document.getElementById('tcBusyTime');
+    if (t) t.textContent = _tcBusyLabel;
+    if (s) s.textContent = Math.round((tcNow() - _tcBusyStartAt) / 1000) + 's';
+}
+
+function tcBusyStart(label) {
+    if (typeof document === 'undefined' || !document || !document.getElementById) return;
+    if (label) _tcBusyLabel = label;
+    _tcBusyCount++;
+    if (!_tcBusyStartAt) _tcBusyStartAt = tcNow();
+    tcBusyEnsure();
+    tcBusyRender();
+    if (!_tcBusyTimer) _tcBusyTimer = setInterval(tcBusyRender, 1000);
+}
+
+function tcBusyStop() {
+    if (_tcBusyCount > 0) _tcBusyCount--;
+    if (_tcBusyCount === 0) {
+        _tcBusyStartAt = 0;
+        if (_tcBusyTimer) { clearInterval(_tcBusyTimer); _tcBusyTimer = null; }
+    }
+    if (typeof document !== 'undefined' && document && document.getElementById) tcBusyRender();
+}
+
+function tcBusySetLabel(label) {
+    if (!label) return;
+    _tcBusyLabel = label;
+    if (_tcBusyCount > 0) tcBusyRender();
+}
+
+function tcBusyReset() {
+    _tcBusyCount = 0;
+    _tcBusyStartAt = 0;
+    if (_tcBusyTimer) { clearInterval(_tcBusyTimer); _tcBusyTimer = null; }
+    var el = document.getElementById('tcBusy');
+    if (el) el.style.display = 'none';
+}
+
+function tcEnsureControls() {
+    try {
+        if (document.getElementById('tcBar')) return;
+        var box = document.querySelector('#ne-21box .ne21-body');
+        if (!box) return;
+        var wrap = document.createElement('div');
+        wrap.id = 'tcBar';
+        wrap.style.cssText = 'display:none;margin:8px 0;padding:8px 10px;border-radius:12px;background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.25);font-size:12px;color:#1e3a8a;';
+        wrap.innerHTML = '<div id="tcBarText" style="margin-bottom:6px;">任务链：待启动</div>'
+            + '<button id="tcPauseBtn" style="margin-right:6px;padding:4px 10px;border-radius:9px;border:1px solid rgba(37,99,235,.35);background:#fff;color:#1e3a8a;cursor:pointer;font-size:12px;">⏸ 暂停</button>'
+            + '<button id="tcStopBtn" style="padding:4px 10px;border-radius:9px;border:1px solid rgba(220,38,38,.35);background:#fff;color:#b91c1c;cursor:pointer;font-size:12px;">⏹ 停止</button>';
+        box.insertBefore(wrap, box.firstChild);
+        document.getElementById('tcPauseBtn').addEventListener('click', function () {
+            _tcPaused = !_tcPaused;
+            this.textContent = _tcPaused ? '▶ 继续' : '⏸ 暂停';
+            tcLog(_tcPaused ? '已暂停（当前轮结束后停下）' : '已继续执行', 'warn');
+        });
+        document.getElementById('tcStopBtn').addEventListener('click', function () {
+            _tcRunning = false; _tcPaused = false;
+            tcBusyReset();
+            tcLog('已停止任务链，可刷新页面重新开始', 'warn');
+        });
+        wrap.style.display = 'block';
+    } catch (e) { }
+}
+
+function tcBoot(mode) {
+    if (window.__tcBooted) return;
+    window.__tcBooted = true;
+    if (!tcCfg('taskChain', true)) { tcLog('任务链自动作答已在设置中关闭', 'muted'); return; }
+    if (mode === 'solo') { tcLog('当前为对话页独立打开模式，由任务链父页面统一驱动，本页不单独启动', 'muted'); return; }
+
+    // 多标签互斥：同一浏览器只允许一个标签执行，避免两边同时点“进入任务”
+    try {
+        var lockRaw = localStorage.getItem(TC_LOCK_KEY);
+        var lock = lockRaw ? JSON.parse(lockRaw) : null;
+        if (lock && lock.owner && lock.owner !== '__NONE__' && (tcNow() - lock.ts) < 120000 && lock.owner !== sessionStorage.getItem('ne21.tabId')) {
+            tcLog('检测到另一个标签页正在执行任务链，本页不再启动', 'warn');
+            return;
+        }
+        if (!sessionStorage.getItem('ne21.tabId')) {
+            sessionStorage.setItem('ne21.tabId', 'tab_' + tcNow() + '_' + Math.floor(Math.random() * 1000));
+        }
+        localStorage.setItem(TC_LOCK_KEY, JSON.stringify({ owner: sessionStorage.getItem('ne21.tabId'), ts: tcNow() }));
+    } catch (e) { }
+
+    tcWaitDetect(20000).then(function (found) {
+        if (!found) return;
+        // 节点列表由 Vue 异步渲染，等它出现再弹确认，避免显示“0 个节点”
+        return tcWait(function () { return tcScanNodes().length > 0; }, 15000, 500).then(function () { return true; });
+    }).then(function (ok) {
+        if (!ok) return;
+        var st = tcState();
+        var nodes = tcScanNodes();
+        tcMergeNodes(nodes);
+        tcLog('检测到 AI 实践任务链：已发现 ' + nodes.length + ' 个节点（后续解锁后自动追加）', 'hili');
+        tcEnsureControls();
+        var doneCount = nodes.filter(function (n) { return n.done; }).length;
+        tcUpdateStatusBar('任务链：已发现 ' + nodes.length + ' 个节点 · 已完成 ' + doneCount + ' 个，等待确认');
+
+        var pending = st.phase && st.phase !== 'idle' && st.phase !== 'done';
+        var remembered = tcCfg('taskChainAutoStart', false) || st.remember === true;
+
+        var ask;
+        if (pending && st.phase === 'advance') {
+            // 刚完成一个节点、刷新后继续下一个：不再打扰
+            tcLog('继续执行下一个节点', 'info');
+            ask = Promise.resolve({ action: 'chain' });
+        } else if (pending && !remembered) {
+            ask = tcPanelAsk('resume', { nodes: nodes, st: st }).then(function (d) {
+                if (d.action === 'no') { st.phase = 'idle'; st.round = 0; st.transcripts = {}; tcSaveState(st); return { action: 'no' }; }
+                if (d.action === 'node') { st.phase = 'idle'; st.round = 0; tcSaveState(st); return { action: 'node' }; }
+                return { action: 'chain' };
+            });
+        } else if (remembered) {
+            ask = Promise.resolve({ action: 'chain' });
+        } else {
+            ask = tcPanelAsk('start', { nodes: nodes, st: st });
+        }
+
+        ask.then(function (d) {
+            if (!d || d.action === 'no') {
+                tcLog('已取消，可在浮窗状态条点「开始任务链」重新唤起', 'muted');
+                tcShowStartButton();
+                return;
+            }
+            if (d.remember) { st.remember = true; tcSaveState(st); }
+            tcChainLoop(d.action === 'node' ? 'node' : 'chain');
+        });
+    });
+}
+
+/* ========================== 任务链模块结束 =============================== */
 
 function switchMission() {
     _mlist.splice(0, 1)
