@@ -2,7 +2,7 @@
 
 > 基于 DeepSeek 原生多模态的学习通自动刷课/答题用户脚本
 
-[![Version](https://img.shields.io/badge/version-2.6.7-blue)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer)
+[![Version](https://img.shields.io/badge/version-2.7.0-blue)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer)
 [![License](https://img.shields.io/badge/license-MIT-green)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer/blob/main/LICENSE)
 
 ## 简介
@@ -14,6 +14,18 @@
 > v2.2.0 起，DeepSeek 原生多模态（Vision）已正式可用，脚本不再依赖第三方多模态服务，原先的 Kimi 配置已全部移除。
 
 ## 更新日志
+
+### v2.7.0
+
+- **修复**：复杂问题下对话回复为空——回复改为**顶格请求**（默认 8192 tokens），撞上限时最多 **4 段续写拼接**；同时不再把 `reasoning_content`（思维链）当回复发送
+- **优化**：老师回复改为「就绪优先」捕获——以输入框恢复可用为主信号，文本稳定 0.8s 仅作二次确认，避免抢在思考停顿处截断
+- **重做**：多标签互斥锁——按任务链分键、运行时 10s 心跳、停止/完成/关页即释放、冲突时可在浮窗内一键「接管并开始」
+- **调整**：状态条移到日志上方，状态条与「等待老师回复…」行对调，并去掉状态文字里的「等待老师回复」后缀
+- **美化**：更新提示改为浅蓝卡片（「立即更新」实心按钮、「忽略」次按钮），标题徽标改为「发现新版本！」，卡片内不再显示当前版本
+- **说明**：尝试过的浮窗分区/设置手风琴/图标按钮等改版经试用后回退，保留原有流式布局与全部动画，避免收起后出现空白
+
+<details>
+<summary>历史版本（v2.6.7 及更早）</summary>
 
 ### v2.6.7
 
@@ -28,9 +40,6 @@
 - **修复**：更新提示长期停在旧版本——检查节流由 6 小时改为 30 分钟，缓存版本低于本地版本时立即失效重查
 - **新增**：版本号 tooltip 显示「上次检查时间 + 本版 build」，启动日志打印版本与 build，关于弹窗增加构建号
 - **优化**：所有版本探测 URL 追加 `?ts=`，绕开代理缓存；GitHub Contents API 返回 JSON 时自动 base64 解码解析版本
-
-<details>
-<summary>历史版本（v2.6.4 及更早）</summary>
 
 ### v2.6.4
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                AI学习通助手（DeepSeek 原生多模态）
-// @version             2.6.7
-// @description         基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.6.7 修复思维链被当回复、截断续写、就绪优先捕获、多标签锁可接管，用户自行填写API密钥免费使用
+// @version             2.7.0
+// @description         基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.7.0 回复顶格+续写、状态条位置调整、卡片与忙碌行排序、多标签锁可接管，用户自行填写API密钥免费使用
 // @author              Khihl & DeepSeek Harness
 // @originalAuthor      Ne-21
 // @match               *://*.chaoxing.com/*
@@ -72,7 +72,7 @@ var setting = {
     phone: '',      // 登录配置项：登录手机号/超星号
     password: '',   // 登录配置项：登录密码
 
-    // ===== AI 实践 / 任务链（v2.6.6） =====
+    // ===== AI 实践 / 任务链（v2.7.0） =====
     taskChain: 1,              // 检测到任务链时是否启用（1启用）
     taskChainAutoStart: 0,     // 0=检测后询问；1=检测到直接开始
     taskChainRounds: 20,       // 每个对话节点的目标轮数（上限由页面决定）
@@ -95,13 +95,13 @@ var setting = {
 /************************************************************************************************** */
 /*
   ╔══════════════════════════════════════════════════════════════╗
-  ║        AI学习通助手 v2.6.6 (DeepSeek 原生多模态)            ║
+  ║        AI学习通助手 v2.7.0 (DeepSeek 原生多模态)            ║
   ╠══════════════════════════════════════════════════════════════╣
   ║  原作者:    Ne-21                                           ║
   ║  开发者:    Khihl & DeepSeek Harness                        ║
   ║  更新:      2026-10-20 · AI 实践任务链自动化                 ║
   ║                                                             ║
-  ║  v2.4.0 → v2.6.6 新增：                                              ║
+  ║  v2.4.0 → v2.7.0 新增：                                              ║
   ║   · 任务链检测 + 确认弹窗（不再静默开工）                    ║
   ║   · 多节点编排：逐个作答→评估→进入下一节点                  ║
   ║   · 严格回合制：读老师本轮发言后再生成，一轮只发一条         ║
@@ -781,7 +781,7 @@ function showBox() {
         var box_html = `
             <div id="ne-21box">
                 <div class="ne21-header" title="拖动移动 | 点击 − 最小化">
-                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small id="ne-21-ver" style="font-size:10px;font-weight:400;opacity:0.6">v2.6.7</small><span id="ne-21-update" style="display:none;margin-left:6px;padding:1px 7px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:10px;font-weight:600;cursor:pointer;">新版本</span></h3>
+                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small id="ne-21-ver" style="font-size:10px;font-weight:400;opacity:0.6">v2.7.0</small><span id="ne-21-update" style="display:none;margin-left:6px;padding:1px 7px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:10px;font-weight:600;cursor:pointer;">新版本</span></h3>
                     <button id="ne-21close" type="button" aria-label="最小化">−</button>
                 </div>
                 <div class="ne21-body">
@@ -1158,7 +1158,7 @@ function showBox() {
                     localStorage.setItem('GPTJsSetting.reqIntervalTime', String(v));
                 });
             }
-            // ===== 任务链相关输入项（v2.6.6） =====
+            // ===== 任务链相关输入项（v2.7.0） =====
             [['taskChainRounds', 20, 1, 30], ['taskChainMinScore', 61, 0, 100], ['taskChainMaxTokens', 0, 0, 32768]].forEach(function (item) {
                 var el = top.document.getElementById('GPTJsSetting.' + item[0]);
                 if (!el) return;
@@ -1211,9 +1211,9 @@ function showBox() {
         $('#ne-21box').on('click', '#aboutBtn', function () { _showCredits(); });
     })();
 
-    // ===== 更新检查（v2.6.7） =====
-    var NE21_LOCAL_VER = (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) || '2.6.7';
-    var NE21_BUILD = '20261020T1600';
+    // ===== 更新检查（v2.7.0） =====
+    var NE21_LOCAL_VER = (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) || '2.7.0';
+    var NE21_BUILD = '20261020T1655';
     var NE21_THROTTLE = 30 * 60 * 1000;   // 自动检查最小间隔：30 分钟
     var NE21_RAW_URL = 'https://raw.githubusercontent.com/Khihl-lucky/ChaoXing-AutoAnswer/main/chaoxing-autoanswer.user.js';
 
@@ -1366,6 +1366,32 @@ function showBox() {
         });
     }
 
+    function tcEnsureUpdateTipStyle() {
+        if (document.getElementById('ne21UpdateTipStyle')) return;
+        var st = document.createElement('style');
+        st.id = 'ne21UpdateTipStyle';
+        st.textContent = [
+            '#ne-21-updateTip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;',
+            'margin:0 0 8px;padding:7px 10px;border-radius:11px;',
+            'background:linear-gradient(135deg,rgba(37,99,235,.10),rgba(37,99,235,.05));',
+            'border:1px solid rgba(37,99,235,.22);',
+            'box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 1px 2px rgba(15,23,42,.04);',
+            'font-size:11.5px;color:#1e3a8a;}',
+            '#ne-21-updateTip .tc-upd-text{flex:1;min-width:120px;line-height:1.45;}',
+            '#ne-21-updateTip .tc-upd-go{display:inline-flex;align-items:center;padding:3px 11px;',
+            'border-radius:8px;font-weight:600;font-size:11.5px;color:#fff!important;',
+            'text-decoration:none!important;background:linear-gradient(135deg,#2563eb,#1d4ed8);',
+            'box-shadow:0 2px 8px -3px rgba(37,99,235,.6);transition:transform .15s,box-shadow .15s;}',
+            '#ne-21-updateTip .tc-upd-go:hover{transform:translateY(-1px);box-shadow:0 4px 10px -3px rgba(37,99,235,.65);}',
+            '#ne-21-updateTip .tc-upd-skip{padding:3px 9px;border-radius:8px;font-size:11.5px;',
+            'color:#64748b!important;text-decoration:none!important;background:rgba(255,255,255,.65);',
+            'border:1px solid rgba(15,23,42,.12);transition:background .15s;}',
+            '#ne-21-updateTip .tc-upd-skip:hover{background:rgba(255,255,255,.95);}'
+        ].join('');
+        var host = document.head || document.documentElement;
+        if (host && host.appendChild) host.appendChild(st);
+    }
+
     function tcRenderUpdate(remote) {
         var skip = tcUpdateStore('GPTJsSetting.skipUpdateVersion');
         var newer = remote && tcVerCompare(remote, NE21_LOCAL_VER) > 0;
@@ -1376,7 +1402,7 @@ function showBox() {
         if (badge) {
             badge.style.display = has ? 'inline-block' : 'none';
             if (has) {
-                badge.textContent = '新版本 v' + remote;
+                badge.textContent = '发现新版本！';
                 badge.title = '点击更新到 v' + remote;
                 badge.onclick = function () {
                     var u = tcDownloadUrl();
@@ -1392,14 +1418,15 @@ function showBox() {
         if (!tip) {
             tip = document.createElement('div');
             tip.id = 'ne-21-updateTip';
-            tip.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:#1d4ed8;padding:3px 2px;';
+            tip.className = 'ne21-update-tip';
+            tcEnsureUpdateTipStyle();
             box.insertBefore(tip, box.firstChild);
         }
 
         // 已忽略：保留一行提示，可随时恢复（防止误点）
         if (skipped) {
-            tip.innerHTML = '<span style="color:#64748b;">已忽略新版本 v' + tcEsc(remote) + ' 的更新提示</span>'
-                + '<a href="#" id="ne-21-updateRestore" style="color:#1d4ed8;font-weight:600;text-decoration:none;">恢复提示</a>';
+            tip.innerHTML = '<span class="tc-upd-text" style="color:#64748b;">已忽略新版本 v' + tcEsc(remote) + ' 的更新提示</span>'
+                + '<a href="#" class="tc-upd-go" id="ne-21-updateRestore">恢复提示</a>';
             var rs = tip.querySelector('#ne-21-updateRestore');
             if (rs) rs.onclick = function (e) {
                 e.preventDefault();
@@ -1410,9 +1437,9 @@ function showBox() {
             return;
         }
 
-        tip.innerHTML = '<span>🔄 发现新版本 v' + tcEsc(remote) + '（当前 v' + tcEsc(NE21_LOCAL_VER) + '）</span>'
-            + '<a href="#" id="ne-21-updateGo" style="color:#1d4ed8;font-weight:600;text-decoration:none;">立即更新</a>'
-            + '<a href="#" id="ne-21-updateSkip" style="color:#64748b;text-decoration:none;">忽略此版本</a>';
+        tip.innerHTML = '<span class="tc-upd-text">🔄 发现新版本 v' + tcEsc(remote) + '</span>'
+            + '<a href="#" class="tc-upd-go" id="ne-21-updateGo">立即更新</a>'
+            + '<a href="#" class="tc-upd-skip" id="ne-21-updateSkip">忽略</a>';
         var go = tip.querySelector('#ne-21-updateGo');
         var sk = tip.querySelector('#ne-21-updateSkip');
         if (go) go.onclick = function (e) {
@@ -1537,7 +1564,7 @@ function showBox() {
             '<span id="ne-21-about-close" style="cursor:pointer;font-size:18px;color:rgba(15,23,42,.5);width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.5);">×</span>' +
             '</div>' +
             '<div class="ne21-about-card" style="font-size:12px;line-height:1.8">' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 当前版本</span><b id="ne-21-about-cur">v2.6.7</b></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 当前版本</span><b id="ne-21-about-cur">v2.7.0</b></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🏗️ 构建</span><span>' + NE21_BUILD + '</span></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">👤 原作者</span><span>Ne-21</span></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🛠️ 开发者</span><b>Khihl & DeepSeek Harness</b></div>' +
@@ -5962,9 +5989,9 @@ function startDoWork(index, doms, c, TiMuList) {
     }
 }
 
-/* ============================ AI 实践任务链模块 v2.6.6 ============================ */
+/* ============================ AI 实践任务链模块 v2.7.0 ============================ */
 /* ==========================================================================================
- * AI 实践 / 任务链自动化模块  v2.6.6
+ * AI 实践 / 任务链自动化模块  v2.7.0
  * 功能：检测确认 → 多节点编排 → 回合制对话 → 逐节点评估 → 跨节点前进 → 聚合报告 → 自动上传
  * 说明：本模块运行在父页面（taskChain/student/answer），通过同源 iframe 直接驱动对话页。
  * ======================================================================================== */
@@ -6250,7 +6277,9 @@ function tcPanelAsk(kind, data) {
             + '<div id="tcCardBtns" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"></div>';
 
         var bar = document.getElementById('tcBar');
-        if (bar && bar.parentNode === body && bar.nextSibling) body.insertBefore(card, bar.nextSibling);
+        var busyEl = document.getElementById('tcBusy');
+        if (busyEl && busyEl.parentNode === body) body.insertBefore(card, busyEl);
+        else if (bar && bar.parentNode === body && bar.nextSibling) body.insertBefore(card, bar.nextSibling);
         else body.insertBefore(card, body.firstChild);
 
         var defs = kind === 'resume'
@@ -6739,53 +6768,90 @@ function tcChat(messages, opt) {
         });
     }
 
+    var DEFAULT_MAX_TOKENS = 8192;   // 顶格请求（模型上限），不再设人为小预算
     var baseCfg = {
         messages: messages,
         temperature: (opt.temperature === undefined ? 0.8 : opt.temperature),
-        maxTokens: opt.maxTokens || 0
+        maxTokens: opt.maxTokens || DEFAULT_MAX_TOKENS
     };
 
-    var p = run(baseCfg).catch(function (err) {
-        if (err && err.empty) {
-            tcLog('AI 返回为空（思考内容已丢弃），追加指令重试一次…', 'warn');
-            var msgs = (messages || []).concat([{
-                role: 'user',
-                content: '请直接输出最终回复正文，不要输出任何思考过程、不要解释、不要留空。'
-            }]);
-            return run({ messages: msgs, temperature: 0.3, maxTokens: opt.maxTokens || 0 })
-                .catch(function (e2) {
-                    if (e2 && e2.raw) tcLog('原始响应片段：' + String(e2.raw).replace(/\s+/g, ' ').slice(0, 200), 'muted');
-                    throw e2;
-                });
+    function callOnce(cfg, msgs) {
+        var meta = {};
+        return run({ messages: msgs || cfg.messages, temperature: cfg.temperature, maxTokens: cfg.maxTokens, metaOut: meta })
+            .then(function (t) {
+                return { ok: true, text: String(t || ''), meta: meta };
+            }, function (e) {
+                if (e && e.empty) return { ok: false, meta: meta, err: e };
+                throw e;
+            });
+    }
+
+    var full = '';
+    var round = 0;
+    var lastMeta = {};
+
+    function step(overrideMsgs) {
+        if (round >= 4) {
+            return Promise.reject({ c: 0, msg: 'AI 输出为空（已尝试 4 次）', meta: lastMeta });
         }
-        if (err && (err.c === 429 || err.c >= 500 || err.c === 666)) {
-            tcLog('请求异常（' + (err.msg || err.c) + '），5 秒后重试', 'warn');
-            return tcSleep(5000).then(function () { return run(baseCfg); });
+        round++;
+
+        var useMsgs = overrideMsgs;
+        if (!useMsgs) {
+            useMsgs = (messages || []).slice();
+            if (full) {
+                useMsgs.push({ role: 'assistant', content: full });
+                useMsgs.push({ role: 'user', content: '请紧接着继续写完，只输出最终回复正文，不要重复已写内容，不要输出思考过程。' });
+            }
+        }
+
+        return callOnce(baseCfg, useMsgs).then(function (r) {
+            lastMeta = r.meta || {};
+            if (opt.metaOut) {
+                opt.metaOut.finish_reason = lastMeta.finish_reason;
+                opt.metaOut.usage = lastMeta.usage;
+            }
+            var reason = lastMeta.finish_reason || '';
+            var usage = lastMeta.usage || {};
+            var rt = usage.completion_tokens_details ? usage.completion_tokens_details.reasoning_tokens : null;
+
+            if (!r.ok || !String(r.text || '').trim()) {
+                tcLog('[AI] 空内容（finish_reason=' + (reason || '?')
+                    + '，completion=' + (usage.completion_tokens || '?')
+                    + (rt != null ? '，reasoning=' + rt : '') + '），直接作答重试', 'warn');
+                // 思考吃满/空回复：用更强指令重新发起（仍顶格）
+                var retryMsgs = (messages || []).slice();
+                if (full) retryMsgs.push({ role: 'assistant', content: full });
+                retryMsgs.push({
+                    role: 'user',
+                    content: '直接输出最终答复正文（可以用自然段，但只输出答复），不要输出任何思考、分析或解释。'
+                });
+                return step(retryMsgs);
+            }
+
+            full += r.text;
+            if (round > 1) tcLog('[AI] 第 ' + round + ' 段 +' + r.text.length + ' 字，累计 ' + full.length + ' 字', 'muted');
+
+            if (reason === 'length') {
+                if (round >= 4) {
+                    tcLog('[AI] 已拼接 ' + round + ' 段仍被截断，接受当前内容', 'warn');
+                    return full;
+                }
+                return step(null);   // 继续续写
+            }
+            return full;
+        });
+    }
+
+    return step(null).catch(function (err) {
+        if (err && err.c === 400 && /max_tokens/i.test(err.msg || '')) {
+            tcLog('服务端不接受 max_tokens，改用服务端默认值重试', 'warn');
+            baseCfg.maxTokens = 0;
+            round = 0;
+            full = '';
+            return step(null);
         }
         throw err;
-    });
-
-    // 输出被 token 上限截断：续写一次，避免只拿到半句
-    return p.then(function (txt) {
-        var t = String(txt || '');
-        var meta = opt.metaOut || {};
-        if (meta.finish_reason === 'length' && t.length < 60) {
-            tcLog('[AI] 输出被截断（length，' + t.length + ' 字），续写一次', 'warn');
-            var cont = (messages || []).slice();
-            if (t) cont.push({ role: 'assistant', content: t });
-            cont.push({ role: 'user', content: '请紧接着继续写完，只输出最终回复正文，不要重复已写内容，不要输出思考过程。' });
-            var meta2 = {};
-            return run({ messages: cont, temperature: 0.4, maxTokens: 8192, metaOut: meta2 })
-                .then(function (t2) {
-                    if (opt.metaOut) {
-                        opt.metaOut.finish_reason = meta2.finish_reason;
-                        opt.metaOut.usage = meta2.usage;
-                    }
-                    return t + String(t2 || '');
-                })
-                .catch(function () { return t; });
-        }
-        return t;
     });
 }
 
@@ -6813,7 +6879,7 @@ function tcComposeReply(ctx, teacherText, history, discussed, carryOver) {
         + '若老师在质疑你没有回答问题或重复提问，请先正面回答他的问题，不要继续罗列上一轮的内容。\n\n'
         + '【要求】请给出你的本轮回复（纯文本，150-350 字，答完本轮所有问题，不反问）。';
 
-    return tcChat([{ role: 'system', content: sys }, { role: 'user', content: user }], { temperature: 0.85, maxTokens: 900 });
+    return tcChat([{ role: 'system', content: sys }, { role: 'user', content: user }], { temperature: 0.85 });
 }
 
 function tcCleanReply(text) {
@@ -7010,6 +7076,7 @@ function tcDialogueNode(node, entered) {
 
         var lastSentTeacher = '';
         var pauseLoggedAt = 0;
+        var emptyRetries = 0;
         return new Promise(function (resolve, reject) {
             (function loop() {
                 if (!_tcRunning) return resolve('stopped');
@@ -7019,7 +7086,7 @@ function tcDialogueNode(node, entered) {
                 }
                 var cur = tcReadCtx(doc);
                 if (cur.round >= target) return resolve('reached');
-                tcUpdateStatusBar('任务链：第 ' + (cur.round + 1) + '/' + target + ' 轮 · 等待老师回复');
+                tcUpdateStatusBar('任务链：第 ' + (cur.round + 1) + '/' + target + ' 轮');
                 // 等输入框可用（老师上一轮确实结束）
                 tcWait(function () { return tcTurnReady(doc); }, 120000, 600).then(function () {
                     var thread = tcReadThread(doc, cur.roles);
@@ -7074,6 +7141,7 @@ function tcDialogueNode(node, entered) {
                             return 'dryrun';
                         }
                         if (!tcSend(doc, reply)) throw new Error('发送失败');
+                        emptyRetries = 0;
                         st.transcripts[key].push({ role: 'student', text: reply, hash: reply.replace(/\s+/g, '').slice(0, 40), round: cur.round + 1, ts: tcNow() });
                         st.round = cur.round + 1;
                         st.updatedAt = tcNow();
@@ -7092,7 +7160,14 @@ function tcDialogueNode(node, entered) {
                     if (r === 'dryrun') return resolve('dryrun');
                     setTimeout(loop, 300);
                 }).catch(function (e) {
-                    tcLog('本轮失败：' + (e && (e.msg || e.message) || e), 'error');
+                    var emsg = (e && (e.msg || e.message)) || String(e);
+                    if (/返回为空|空内容/.test(emsg) && emptyRetries < 2) {
+                        emptyRetries++;
+                        tcLog('本轮 AI 返回为空，5 秒后重试（' + emptyRetries + '/2）', 'warn');
+                        setTimeout(loop, 5000);
+                        return;
+                    }
+                    tcLog('本轮失败：' + emsg, 'error');
                     reject(e);
                 });
             })();
@@ -8425,7 +8500,9 @@ function tcPanelPreview(res, node) {
             + '<div id="tcPrevBtns" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"></div>';
 
         var bar = document.getElementById('tcBar');
-        if (bar && bar.parentNode === body && bar.nextSibling) body.insertBefore(card, bar.nextSibling);
+        var busyEl = document.getElementById('tcBusy');
+        if (busyEl && busyEl.parentNode === body) body.insertBefore(card, busyEl);
+        else if (bar && bar.parentNode === body && bar.nextSibling) body.insertBefore(card, bar.nextSibling);
         else body.insertBefore(card, body.firstChild);
 
         var defs = [
@@ -8770,8 +8847,15 @@ function tcBusyEnsure() {
         + '<span id="tcBusyTime" style="color:#2563eb;font-variant-numeric:tabular-nums;">0s</span>';
 
     var bar = document.getElementById('tcBar');
-    if (bar && bar.parentNode === body) body.insertBefore(el, bar);
-    else body.insertBefore(el, body.firstChild);
+    var logEl = document.getElementById('ne-21log');
+    if (bar && bar.parentNode === body) {
+        // 状态条 → 忙碌行 → 日志
+        if (logEl && logEl.parentNode === body) body.insertBefore(el, logEl);
+        else if (bar.nextSibling) body.insertBefore(el, bar.nextSibling);
+        else body.appendChild(el);
+    } else {
+        body.insertBefore(el, body.firstChild);
+    }
     return el;
 }
 
@@ -8830,7 +8914,10 @@ function tcEnsureControls() {
         wrap.innerHTML = '<div id="tcBarText" style="margin-bottom:6px;">任务链：待启动</div>'
             + '<button id="tcPauseBtn" style="margin-right:6px;padding:4px 10px;border-radius:9px;border:1px solid rgba(37,99,235,.35);background:#fff;color:#1e3a8a;cursor:pointer;font-size:12px;">⏸ 暂停</button>'
             + '<button id="tcStopBtn" style="padding:4px 10px;border-radius:9px;border:1px solid rgba(220,38,38,.35);background:#fff;color:#b91c1c;cursor:pointer;font-size:12px;">⏹ 停止</button>';
-        box.insertBefore(wrap, box.firstChild);
+        // 状态条放在日志区正上方（设置区之后），不再贴到浮窗顶部
+        var logEl = document.getElementById('ne-21log');
+        if (logEl && logEl.parentNode === box) box.insertBefore(wrap, logEl);
+        else box.insertBefore(wrap, box.firstChild);
         document.getElementById('tcPauseBtn').addEventListener('click', function () {
             _tcPaused = !_tcPaused;
             this.textContent = _tcPaused ? '▶ 继续' : '⏸ 暂停';
