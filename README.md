@@ -2,7 +2,7 @@
 
 > 基于 DeepSeek 原生多模态的学习通自动刷课/答题用户脚本
 
-[![Version](https://img.shields.io/badge/version-2.5.2-blue)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer)
+[![Version](https://img.shields.io/badge/version-2.6.0-blue)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer)
 [![License](https://img.shields.io/badge/license-MIT-green)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer/blob/main/LICENSE)
 
 ## 简介
@@ -14,6 +14,19 @@
 > v2.2.0 起，DeepSeek 原生多模态（Vision）已正式可用，脚本不再依赖第三方多模态服务，原先的 Kimi 配置已全部移除。
 
 ## 更新日志
+
+### v2.6.0
+
+- **修复**：文档类附件（.doc/.docx）的预览页是分页图片，脚本曾把整页 HTML 当作正文注入，导致模型去“解析示例文件”并产出空话；现按类型分流处理
+- **新增**：文本附件解析 `<textarea>`；文档/扫描件按页图片交给多模态模型读图，提取「模板结构摘要」后再写作
+- **新增**：按页面「解锁下一节点条件」识别最后节点——出现 `≥61 → 结束` 即判定为最终节点
+- **新增**：任务链全览（所有节点标题/要求/得分）注入写作上下文；最终节点再汇总前序文档与对话要点，输出完整报告
+- **新增**：生成文档正文留存（`st.docs`），供后续节点复用
+- **优化**：文件名沿用模板命名规则（如 `学号+姓名+实验二.doc` → `2507010124+张钟鑫+实验二.docx`）
+- **约束**：提示词明确「附件是参考材料，不是分析对象」；禁止声称“已通过系统检查/评分达标”
+
+<details>
+<summary>历史版本（v2.5.2 及更早）</summary>
 
 ### v2.5.2
 
@@ -72,6 +85,8 @@
 - 接入 DeepSeek 原生多模态（Vision）：图片题改由 `deepseek-flash` 识别，移除 Kimi 相关配置与代码
 - 默认模型改为 `deepseek-flash`；新增「图片题处理」与「多模态模型」设置项
 - 升级时自动清理 v2.1.0 遗留的 Kimi 配置
+
+</details>
 
 ## 核心功能
 

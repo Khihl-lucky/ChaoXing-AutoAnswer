@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                AI学习通助手（DeepSeek 原生多模态）
-// @version             2.5.2
-// @description         基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.5.2 浮窗新增 AI 思考指示器（动作 + 耗时），避免看起来卡死，用户自行填写API密钥免费使用
+// @version             2.6.0
+// @description         基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.6.0 附件按类型处理（文本解析/文档读图）；按「结束」识别最后节点并汇总前序任务，用户自行填写API密钥免费使用
 // @author              Khihl & DeepSeek Harness
 // @originalAuthor      Ne-21
 // @match               *://*.chaoxing.com/*
@@ -68,7 +68,7 @@ var setting = {
     phone: '',      // 登录配置项：登录手机号/超星号
     password: '',   // 登录配置项：登录密码
 
-    // ===== AI 实践 / 任务链（v2.5.2） =====
+    // ===== AI 实践 / 任务链（v2.6.0） =====
     taskChain: 1,              // 检测到任务链时是否启用（1启用）
     taskChainAutoStart: 0,     // 0=检测后询问；1=检测到直接开始
     taskChainRounds: 20,       // 每个对话节点的目标轮数（上限由页面决定）
@@ -91,13 +91,13 @@ var setting = {
 /************************************************************************************************** */
 /*
   ╔══════════════════════════════════════════════════════════════╗
-  ║        AI学习通助手 v2.5.2 (DeepSeek 原生多模态)            ║
+  ║        AI学习通助手 v2.6.0 (DeepSeek 原生多模态)            ║
   ╠══════════════════════════════════════════════════════════════╣
   ║  原作者:    Ne-21                                           ║
   ║  开发者:    Khihl & DeepSeek Harness                        ║
   ║  更新:      2026-10-20 · AI 实践任务链自动化                 ║
   ║                                                             ║
-  ║  v2.4.0 → v2.5.2 新增：                                              ║
+  ║  v2.4.0 → v2.6.0 新增：                                              ║
   ║   · 任务链检测 + 确认弹窗（不再静默开工）                    ║
   ║   · 多节点编排：逐个作答→评估→进入下一节点                  ║
   ║   · 严格回合制：读老师本轮发言后再生成，一轮只发一条         ║
@@ -777,7 +777,7 @@ function showBox() {
         var box_html = `
             <div id="ne-21box">
                 <div class="ne21-header" title="拖动移动 | 点击 − 最小化">
-                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small style="font-size:10px;font-weight:400;opacity:0.6">v2.5.2</small></h3>
+                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small style="font-size:10px;font-weight:400;opacity:0.6">v2.6.0</small></h3>
                     <button id="ne-21close" type="button" aria-label="最小化">−</button>
                 </div>
                 <div class="ne21-body">
@@ -1154,7 +1154,7 @@ function showBox() {
                     localStorage.setItem('GPTJsSetting.reqIntervalTime', String(v));
                 });
             }
-            // ===== 任务链相关输入项（v2.5.2） =====
+            // ===== 任务链相关输入项（v2.6.0） =====
             [['taskChainRounds', 20, 1, 30], ['taskChainMinScore', 61, 0, 100], ['taskChainMaxTokens', 0, 0, 32768]].forEach(function (item) {
                 var el = top.document.getElementById('GPTJsSetting.' + item[0]);
                 if (!el) return;
@@ -1220,11 +1220,11 @@ function showBox() {
             '<span id="ne-21-about-close" style="cursor:pointer;font-size:18px;color:rgba(15,23,42,.5);width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.5);">×</span>' +
             '</div>' +
             '<div class="ne21-about-card" style="font-size:12px;line-height:1.8">' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 版本</span><b>v2.5.2</b></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 版本</span><b>v2.6.0</b></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">👤 原作者</span><span>Ne-21</span></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🛠️ 开发者</span><b>Khihl & DeepSeek Harness</b></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🧠 AI 模型</span><span>DeepSeek 原生多模态</span></div>' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📊 代码规模</span><span>~8300 行</span></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📊 代码规模</span><span>~8500 行</span></div>' +
             '</div>' +
             '<div style="border-left:3px solid #22c55e;padding-left:12px;margin:12px 0;font-size:12px;line-height:1.8;background:rgba(34,197,94,.04);border-radius:0 8px 8px 0;padding-right:8px;padding-top:6px;padding-bottom:6px">' +
             '<b style="color:#16a34a">🌟 核心功能</b><br>' +
@@ -5644,9 +5644,9 @@ function startDoWork(index, doms, c, TiMuList) {
     }
 }
 
-/* ============================ AI 实践任务链模块 v2.5.2 ============================ */
+/* ============================ AI 实践任务链模块 v2.6.0 ============================ */
 /* ==========================================================================================
- * AI 实践 / 任务链自动化模块  v2.5.2
+ * AI 实践 / 任务链自动化模块  v2.6.0
  * 功能：检测确认 → 多节点编排 → 回合制对话 → 逐节点评估 → 跨节点前进 → 聚合报告 → 自动上传
  * 说明：本模块运行在父页面（taskChain/student/answer），通过同源 iframe 直接驱动对话页。
  * ======================================================================================== */
@@ -7215,22 +7215,86 @@ function tcHtmlDecode(s) {
         .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
 }
 
+// 判断附件预览页的类型：文本 / 分页图片 / 不可用 HTML
+function tcClassifyAttachmentHtml(raw) {
+    raw = String(raw || '');
+    if (!raw.trim()) return { kind: 'empty' };
+
+    var m = raw.match(/<textarea[^>]*>([\s\S]*?)<\/textarea>/i);
+    if (m) {
+        var t = tcHtmlDecode(m[1]).trim();
+        if (t) return { kind: 'text', text: t };
+    }
+    // 扫描件：整页图片（fileBox / thumb/N.png）
+    if (/fileBox|thumb\/\d+\.(png|jpe?g)/i.test(raw) && /<img/i.test(raw)) {
+        var pages = [];
+        var re = /<img[^>]+src="([^"]+)"/gi, mm;
+        while ((mm = re.exec(raw))) {
+            var u = tcHtmlDecode(mm[1]);
+            if (/\.(png|jpe?g|webp)/i.test(u) && pages.indexOf(u) < 0) pages.push(u);
+        }
+        if (pages.length) return { kind: 'image', pages: pages };
+    }
+    // 纯文本响应
+    if (raw.indexOf('<') < 0 || (raw.match(/</g) || []).length < 3) {
+        return { kind: 'text', text: raw.trim() };
+    }
+    return { kind: 'html' };
+}
+
 function tcHttpGet(url) {
     return new Promise(function (resolve) {
         try {
             GM_xmlhttpRequest({
                 method: 'GET', url: url, timeout: 20000,
+                onload: function (x) { resolve(tcClassifyAttachmentHtml((x && x.responseText) || '')); },
+                onerror: function () { resolve({ kind: 'empty' }); },
+                ontimeout: function () { resolve({ kind: 'empty' }); }
+            });
+        } catch (e) { resolve({ kind: 'empty' }); }
+    });
+}
+
+// 图片下载为 base64 dataURL
+function tcFetchImageBase64(url) {
+    return new Promise(function (resolve) {
+        try {
+            GM_xmlhttpRequest({
+                method: 'GET', url: url, timeout: 20000, responseType: 'arraybuffer',
                 onload: function (x) {
-                    var t = (x && x.responseText) || '';
-                    var m = t.match(/<textarea[^>]*>([\s\S]*?)<\/textarea>/i);
-                    if (m) t = m[1];
-                    resolve(tcHtmlDecode(t));
+                    try {
+                        var buf = null;
+                        if (x.response instanceof ArrayBuffer) buf = new Uint8Array(x.response);
+                        else if (x.response) buf = new Uint8Array(x.response);
+                        if (!buf || !buf.length) return resolve('');
+                        var bin = '';
+                        for (var i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+                        var mime = /\.(jpg|jpeg)$/i.test(url) ? 'image/jpeg' : 'image/png';
+                        resolve('data:' + mime + ';base64,' + btoa(bin));
+                    } catch (e) { resolve(''); }
                 },
                 onerror: function () { resolve(''); },
                 ontimeout: function () { resolve(''); }
             });
         } catch (e) { resolve(''); }
     });
+}
+
+// 用视觉模型读取参考模板的章节结构（最多 2 页）
+function tcVisionReadTemplate(name, pages) {
+    var picked = (pages || []).slice(0, 2);
+    return Promise.all(picked.map(tcFetchImageBase64)).then(function (list) {
+        var imgs = list.filter(Boolean);
+        if (!imgs.length) return '';
+        var content = [{
+            type: 'text',
+            text: '这是课程模板文档《' + name + '》的前几页截图。请提取它的结构：标题、章节顺序、'
+                + '每一章应当写什么内容、有哪些格式要求。只输出结构摘要（分条列出），不要复述原文，不要评价。'
+        }];
+        imgs.forEach(function (u) { content.push({ type: 'image_url', image_url: { url: u, detail: 'high' } }); });
+        return tcChat([{ role: 'user', content: content }], { temperature: 0.2, maxTokens: 1200 })
+            .then(function (t) { return String(t || '').trim(); });
+    }).catch(function () { return ''; });
 }
 
 // 从页面 Vue 数据里取当前节点的附件清单（name + panPreviewUrl）
@@ -7282,12 +7346,28 @@ function tcFetchAttachments(node, st) {
     list.forEach(function (f, fi) {
         chain = chain.then(function () {
             tcBusySetLabel('读取题目附件…（第 ' + (fi + 1) + '/' + list.length + ' 个：' + f.name + '）');
-            return tcHttpGet(f.panPreviewUrl).then(function (txt) {
-                txt = String(txt || '');
-                if (!txt.trim()) { tcLog('[附件] ' + f.name + ' 读取为空/失败', 'warn'); return; }
-                var clipped = txt.slice(0, 8000);
-                out.push({ name: f.name, text: clipped });
-                tcLog('[附件] ' + f.name + ' ' + clipped.length + ' 字', 'muted');
+            return tcHttpGet(f.panPreviewUrl).then(function (res) {
+                res = res || { kind: 'empty' };
+                if (res.kind === 'text' && res.text) {
+                    var clipped = res.text.slice(0, 8000);
+                    out.push({ name: f.name, fileType: f.fileType || '', kind: 'text', text: clipped });
+                    tcLog('[附件] ' + f.name + ' 文本 ' + clipped.length + ' 字', 'muted');
+                    return;
+                }
+                if (res.kind === 'image') {
+                    tcLog('[附件] ' + f.name + ' → 扫描件 ' + res.pages.length + ' 页，读图中…', 'muted');
+                    return tcVisionReadTemplate(f.name, res.pages).then(function (summary) {
+                        out.push({
+                            name: f.name, fileType: f.fileType || '', kind: 'image',
+                            pages: res.pages.length, template: summary || ''
+                        });
+                        tcLog('[附件] ' + f.name + (summary
+                            ? ' 模板结构 ' + summary.length + ' 字'
+                            : ' 读图失败，仅按文件名视为模板'), summary ? 'muted' : 'warn');
+                    });
+                }
+                out.push({ name: f.name, fileType: f.fileType || '', kind: 'html' });
+                tcLog('[附件] ' + f.name + ' 无法读取（HTML），仅作占位', 'warn');
             });
         });
     });
@@ -7404,40 +7484,144 @@ function tcDocxFromText(text, node, st, kind) {
 }
 
 // AI 写作：纯文本 / 代码；撞 token 上限时自动续写
+/* ---------------------------------- 任务链上下文 ---------------------------------- */
+
+// 所有节点的标题 / 类型 / 得分 / 要求
+function tcChainContext(st) {
+    var list = [];
+    try {
+        var vm = tcHomeVm();
+        var arr = (vm && vm.$data && vm.$data.taskFlowList) || [];
+        if (arr.length) {
+            list = arr.map(function (t, i) {
+                return { idx: i, title: t.title, type: t.type, score: t.score, desc: t.description || '', done: t.status === 2 };
+            });
+        }
+    } catch (e) { }
+    if (!list.length) list = (st && st.nodes) || [];
+    if (!list.length) return '';
+
+    var curTitle = '';
+    try { var u = tcFindUploadInfo(); curTitle = u && u.title; } catch (e) { }
+
+    return list.map(function (n, i) {
+        var isUpload = n.type === 7 || n.type === 'upload' || /上传作品/.test(String(n.type || ''));
+        var sc = (n.score != null && n.score !== '') ? (n.score + ' 分')
+            : (n.done ? '已完成' : '未完成');
+        var cur = (curTitle && n.title === curTitle) ? '【当前】' : '';
+        return (i + 1) + '. ' + cur + (n.title || '') + '（' + (isUpload ? '上传作品' : '情景对话') + '，' + sc + '）：'
+            + String(n.desc || '').slice(0, 180);
+    }).join('\n');
+}
+
+// 最后节点判定：解锁条件里出现「≥61 → 结束」
+function tcIsFinalNode() {
+    try {
+        var u = tcFindUploadInfo();
+        if (u && u.taskCompleted) return true;
+        var rows = document.querySelectorAll('.unlock-condition-row');
+        for (var i = 0; i < rows.length; i++) {
+            var ruleEl = rows[i].querySelector('.unlock-rule');
+            var rule = ruleEl ? (ruleEl.innerText || ruleEl.textContent || '') : '';
+            var txt = (rows[i].innerText || '').replace(/\s+/g, ' ');
+            if (/6\d\s*≤\s*总分|总分\s*[<＜]\s*100/.test(rule) && /结束/.test(txt)) return true;
+        }
+    } catch (e) { }
+    try {
+        var vm = tcHomeVm();
+        var arr = (vm && vm.$data && vm.$data.taskFlowList) || [];
+        var cur = vm && vm.$data && vm.$data.uploadInfo;
+        if (arr.length && cur) {
+            var last = arr[arr.length - 1];
+            if (last && last.title === cur.title) return true;
+        }
+    } catch (e) { }
+    return false;
+}
+
+// 前序成果：已生成文档正文 + 对话要点
+function tcDocContext(node, st) {
+    var parts = [];
+    var docs = (st && st.docs) || {};
+    Object.keys(docs).forEach(function (k) {
+        var d = docs[k];
+        if (!d || !d.text || d.kind === 'code') return;
+        parts.push('《' + (d.title || '文档') + '》正文（节选）：\n' + String(d.text).slice(0, 6000));
+    });
+    (st && st.nodes || []).forEach(function (n) {
+        if (n.type !== 'dialogue') return;
+        var tr = (st.transcripts && st.transcripts[n.key]) || [];
+        if (!tr.length) return;
+        var tail = tr.slice(-4).map(function (m) {
+            return (m.role === 'teacher' ? '老师：' : '学生：') + String(m.text || '').replace(/\s+/g, ' ').slice(0, 220);
+        }).join('\n');
+        if (tail) parts.push('《' + (n.title || '对话') + '》要点：\n' + tail);
+    });
+    return parts.join('\n\n');
+}
+
 function tcAskAiDoc(node, st) {
     var desc = (node.desc || '').slice(0, 1200);
     var kind = tcDocKind(desc);
     var atts = (st && st.attachments && st.attachments[node.key || String(node.idx)]) || [];
+    var isFinal = tcIsFinalNode();
+    var chainBlock = tcChainContext(st);
+    var docCtx = isFinal ? tcDocContext(node, st) : '';
+
+    // 材料块：文本附件给正文；文档附件给「模板结构摘要」；HTML 只占位，绝不注入
     var attBlock = '';
     if (atts.length) {
-        var budget = 18000;   // 附件总预算，避免 prompt 过长
+        var budget = 18000;
         var parts = [];
         for (var ai = 0; ai < atts.length; ai++) {
-            if (budget <= 200) break;
-            var take = Math.min(4000, budget);
-            var piece = String(atts[ai].text || '').slice(0, take);
-            if (!piece) continue;
-            budget -= piece.length;
-            parts.push('--- ' + atts[ai].name + ' ---\n' + piece);
+            var at = atts[ai];
+            if (at.kind === 'text' && at.text) {
+                if (budget <= 200) continue;
+                var take = Math.min(4000, budget);
+                var piece = String(at.text).slice(0, take);
+                budget -= piece.length;
+                parts.push('--- ' + at.name + '（样例/文本材料）---\n' + piece);
+            } else if (at.kind === 'image') {
+                parts.push('--- ' + at.name + '（参考模板，共 ' + (at.pages || 0) + ' 页）---\n'
+                    + (at.template ? String(at.template).slice(0, 3000)
+                        : '（模板内容未能识别，仅按文件名视为参考模板）'));
+            } else {
+                parts.push('--- ' + at.name + '（未能读取）---');
+            }
         }
-        attBlock = '\n\n【题目附件（样例输入 / 期望输出，必须兼容）】\n' + parts.join('\n\n');
-        tcLog('[附件] 注入 ' + parts.length + ' 个文件，共 ' + (18000 - budget) + ' 字', 'muted');
+        attBlock = '\n【材料说明】附件是参考材料，不是需要分析的对象：'
+            + 'txt 是样例输入/输出，doc/docx 是希望成品参考其章节结构的模板。'
+            + '不要复述、评价或解析附件本身。\n'
+            + parts.join('\n\n') + '\n';
+        tcLog('[附件] 注入 ' + parts.length + ' 个文件说明，文本约 ' + (18000 - budget) + ' 字', 'muted');
     }
+
+    var chainPart = chainBlock ? ('【任务链全览】\n' + chainBlock + '\n\n') : '';
+    var taskPart = '【本节点任务】\n标题：' + node.title + '\n要求：'
+        + (desc || '（题目未给出具体要求，请依据任务链上下文推断）') + '\n\n';
 
     var sys;
     if (kind === 'code') {
         sys = '你是课程助教，请按题目要求直接写出可提交的源代码。\n'
-            + '题目：' + node.title + '\n题目要求：' + desc + attBlock + '\n'
-            + '要求：输出一个完整、可编译的 C 语言程序（从 #include 开始，到程序结束）；'
+            + chainPart + taskPart + attBlock
+            + '【要求】输出一个完整、可编译的 C 语言程序（从 #include 开始，到程序结束）；'
             + '必须包含词法分析与递归下降语法分析，能识别样例里出现的成分；'
-            + '输出格式严格遵循附件中的 *_out.txt 样例；'
-            + '只输出代码，不要解释、不要 Markdown 围栏、不要“好的”之类开场白。';
+            + '输出格式严格遵循附件中的 *_out.txt 样例；只输出代码，不要解释、不要 Markdown 围栏。';
+    } else if (isFinal) {
+        sys = '你是课程助教，请按题目要求直接写出一份可直接提交的完整报告。\n'
+            + chainPart + taskPart + attBlock
+            + (docCtx ? ('【前序成果（写作素材）】\n' + docCtx + '\n\n') : '')
+            + '【写作要求】\n'
+            + '1) 输出完整报告全文，不要写成“本报告是在原稿基础上完善”之类的说明文；\n'
+            + '2) 内容取自前序任务成果（设计思路、代码实现、实验报告、总结反思），按模板的结构组织章节；\n'
+            + '3) 每个部分写 2-3 段，覆盖全部前序节点，结尾给出结论；\n'
+            + '4) 不得声称“已通过系统检查”“评分达标”等未经证实的结果；\n'
+            + '5) 只输出正文，不要解释，不要“好的”之类开场白。';
     } else {
         sys = '你是课程助教，请按题目要求直接写出一份可以直接提交的文档正文。\n'
-            + '题目：' + node.title + '\n题目要求：' + desc + attBlock + '\n'
-            + '写法：用自然段书写，覆盖题目里的每一项要求；不要写 Markdown 记号（不要 #、**、表格竖线）；'
-            + '结尾给出明确的结论或建议。\n'
-            + '只输出正文，不要解释，不要“好的”之类开场白。';
+            + chainPart + taskPart + attBlock
+            + '【写法】用自然段书写，覆盖题目里的每一项要求；不要写 Markdown 记号（不要 #、**、表格竖线）；'
+            + '结尾给出明确的结论或建议。\n只输出正文，不要解释，不要“好的”之类开场白。';
     }
     var baseMsgs = [{ role: 'system', content: sys }, { role: 'user', content: '请开始写《' + node.title + '》。' }];
     var maxTokens = tcCfg('taskChainMaxTokens', 0) || 0;
@@ -7693,6 +7877,17 @@ function tcDocTitleClean(title) {
 function tcReportFileName(node) {
     var id = tcCfg('studentId', '') || '学号';
     var name = tcCfg('studentName', '') || '姓名';
+    // 附件里若给出「学号+姓名+实验二.doc」这类模板命名，沿用它的规则
+    try {
+        var list = tcAttachmentList();
+        for (var i = 0; i < list.length; i++) {
+            var n = String(list[i].name || '');
+            if (/学号/.test(n) && /姓名/.test(n)) {
+                var base = n.replace(/\.[^.]+$/, '').replace(/学号/g, id).replace(/姓名/g, name);
+                if (base) return base + '.docx';
+            }
+        }
+    } catch (e) { }
     return id + '+' + name + '+' + tcDocTitleClean(node && node.title) + '.docx';
 }
 
@@ -7829,6 +8024,13 @@ function tcUploadNode(node, entered) {
         return tcFetchAttachments(node, st).catch(function () { return []; }).then(function () {
             return tcMakeDocxBlob(node, st);
         }).then(function (r) {
+            try {
+                st.docs = st.docs || {};
+                st.docs[node.key || String(node.idx)] = {
+                    title: node.title, text: String(r.raw || ''), kind: r.kind || 'doc', at: tcNow()
+                };
+                tcSaveState(st);
+            } catch (e) { }
             var stt = r.stats || {};
             tcLog('文档已生成：' + tcReportFileName(node) + '（' + Math.round(r.blob.size / 1024) + ' KB，来源：'
                 + (r.source === 'ai' ? 'AI 写作' : '本地模板') + '，'
