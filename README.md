@@ -201,8 +201,6 @@
 
 **[➡️ 点此安装 chaoxing-autoanswer.user.js](https://raw.githubusercontent.com/Khihl-lucky/ChaoXing-AutoAnswer/main/chaoxing-autoanswer.user.js)**
 
-也可以从 [Releases](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer/releases) 下载后手动导入，或复制源码在 Tampermonkey 管理面板中新建脚本粘贴。
-
 > 脚本头部已写入 `@downloadURL` / `@updateURL`，安装一次后新版本可由油猴自动检测更新。
 
 ### 3. 配置 API 密钥
