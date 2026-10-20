@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                AI学习通助手（DeepSeek 原生多模态）
-// @version             2.6.1
-// @description         基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.6.1 浮窗内显示新版本提示（自建版本检查，可忽略），用户自行填写API密钥免费使用
+// @version             2.6.4
+// @description         基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.6.4 误点「忽略此版本」后可在通知栏恢复提示，用户自行填写API密钥免费使用
 // @author              Khihl & DeepSeek Harness
 // @originalAuthor      Ne-21
 // @match               *://*.chaoxing.com/*
@@ -12,6 +12,9 @@
 // @connect             chaoxing.com
 // @connect             groupweb.chaoxing.com
 // @connect             raw.githubusercontent.com
+// @connect             api.github.com
+// @connect             ghproxy.net
+// @connect             gh-proxy.com
 // @run-at              document-end
 // @grant               unsafeWindow
 // @grant               GM_xmlhttpRequest
@@ -69,7 +72,7 @@ var setting = {
     phone: '',      // 登录配置项：登录手机号/超星号
     password: '',   // 登录配置项：登录密码
 
-    // ===== AI 实践 / 任务链（v2.6.1） =====
+    // ===== AI 实践 / 任务链（v2.6.4） =====
     taskChain: 1,              // 检测到任务链时是否启用（1启用）
     taskChainAutoStart: 0,     // 0=检测后询问；1=检测到直接开始
     taskChainRounds: 20,       // 每个对话节点的目标轮数（上限由页面决定）
@@ -92,13 +95,13 @@ var setting = {
 /************************************************************************************************** */
 /*
   ╔══════════════════════════════════════════════════════════════╗
-  ║        AI学习通助手 v2.6.1 (DeepSeek 原生多模态)            ║
+  ║        AI学习通助手 v2.6.4 (DeepSeek 原生多模态)            ║
   ╠══════════════════════════════════════════════════════════════╣
   ║  原作者:    Ne-21                                           ║
   ║  开发者:    Khihl & DeepSeek Harness                        ║
   ║  更新:      2026-10-20 · AI 实践任务链自动化                 ║
   ║                                                             ║
-  ║  v2.4.0 → v2.6.1 新增：                                              ║
+  ║  v2.4.0 → v2.6.4 新增：                                              ║
   ║   · 任务链检测 + 确认弹窗（不再静默开工）                    ║
   ║   · 多节点编排：逐个作答→评估→进入下一节点                  ║
   ║   · 严格回合制：读老师本轮发言后再生成，一轮只发一条         ║
@@ -778,7 +781,7 @@ function showBox() {
         var box_html = `
             <div id="ne-21box">
                 <div class="ne21-header" title="拖动移动 | 点击 − 最小化">
-                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small id="ne-21-ver" style="font-size:10px;font-weight:400;opacity:0.6">v2.6.1</small><span id="ne-21-update" style="display:none;margin-left:6px;padding:1px 7px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:10px;font-weight:600;cursor:pointer;">新版本</span></h3>
+                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small id="ne-21-ver" style="font-size:10px;font-weight:400;opacity:0.6">v2.6.4</small><span id="ne-21-update" style="display:none;margin-left:6px;padding:1px 7px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:10px;font-weight:600;cursor:pointer;">新版本</span></h3>
                     <button id="ne-21close" type="button" aria-label="最小化">−</button>
                 </div>
                 <div class="ne21-body">
@@ -1155,7 +1158,7 @@ function showBox() {
                     localStorage.setItem('GPTJsSetting.reqIntervalTime', String(v));
                 });
             }
-            // ===== 任务链相关输入项（v2.6.1） =====
+            // ===== 任务链相关输入项（v2.6.4） =====
             [['taskChainRounds', 20, 1, 30], ['taskChainMinScore', 61, 0, 100], ['taskChainMaxTokens', 0, 0, 32768]].forEach(function (item) {
                 var el = top.document.getElementById('GPTJsSetting.' + item[0]);
                 if (!el) return;
@@ -1208,8 +1211,9 @@ function showBox() {
         $('#ne-21box').on('click', '#aboutBtn', function () { _showCredits(); });
     })();
 
-    // ===== 更新检查（v2.6.1） =====
-    var NE21_LOCAL_VER = (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) || '2.6.1';
+    // ===== 更新检查（v2.6.4） =====
+    var NE21_LOCAL_VER = (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) || '2.6.4';
+    var NE21_RAW_URL = 'https://raw.githubusercontent.com/Khihl-lucky/ChaoXing-AutoAnswer/main/chaoxing-autoanswer.user.js';
 
     function tcVerParts(v) {
         return String(v || '').replace(/^v/i, '').split('.').map(function (x) { return parseInt(x, 10) || 0; });
@@ -1231,24 +1235,6 @@ function showBox() {
     function tcUpdateUrl() {
         try { return (GM_info && GM_info.script && GM_info.script.updateURL) || ''; } catch (e) { return ''; }
     }
-    function tcDownloadUrl() {
-        try { return (GM_info && GM_info.script && GM_info.script.downloadURL) || tcUpdateUrl(); } catch (e) { return ''; }
-    }
-    function tcFetchRemoteVersion() {
-        var url = tcUpdateUrl();
-        if (!url) return Promise.resolve('');
-        return new Promise(function (resolve) {
-            try {
-                GM_xmlhttpRequest({
-                    method: 'GET', url: url, timeout: 8000,
-                    headers: { 'Cache-Control': 'no-cache' },
-                    onload: function (x) { resolve(tcParseVersionFromText((x && x.responseText) || '')); },
-                    onerror: function () { resolve(''); },
-                    ontimeout: function () { resolve(''); }
-                });
-            } catch (e) { resolve(''); }
-        });
-    }
     function tcUpdateStore(k, v) {
         try {
             if (v === undefined) return localStorage.getItem(k) || '';
@@ -1257,9 +1243,70 @@ function showBox() {
         return '';
     }
 
+    // 按可达性排序：国内网络下 raw 常被断连，代理与 API 更可靠
+    function tcUpdateEndpoints() {
+        var list = [
+            { name: 'ghproxy', url: 'https://ghproxy.net/' + NE21_RAW_URL, installable: true },
+            { name: 'gh-proxy', url: 'https://gh-proxy.com/' + NE21_RAW_URL, installable: true },
+            { name: 'raw', url: NE21_RAW_URL, installable: true },
+            { name: 'GitHub API',
+              url: 'https://api.github.com/repos/Khihl-lucky/ChaoXing-AutoAnswer/contents/chaoxing-autoanswer.user.js?ref=main',
+              headers: { 'Accept': 'application/vnd.github.raw' },
+              installable: false }
+        ];
+        var gu = tcUpdateUrl();
+        if (gu && gu !== NE21_RAW_URL) list.push({ name: 'updateURL', url: gu, installable: true });
+        return list;
+    }
+
+    function tcDownloadUrl() {
+        var saved = tcUpdateStore('GPTJsSetting.updateInstallUrl');
+        return saved || ('https://ghproxy.net/' + NE21_RAW_URL);
+    }
+
+    // 依次尝试各端点，返回 { ver, name, url, installable, err }
+    function tcFetchRemoteVersion() {
+        var list = tcUpdateEndpoints();
+        return new Promise(function (resolve) {
+            var i = 0, errs = [];
+            function next() {
+                if (i >= list.length) return resolve({ ver: '', err: errs.join('；') || '端点均不可达' });
+                var ep = list[i++];
+                var t0 = Date.now(), done = false;
+                function fail(msg) {
+                    if (done) return;
+                    done = true;
+                    errs.push(ep.name + '：' + msg);
+                    try { logger('[更新] ' + ep.name + ' 失败：' + msg, 'muted'); } catch (e) { }
+                    next();
+                }
+                try {
+                    GM_xmlhttpRequest({
+                        method: 'GET', url: ep.url, timeout: 8000,
+                        headers: ep.headers || { 'Cache-Control': 'no-cache' },
+                        onload: function (x) {
+                            if (done) return;
+                            if (!x || x.status !== 200) return fail('HTTP ' + (x && x.status));
+                            var v = tcParseVersionFromText((x && x.responseText) || '');
+                            if (!v) return fail('响应里没有 @version');
+                            done = true;
+                            try { logger('[更新] ' + ep.name + ' 成功：v' + v + '（' + (Date.now() - t0) + 'ms）', 'success'); } catch (e) { }
+                            resolve({ ver: v, name: ep.name, url: ep.url, installable: ep.installable, err: '' });
+                        },
+                        onerror: function () { fail('网络错误'); },
+                        ontimeout: function () { fail('超时'); }
+                    });
+                } catch (e) { fail('请求异常'); }
+            }
+            next();
+        });
+    }
+
     function tcRenderUpdate(remote) {
         var skip = tcUpdateStore('GPTJsSetting.skipUpdateVersion');
-        var has = remote && tcVerCompare(remote, NE21_LOCAL_VER) > 0 && remote !== skip;
+        var newer = remote && tcVerCompare(remote, NE21_LOCAL_VER) > 0;
+        var skipped = newer && remote === skip;
+        var has = newer && !skipped;
 
         var badge = document.getElementById('ne-21-update');
         if (badge) {
@@ -1277,13 +1324,28 @@ function showBox() {
         var box = document.getElementById('ne-21notice');
         if (!box) return;
         var tip = document.getElementById('ne-21-updateTip');
-        if (!has) { if (tip && tip.parentNode) tip.parentNode.removeChild(tip); return; }
+        if (!newer) { if (tip && tip.parentNode) tip.parentNode.removeChild(tip); return; }
         if (!tip) {
             tip = document.createElement('div');
             tip.id = 'ne-21-updateTip';
             tip.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:#1d4ed8;padding:3px 2px;';
             box.insertBefore(tip, box.firstChild);
         }
+
+        // 已忽略：保留一行提示，可随时恢复（防止误点）
+        if (skipped) {
+            tip.innerHTML = '<span style="color:#64748b;">已忽略新版本 v' + tcEsc(remote) + ' 的更新提示</span>'
+                + '<a href="#" id="ne-21-updateRestore" style="color:#1d4ed8;font-weight:600;text-decoration:none;">恢复提示</a>';
+            var rs = tip.querySelector('#ne-21-updateRestore');
+            if (rs) rs.onclick = function (e) {
+                e.preventDefault();
+                tcUpdateStore('GPTJsSetting.skipUpdateVersion', '');
+                tcRenderUpdate(remote);
+                try { logger('[更新] 已恢复 v' + remote + ' 的更新提示', 'muted'); } catch (err) { }
+            };
+            return;
+        }
+
         tip.innerHTML = '<span>🔄 发现新版本 v' + tcEsc(remote) + '（当前 v' + tcEsc(NE21_LOCAL_VER) + '）</span>'
             + '<a href="#" id="ne-21-updateGo" style="color:#1d4ed8;font-weight:600;text-decoration:none;">立即更新</a>'
             + '<a href="#" id="ne-21-updateSkip" style="color:#64748b;text-decoration:none;">忽略此版本</a>';
@@ -1310,24 +1372,85 @@ function showBox() {
             tcRenderUpdate(cached);
             return Promise.resolve(cached);
         }
-        if (!tcUpdateUrl()) return Promise.resolve('');
-        return tcFetchRemoteVersion().then(function (ver) {
+        return tcFetchRemoteVersion().then(function (r) {
             tcUpdateStore('GPTJsSetting.updateCheckedAt', String(now));
-            if (ver) {
-                tcUpdateStore('GPTJsSetting.updateLatest', ver);
-                tcRenderUpdate(ver);
+            if (!r || !r.ver) {
+                tcUpdateStore('GPTJsSetting.updateError', (r && r.err) || '端点均不可达');
+                try { logger('[更新] 检查失败：' + ((r && r.err) || '端点均不可达'), 'warn'); } catch (e) { }
+                return '';
             }
-            return ver;
+            tcUpdateStore('GPTJsSetting.updateError', '');
+            tcUpdateStore('GPTJsSetting.updateLatest', r.ver);
+            // 仅可安装的端点用于「立即更新」；API 端点不带 Accept 头会返回 JSON
+            tcUpdateStore('GPTJsSetting.updateInstallUrl',
+                r.installable ? r.url : ('https://ghproxy.net/' + NE21_RAW_URL));
+            tcRenderUpdate(r.ver);
+            if (tcVerCompare(r.ver, NE21_LOCAL_VER) > 0) {
+                try { logger('[更新] 发现新版本 v' + r.ver + '（当前 v' + NE21_LOCAL_VER + '）', 'warn'); } catch (e) { }
+            } else {
+                try { logger('[更新] 已是最新（v' + r.ver + '）', 'muted'); } catch (e) { }
+            }
+            return r.ver;
+        });
+    }
+
+    // 自动检查：首屏 3 秒一次 + 常驻页面每 2 小时一次（受 6 小时节流约束）
+    var NE21_AUTO_INTERVAL = 2 * 3600 * 1000;
+    function tcAutoCheckOnce() {
+        try { if (!document.getElementById('ne-21box')) return; } catch (e) { return; }
+        tcCheckUpdate(false);
+    }
+    function tcStartAutoUpdate() {
+        if (tcStartAutoUpdate._started) return;
+        tcStartAutoUpdate._started = true;
+        setTimeout(tcAutoCheckOnce, 3000);
+        setInterval(tcAutoCheckOnce, NE21_AUTO_INTERVAL);
+    }
+
+    var _tcChecking = false;
+    function tcManualCheck() {
+        var el = document.getElementById('ne-21-ver');
+        if (!el || _tcChecking) return;
+        _tcChecking = true;
+        var orig = 'v' + NE21_LOCAL_VER;
+        el.textContent = '检查中…';
+        el.title = '正在检查更新…';
+        tcCheckUpdate(true).then(function (v) {
+            _tcChecking = false;
+            if (!v) {
+                el.textContent = '检查失败';
+                el.title = '检查失败：' + (tcUpdateStore('GPTJsSetting.updateError') || '端点均不可达');
+            } else if (tcVerCompare(v, NE21_LOCAL_VER) > 0) {
+                el.textContent = '新版本 v' + v;
+                el.title = '点击更新到 v' + v;
+            } else {
+                el.textContent = '已是最新';
+                el.title = '当前已是最新版本';
+            }
+            setTimeout(function () {
+                el.textContent = orig;
+                el.title = '点击检查更新';
+            }, 4000);
+        }, function () {
+            _tcChecking = false;
+            el.textContent = '检查失败';
+            setTimeout(function () { el.textContent = orig; }, 4000);
         });
     }
 
     (function () {
         var vEl = document.getElementById('ne-21-ver');
-        if (vEl) vEl.textContent = 'v' + NE21_LOCAL_VER;
+        if (vEl) {
+            vEl.textContent = 'v' + NE21_LOCAL_VER;
+            vEl.style.cursor = 'pointer';
+            vEl.style.borderBottom = '1px dashed rgba(15,23,42,.25)';
+            vEl.title = '点击检查更新';
+            vEl.addEventListener('click', tcManualCheck);
+        }
         var cur = document.getElementById('ne-21-about-cur');
         if (cur) cur.textContent = 'v' + NE21_LOCAL_VER;
-        // 首屏延迟 3 秒检查，避免影响主流程
-        setTimeout(function () { tcCheckUpdate(false); }, 3000);
+        // 首屏延迟 3 秒自动检查，之后每 2 小时一次
+        tcStartAutoUpdate();
     })();
 
     function _showCredits() {
@@ -1343,13 +1466,11 @@ function showBox() {
             '<span id="ne-21-about-close" style="cursor:pointer;font-size:18px;color:rgba(15,23,42,.5);width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.5);">×</span>' +
             '</div>' +
             '<div class="ne21-about-card" style="font-size:12px;line-height:1.8">' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 当前版本</span><b id="ne-21-about-cur">v2.6.1</b></div>' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🔄 最新版本</span><b id="ne-21-about-latest">未检查</b></div>' +
-            '<div style="margin:6px 0 2px;text-align:right"><button id="ne-21-check-update" style="padding:3px 10px;font-size:11px;border-radius:8px;border:1px solid rgba(37,99,235,.35);background:rgba(37,99,235,.08);color:#1d4ed8;cursor:pointer;">检查更新</button></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 当前版本</span><b id="ne-21-about-cur">v2.6.4</b></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">👤 原作者</span><span>Ne-21</span></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🛠️ 开发者</span><b>Khihl & DeepSeek Harness</b></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🧠 AI 模型</span><span>DeepSeek 原生多模态</span></div>' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📊 代码规模</span><span>~8500 行</span></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📊 代码规模</span><span>~8700 行</span></div>' +
             '</div>' +
             '<div style="border-left:3px solid #22c55e;padding-left:12px;margin:12px 0;font-size:12px;line-height:1.8;background:rgba(34,197,94,.04);border-radius:0 8px 8px 0;padding-right:8px;padding-top:6px;padding-bottom:6px">' +
             '<b style="color:#16a34a">🌟 核心功能</b><br>' +
@@ -1371,21 +1492,6 @@ function showBox() {
             '<p style="margin:12px 0 0;opacity:.4;font-size:10px;text-align:center">人类主导设计 · AI 辅助编码 — Khihl & DeepSeek Harness</p>' +
             '</div>';
         top.document.body.appendChild(overlay);
-        var chk = top.document.getElementById('ne-21-check-update');
-        if (chk) {
-            chk.addEventListener('click', function () {
-                var latest = top.document.getElementById('ne-21-about-latest');
-                if (latest) latest.textContent = '检查中…';
-                chk.disabled = true;
-                tcCheckUpdate(true).then(function (v) {
-                    chk.disabled = false;
-                    if (!latest) return;
-                    latest.textContent = v
-                        ? ('v' + v + (tcVerCompare(v, NE21_LOCAL_VER) > 0 ? '（有新版本）' : '（已是最新）'))
-                        : '检查失败';
-                });
-            });
-        }
         // 点击遮罩或关闭按钮收起
         overlay.addEventListener('click', function (e) {
             if (e.target === overlay || e.target.id === 'ne-21-about-close') overlay.remove();
@@ -5784,9 +5890,9 @@ function startDoWork(index, doms, c, TiMuList) {
     }
 }
 
-/* ============================ AI 实践任务链模块 v2.6.1 ============================ */
+/* ============================ AI 实践任务链模块 v2.6.4 ============================ */
 /* ==========================================================================================
- * AI 实践 / 任务链自动化模块  v2.6.1
+ * AI 实践 / 任务链自动化模块  v2.6.4
  * 功能：检测确认 → 多节点编排 → 回合制对话 → 逐节点评估 → 跨节点前进 → 聚合报告 → 自动上传
  * 说明：本模块运行在父页面（taskChain/student/answer），通过同源 iframe 直接驱动对话页。
  * ======================================================================================== */

@@ -2,7 +2,7 @@
 
 > 基于 DeepSeek 原生多模态的学习通自动刷课/答题用户脚本
 
-[![Version](https://img.shields.io/badge/version-2.6.1-blue)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer)
+[![Version](https://img.shields.io/badge/version-2.6.4-blue)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer)
 [![License](https://img.shields.io/badge/license-MIT-green)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer/blob/main/LICENSE)
 
 ## 简介
@@ -15,6 +15,28 @@
 
 ## 更新日志
 
+### v2.6.4
+
+- **新增**：误点「忽略此版本」后，通知栏保留一行「已忽略新版本 vX 的更新提示 · 恢复提示」，点击即可恢复
+- **修复**：忽略后无法再看到更新入口的问题
+
+### v2.6.3
+
+- **新增**：更新检查改为自动——打开页面 3 秒后检查一次，页面常驻时每 2 小时再检查（受 6 小时节流约束）
+- **新增**：检查结果写日志：`[更新] 已是最新（vX）` / `[更新] 发现新版本 vX（当前 vY）`
+- **优化**：命中缓存时静默，不刷屏
+
+### v2.6.2
+
+- **修复**：更新检测失败——原 `@updateURL` 指向 raw.githubusercontent.com，在部分网络下 `ECONNRESET`
+- **新增**：多端点依次尝试：`ghproxy.net` → `gh-proxy.com` → raw → GitHub API，失败逐条记录原因
+- **变更**：检查入口从「关于」弹窗移到标题栏版本号，点击即检查，显示「检查中… / 已是最新 / 新版本 vX / 检查失败」
+- **新增**：`@connect api.github.com` / `ghproxy.net` / `gh-proxy.com`
+- **优化**：「立即更新」使用本次实际可达的安装地址
+
+<details>
+<summary>历史版本（v2.6.3 及更早）</summary>
+
 ### v2.6.1
 
 - **新增**：浮窗更新提示——标题栏蓝色「新版本」徽标、通知栏「发现新版本 / 立即更新 / 忽略此版本」
@@ -22,9 +44,6 @@
 - **新增**：`@connect raw.githubusercontent.com`，脚本可直接读取 `@updateURL` 的版本头
 - **优化**：标题栏与关于弹窗版本号改为读取 `GM_info.script.version`，发版无需手改
 - **策略**：6 小时节流、失败静默、可忽略指定版本
-
-<details>
-<summary>历史版本（v2.6.0 及更早）</summary>
 
 ### v2.6.0
 
