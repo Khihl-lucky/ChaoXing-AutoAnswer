@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                AI学习通助手（DeepSeek 原生多模态）
-// @version             2.6.4
-// @description         基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.6.4 误点「忽略此版本」后可在通知栏恢复提示，用户自行填写API密钥免费使用
+// @version             2.6.7
+// @description         基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.6.7 修复思维链被当回复、截断续写、就绪优先捕获、多标签锁可接管，用户自行填写API密钥免费使用
 // @author              Khihl & DeepSeek Harness
 // @originalAuthor      Ne-21
 // @match               *://*.chaoxing.com/*
@@ -72,7 +72,7 @@ var setting = {
     phone: '',      // 登录配置项：登录手机号/超星号
     password: '',   // 登录配置项：登录密码
 
-    // ===== AI 实践 / 任务链（v2.6.4） =====
+    // ===== AI 实践 / 任务链（v2.6.6） =====
     taskChain: 1,              // 检测到任务链时是否启用（1启用）
     taskChainAutoStart: 0,     // 0=检测后询问；1=检测到直接开始
     taskChainRounds: 20,       // 每个对话节点的目标轮数（上限由页面决定）
@@ -95,13 +95,13 @@ var setting = {
 /************************************************************************************************** */
 /*
   ╔══════════════════════════════════════════════════════════════╗
-  ║        AI学习通助手 v2.6.4 (DeepSeek 原生多模态)            ║
+  ║        AI学习通助手 v2.6.6 (DeepSeek 原生多模态)            ║
   ╠══════════════════════════════════════════════════════════════╣
   ║  原作者:    Ne-21                                           ║
   ║  开发者:    Khihl & DeepSeek Harness                        ║
   ║  更新:      2026-10-20 · AI 实践任务链自动化                 ║
   ║                                                             ║
-  ║  v2.4.0 → v2.6.4 新增：                                              ║
+  ║  v2.4.0 → v2.6.6 新增：                                              ║
   ║   · 任务链检测 + 确认弹窗（不再静默开工）                    ║
   ║   · 多节点编排：逐个作答→评估→进入下一节点                  ║
   ║   · 严格回合制：读老师本轮发言后再生成，一轮只发一条         ║
@@ -781,7 +781,7 @@ function showBox() {
         var box_html = `
             <div id="ne-21box">
                 <div class="ne21-header" title="拖动移动 | 点击 − 最小化">
-                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small id="ne-21-ver" style="font-size:10px;font-weight:400;opacity:0.6">v2.6.4</small><span id="ne-21-update" style="display:none;margin-left:6px;padding:1px 7px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:10px;font-weight:600;cursor:pointer;">新版本</span></h3>
+                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small id="ne-21-ver" style="font-size:10px;font-weight:400;opacity:0.6">v2.6.7</small><span id="ne-21-update" style="display:none;margin-left:6px;padding:1px 7px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:10px;font-weight:600;cursor:pointer;">新版本</span></h3>
                     <button id="ne-21close" type="button" aria-label="最小化">−</button>
                 </div>
                 <div class="ne21-body">
@@ -1158,7 +1158,7 @@ function showBox() {
                     localStorage.setItem('GPTJsSetting.reqIntervalTime', String(v));
                 });
             }
-            // ===== 任务链相关输入项（v2.6.4） =====
+            // ===== 任务链相关输入项（v2.6.6） =====
             [['taskChainRounds', 20, 1, 30], ['taskChainMinScore', 61, 0, 100], ['taskChainMaxTokens', 0, 0, 32768]].forEach(function (item) {
                 var el = top.document.getElementById('GPTJsSetting.' + item[0]);
                 if (!el) return;
@@ -1211,8 +1211,10 @@ function showBox() {
         $('#ne-21box').on('click', '#aboutBtn', function () { _showCredits(); });
     })();
 
-    // ===== 更新检查（v2.6.4） =====
-    var NE21_LOCAL_VER = (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) || '2.6.4';
+    // ===== 更新检查（v2.6.7） =====
+    var NE21_LOCAL_VER = (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) || '2.6.7';
+    var NE21_BUILD = '20261020T1600';
+    var NE21_THROTTLE = 30 * 60 * 1000;   // 自动检查最小间隔：30 分钟
     var NE21_RAW_URL = 'https://raw.githubusercontent.com/Khihl-lucky/ChaoXing-AutoAnswer/main/chaoxing-autoanswer.user.js';
 
     function tcVerParts(v) {
@@ -1232,6 +1234,31 @@ function showBox() {
         var m = String(txt || '').match(/\/\/\s*@version\s+([\w.\-]+)/);
         return m ? m[1] : '';
     }
+
+    // GitHub Contents API 在未带 raw Accept 头时返回 JSON，content 为 base64
+    function tcB64Utf8(b64) {
+        try {
+            var bin = atob(String(b64 || '').replace(/\s+/g, ''));
+            var bytes = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            return new TextDecoder('utf-8').decode(bytes);
+        } catch (e) { return ''; }
+    }
+
+    function tcUpdateTipText() {
+        var at = parseInt(tcUpdateStore('GPTJsSetting.updateCheckedAt') || '0', 10) || 0;
+        var when = '';
+        if (at) {
+            var d = new Date(at);
+            when = ' · 上次检查 ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        }
+        return '点击检查更新' + when + ' · v' + NE21_LOCAL_VER + ' build ' + NE21_BUILD;
+    }
+
+    function tcRefreshVerTip() {
+        var el = document.getElementById('ne-21-ver');
+        if (el && !_tcChecking) el.title = tcUpdateTipText();
+    }
     function tcUpdateUrl() {
         try { return (GM_info && GM_info.script && GM_info.script.updateURL) || ''; } catch (e) { return ''; }
     }
@@ -1245,12 +1272,13 @@ function showBox() {
 
     // 按可达性排序：国内网络下 raw 常被断连，代理与 API 更可靠
     function tcUpdateEndpoints() {
+        var ts = '?ts=' + Date.now();
         var list = [
-            { name: 'ghproxy', url: 'https://ghproxy.net/' + NE21_RAW_URL, installable: true },
-            { name: 'gh-proxy', url: 'https://gh-proxy.com/' + NE21_RAW_URL, installable: true },
-            { name: 'raw', url: NE21_RAW_URL, installable: true },
+            { name: 'ghproxy', url: 'https://ghproxy.net/' + NE21_RAW_URL + ts, installable: true },
+            { name: 'gh-proxy', url: 'https://gh-proxy.com/' + NE21_RAW_URL + ts, installable: true },
+            { name: 'raw', url: NE21_RAW_URL + ts, installable: true },
             { name: 'GitHub API',
-              url: 'https://api.github.com/repos/Khihl-lucky/ChaoXing-AutoAnswer/contents/chaoxing-autoanswer.user.js?ref=main',
+              url: 'https://api.github.com/repos/Khihl-lucky/ChaoXing-AutoAnswer/contents/chaoxing-autoanswer.user.js?ref=main&ts=' + Date.now(),
               headers: { 'Accept': 'application/vnd.github.raw' },
               installable: false }
         ];
@@ -1264,41 +1292,77 @@ function showBox() {
         return saved || ('https://ghproxy.net/' + NE21_RAW_URL);
     }
 
-    // 依次尝试各端点，返回 { ver, name, url, installable, err }
+    // 单个端点探测，永不 reject
+    function tcProbeEndpoint(ep) {
+        return new Promise(function (resolve) {
+            var t0 = Date.now(), done = false;
+            function finish(r) { if (!done) { done = true; resolve(r); } }
+            try {
+                GM_xmlhttpRequest({
+                    method: 'GET', url: ep.url, timeout: 8000,
+                    headers: ep.headers || { 'Cache-Control': 'no-cache' },
+                    onload: function (x) {
+                        if (!x || x.status !== 200) {
+                            try { logger('[更新] ' + ep.name + ' 失败：HTTP ' + (x && x.status), 'muted'); } catch (e) { }
+                            return finish({ name: ep.name, err: 'HTTP ' + (x && x.status) });
+                        }
+                        var txt = (x && x.responseText) || '';
+                        if (txt.charAt(0) === '{') {
+                            try {
+                                var j = JSON.parse(txt);
+                                if (j && j.content) txt = tcB64Utf8(j.content) || txt;
+                            } catch (e) { }
+                        }
+                        var v = tcParseVersionFromText(txt);
+                        if (!v) {
+                            try { logger('[更新] ' + ep.name + ' 失败：无 @version', 'muted'); } catch (e) { }
+                            return finish({ name: ep.name, err: '无 @version' });
+                        }
+                        try { logger('[更新] ' + ep.name + ' v' + v + '（' + (Date.now() - t0) + 'ms）', 'muted'); } catch (e) { }
+                        finish({ name: ep.name, ver: v, url: ep.url, installable: !!ep.installable });
+                    },
+                    onerror: function () {
+                        try { logger('[更新] ' + ep.name + ' 失败：网络错误', 'muted'); } catch (e) { }
+                        finish({ name: ep.name, err: '网络错误' });
+                    },
+                    ontimeout: function () {
+                        try { logger('[更新] ' + ep.name + ' 失败：超时', 'muted'); } catch (e) { }
+                        finish({ name: ep.name, err: '超时' });
+                    }
+                });
+            } catch (e) { finish({ name: ep.name, err: '请求异常' }); }
+        });
+    }
+
+    // 安装链接必须与最终版本一致，避免装回代理缓存里的旧版
+    function tcPickInstallUrl(ok, best) {
+        var same = ok.filter(function (r) {
+            return r.installable && tcVerCompare(r.ver, best.ver) === 0;
+        });
+        if (same.length) return same[0].url;
+        // 只有 API 拿到最新版：给代理地址加时间戳，绕过其缓存
+        return 'https://ghproxy.net/' + NE21_RAW_URL + '?ts=' + Date.now();
+    }
+
+    // 并行探测所有端点，取最高版本（代理缓存旧版不会盖住新版）
     function tcFetchRemoteVersion() {
         var list = tcUpdateEndpoints();
-        return new Promise(function (resolve) {
-            var i = 0, errs = [];
-            function next() {
-                if (i >= list.length) return resolve({ ver: '', err: errs.join('；') || '端点均不可达' });
-                var ep = list[i++];
-                var t0 = Date.now(), done = false;
-                function fail(msg) {
-                    if (done) return;
-                    done = true;
-                    errs.push(ep.name + '：' + msg);
-                    try { logger('[更新] ' + ep.name + ' 失败：' + msg, 'muted'); } catch (e) { }
-                    next();
-                }
-                try {
-                    GM_xmlhttpRequest({
-                        method: 'GET', url: ep.url, timeout: 8000,
-                        headers: ep.headers || { 'Cache-Control': 'no-cache' },
-                        onload: function (x) {
-                            if (done) return;
-                            if (!x || x.status !== 200) return fail('HTTP ' + (x && x.status));
-                            var v = tcParseVersionFromText((x && x.responseText) || '');
-                            if (!v) return fail('响应里没有 @version');
-                            done = true;
-                            try { logger('[更新] ' + ep.name + ' 成功：v' + v + '（' + (Date.now() - t0) + 'ms）', 'success'); } catch (e) { }
-                            resolve({ ver: v, name: ep.name, url: ep.url, installable: ep.installable, err: '' });
-                        },
-                        onerror: function () { fail('网络错误'); },
-                        ontimeout: function () { fail('超时'); }
-                    });
-                } catch (e) { fail('请求异常'); }
+        return Promise.all(list.map(tcProbeEndpoint)).then(function (results) {
+            var ok = (results || []).filter(function (r) { return r && r.ver; });
+            if (!ok.length) {
+                var errs = (results || []).map(function (r) { return r.name + '：' + (r.err || '未知'); });
+                return { ver: '', err: errs.join('；') || '端点均不可达' };
             }
-            next();
+            ok.sort(function (a, b) {
+                var c = tcVerCompare(b.ver, a.ver);   // 版本高的在前
+                if (c) return c;
+                if (a.name === 'GitHub API') return -1;
+                if (b.name === 'GitHub API') return 1;
+                return 0;
+            });
+            var best = ok[0];
+            try { logger('[更新] 采用 v' + best.ver + '（来自 ' + best.name + '）', 'success'); } catch (e) { }
+            return { ver: best.ver, name: best.name, installUrl: tcPickInstallUrl(ok, best), all: ok };
         });
     }
 
@@ -1368,8 +1432,11 @@ function showBox() {
         var cached = tcUpdateStore('GPTJsSetting.updateLatest');
         var at = parseInt(tcUpdateStore('GPTJsSetting.updateCheckedAt') || '0', 10) || 0;
         var now = Date.now();
-        if (!force && cached && (now - at) < 6 * 3600 * 1000) {
+        // 缓存版本比本地还旧 => 视为无效缓存，立即重新请求
+        var stale = !cached || tcVerCompare(cached, NE21_LOCAL_VER) < 0;
+        if (!force && !stale && (now - at) < NE21_THROTTLE) {
             tcRenderUpdate(cached);
+            tcRefreshVerTip();
             return Promise.resolve(cached);
         }
         return tcFetchRemoteVersion().then(function (r) {
@@ -1377,20 +1444,23 @@ function showBox() {
             if (!r || !r.ver) {
                 tcUpdateStore('GPTJsSetting.updateError', (r && r.err) || '端点均不可达');
                 try { logger('[更新] 检查失败：' + ((r && r.err) || '端点均不可达'), 'warn'); } catch (e) { }
+                tcRefreshVerTip();
                 return '';
             }
             tcUpdateStore('GPTJsSetting.updateError', '');
-            tcUpdateStore('GPTJsSetting.updateLatest', r.ver);
-            // 仅可安装的端点用于「立即更新」；API 端点不带 Accept 头会返回 JSON
-            tcUpdateStore('GPTJsSetting.updateInstallUrl',
-                r.installable ? r.url : ('https://ghproxy.net/' + NE21_RAW_URL));
-            tcRenderUpdate(r.ver);
-            if (tcVerCompare(r.ver, NE21_LOCAL_VER) > 0) {
-                try { logger('[更新] 发现新版本 v' + r.ver + '（当前 v' + NE21_LOCAL_VER + '）', 'warn'); } catch (e) { }
+            // 不降级：代理缓存返回旧版时保留已有的更高版本
+            var prev = tcUpdateStore('GPTJsSetting.updateLatest');
+            var latest = (!prev || tcVerCompare(r.ver, prev) >= 0) ? r.ver : prev;
+            tcUpdateStore('GPTJsSetting.updateLatest', latest);
+            if (r.installUrl) tcUpdateStore('GPTJsSetting.updateInstallUrl', r.installUrl);
+            tcRenderUpdate(latest);
+            if (tcVerCompare(latest, NE21_LOCAL_VER) > 0) {
+                try { logger('[更新] 发现新版本 v' + latest + '（当前 v' + NE21_LOCAL_VER + '）', 'warn'); } catch (e) { }
             } else {
-                try { logger('[更新] 已是最新（v' + r.ver + '）', 'muted'); } catch (e) { }
+                try { logger('[更新] 已是最新（v' + latest + '）', 'muted'); } catch (e) { }
             }
-            return r.ver;
+            tcRefreshVerTip();
+            return latest;
         });
     }
 
@@ -1429,7 +1499,7 @@ function showBox() {
             }
             setTimeout(function () {
                 el.textContent = orig;
-                el.title = '点击检查更新';
+                el.title = tcUpdateTipText();
             }, 4000);
         }, function () {
             _tcChecking = false;
@@ -1444,9 +1514,10 @@ function showBox() {
             vEl.textContent = 'v' + NE21_LOCAL_VER;
             vEl.style.cursor = 'pointer';
             vEl.style.borderBottom = '1px dashed rgba(15,23,42,.25)';
-            vEl.title = '点击检查更新';
+            vEl.title = tcUpdateTipText();
             vEl.addEventListener('click', tcManualCheck);
         }
+        try { logger('[启动] AI学习通助手 v' + NE21_LOCAL_VER + ' build ' + NE21_BUILD, 'info'); } catch (e) { }
         var cur = document.getElementById('ne-21-about-cur');
         if (cur) cur.textContent = 'v' + NE21_LOCAL_VER;
         // 首屏延迟 3 秒自动检查，之后每 2 小时一次
@@ -1466,7 +1537,8 @@ function showBox() {
             '<span id="ne-21-about-close" style="cursor:pointer;font-size:18px;color:rgba(15,23,42,.5);width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.5);">×</span>' +
             '</div>' +
             '<div class="ne21-about-card" style="font-size:12px;line-height:1.8">' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 当前版本</span><b id="ne-21-about-cur">v2.6.4</b></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 当前版本</span><b id="ne-21-about-cur">v2.6.7</b></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🏗️ 构建</span><span>' + NE21_BUILD + '</span></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">👤 原作者</span><span>Ne-21</span></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🛠️ 开发者</span><b>Khihl & DeepSeek Harness</b></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🧠 AI 模型</span><span>DeepSeek 原生多模态</span></div>' +
@@ -5890,16 +5962,96 @@ function startDoWork(index, doms, c, TiMuList) {
     }
 }
 
-/* ============================ AI 实践任务链模块 v2.6.4 ============================ */
+/* ============================ AI 实践任务链模块 v2.6.6 ============================ */
 /* ==========================================================================================
- * AI 实践 / 任务链自动化模块  v2.6.4
+ * AI 实践 / 任务链自动化模块  v2.6.6
  * 功能：检测确认 → 多节点编排 → 回合制对话 → 逐节点评估 → 跨节点前进 → 聚合报告 → 自动上传
  * 说明：本模块运行在父页面（taskChain/student/answer），通过同源 iframe 直接驱动对话页。
  * ======================================================================================== */
 /* eslint-disable */
 
 var TC_VER = '2.4.0';
-var TC_LOCK_KEY = 'ne21.taskChain.lock';
+var TC_LOCK_KEY = 'ne21.taskChain.lock';   // 旧键（兼容），v2.6.7 起按任务链分键
+var _tcLockTimer = null;
+var _tcLockRel = 0;
+
+function tcTabId() {
+    try {
+        var id = sessionStorage.getItem('ne21.tabId');
+        if (!id) {
+            id = 'tab_' + tcNow() + '_' + Math.floor(Math.random() * 1000);
+            sessionStorage.setItem('ne21.tabId', id);
+        }
+        return id;
+    } catch (e) { return 'tab_unknown'; }
+}
+
+function tcLockKey() {
+    var id = 'default';
+    try {
+        var vm = tcHomeVm();
+        var d = (vm && vm.$data) || {};
+        id = d.publishRelationUuid || d.courseId || 'default';
+    } catch (e) { }
+    return TC_LOCK_KEY + '.' + id;
+}
+
+function tcLockRead() {
+    try {
+        var raw = localStorage.getItem(tcLockKey());
+        return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+}
+
+// 返回占用者 tabId；空闲/本页/已过期返回空串
+function tcLockOwnerAlive() {
+    var l = tcLockRead();
+    if (!l || !l.owner || l.owner === '__NONE__') return '';
+    if (l.owner === tcTabId()) return '';
+    var age = tcNow() - (l.hb || l.ts || 0);
+    return age > 30000 ? '' : l.owner;
+}
+
+function tcLockAcquire(force) {
+    try {
+        if (!force && tcLockOwnerAlive()) return false;
+        var data = { owner: tcTabId(), ts: tcNow(), hb: tcNow() };
+        localStorage.setItem(tcLockKey(), JSON.stringify(data));
+        if (_tcLockTimer) clearInterval(_tcLockTimer);
+        // 心跳续期：TTL 30s，每 10s 刷新
+        _tcLockTimer = setInterval(function () {
+            try {
+                var l = tcLockRead();
+                if (!l || l.owner === tcTabId() || (tcNow() - (l.hb || l.ts || 0)) > 30000) {
+                    localStorage.setItem(tcLockKey(), JSON.stringify({ owner: tcTabId(), ts: tcNow(), hb: tcNow() }));
+                } else {
+                    clearInterval(_tcLockTimer); _tcLockTimer = null;
+                }
+            } catch (e) { }
+        }, 10000);
+        return true;
+    } catch (e) { return true; }
+}
+
+function tcLockRelease() {
+    try {
+        var l = tcLockRead();
+        if (!l || l.owner === tcTabId()) localStorage.removeItem(tcLockKey());
+    } catch (e) { }
+    if (_tcLockTimer) { clearInterval(_tcLockTimer); _tcLockTimer = null; }
+}
+
+// 需要时才抢锁；被占用则询问是否接管
+function tcEnsureLock(nodes, st) {
+    if (tcLockAcquire(false)) return Promise.resolve(true);
+    tcLog('另一个标签页正在执行本任务链，等待你的选择', 'warn');
+    return tcPanelAsk('takeover', { nodes: nodes || [], st: st || {} }).then(function (d) {
+        if (!d || d.action !== 'chain') return false;
+        tcLockAcquire(true);
+        tcLog('已接管另一标签页的任务链锁', 'warn');
+        return true;
+    });
+}
 var _tcNextAllowedAt = 0;
 var _tcRunning = false;
 var _tcPaused = false;
@@ -6066,10 +6218,13 @@ function tcPanelAsk(kind, data) {
         card.className = 'ne21-uid';
         card.style.cssText = 'display:block;padding:10px 12px;margin:0 0 10px;font-size:12px;line-height:1.65;text-align:left;';
 
-        var title = kind === 'resume' ? '检测到未完成的进度' : '🧩 检测到 AI 实践任务链';
+        var title = kind === 'resume' ? '检测到未完成的进度'
+            : (kind === 'takeover' ? '另一个标签页正在执行本任务链' : '🧩 检测到 AI 实践任务链');
         var sub = kind === 'resume'
             ? ('上次：第 ' + (st.round || 0) + ' 轮' + (st.updatedAt ? '，中断于 ' + tcTimeStr(new Date(st.updatedAt)) : ''))
-            : ('已发现 <b>' + nodes.length + '</b> 个节点（后续节点完成后自动解锁）');
+            : (kind === 'takeover'
+                ? '如需在本页继续，可接管执行权（另一标签页会停止推进）'
+                : ('已发现 <b>' + nodes.length + '</b> 个节点（后续节点完成后自动解锁）'));
 
         var plan = kind === 'resume' ? ''
             : '<div style="color:#475569;margin-top:4px;">计划：'
@@ -6082,9 +6237,10 @@ function tcPanelAsk(kind, data) {
         var noName = !tcCfg('studentName', '') || !tcCfg('studentId', '');
         var nameHint = (kind === 'resume' || !noName) ? ''
             : '<div style="color:#b45309;margin-top:4px;">未填写姓名/学号：上传节点将转为手动选择文件，生成的文档不署名</div>';
-        var remember = kind === 'resume' ? ''
-            : '<label style="display:flex;align-items:center;gap:6px;margin-top:6px;color:#475569;">'
-            + '<input type="checkbox" id="tcRemember"> 本链不再提醒（下次自动开始）</label>';
+        var remember = kind === 'start'
+            ? '<label style="display:flex;align-items:center;gap:6px;margin-top:6px;color:#475569;">'
+            + '<input type="checkbox" id="tcRemember"> 本链不再提醒（下次自动开始）</label>'
+            : '';
 
         card.innerHTML = '<div style="font-weight:600;font-size:13px;margin-bottom:3px;color:#0f172a;">' + title + '</div>'
             + '<div style="color:#334155;">' + sub + '</div>'
@@ -6099,7 +6255,9 @@ function tcPanelAsk(kind, data) {
 
         var defs = kind === 'resume'
             ? [['继续上次', 'chain', 1], ['本节点重跑', 'node', 0], ['放弃', 'no', 0]]
-            : [['开始自动作答', 'chain', 1], ['只做当前节点', 'node', 0], ['稍后', 'no', 0]];
+            : (kind === 'takeover'
+                ? [['接管并开始', 'chain', 1], ['放弃', 'no', 0]]
+                : [['开始自动作答', 'chain', 1], ['只做当前节点', 'node', 0], ['稍后', 'no', 0]]);
         var wrap = card.querySelector('#tcCardBtns');
         defs.forEach(function (d) {
             var b = document.createElement('button');
@@ -6485,8 +6643,7 @@ function tcPickContent(obj) {
             }).join('').trim();
             if (t) return t;
         }
-        if (m.reasoning_content && String(m.reasoning_content).trim()) return String(m.reasoning_content).trim();
-        if (m.reasoning && String(m.reasoning).trim()) return String(m.reasoning).trim();
+        // 注意：reasoning_content / reasoning 是思考过程，不是给用户的答复，绝不回落
         if (typeof ch.text === 'string' && ch.text.trim()) return ch.text.trim();
     } catch (e) { }
     return '';
@@ -6506,6 +6663,7 @@ var _tcNoReasoningField = false;   // 服务端不接受 reasoning_effort 时置
 
 function tcChat(messages, opt) {
     opt = opt || {};
+    opt.metaOut = opt.metaOut || {};   // 保证 finish_reason 能被读取
     var apiKey = getDeepSeekApiKey();
     if (!apiKey) return Promise.reject({ c: -1, msg: '未配置 DeepSeek API 密钥' });
     var baseUrl = getDeepSeekBaseUrl();
@@ -6542,10 +6700,11 @@ function tcChat(messages, opt) {
                             var obj = null;
                             try { obj = JSON.parse(xhr.responseText) || {}; }
                             catch (e) { return reject2({ c: -1, msg: 'JSON 解析失败: ' + e.message, raw: (xhr.responseText || '').slice(0, 300) }); }
-                            if (opt.metaOut) {
-                                opt.metaOut.finish_reason = obj.choices && obj.choices[0] && obj.choices[0].finish_reason;
-                                opt.metaOut.usage = obj.usage;
-                                opt.metaOut.model = obj.model;
+                            var mo = cfg.metaOut || opt.metaOut;
+                            if (mo) {
+                                mo.finish_reason = obj.choices && obj.choices[0] && obj.choices[0].finish_reason;
+                                mo.usage = obj.usage;
+                                mo.model = obj.model;
                             }
                             var c = tcPickContent(obj);
                             if (!c) return reject2({ c: 0, msg: 'AI 返回为空', empty: true, raw: (xhr.responseText || '').slice(0, 400) });
@@ -6586,12 +6745,12 @@ function tcChat(messages, opt) {
         maxTokens: opt.maxTokens || 0
     };
 
-    return run(baseCfg).catch(function (err) {
+    var p = run(baseCfg).catch(function (err) {
         if (err && err.empty) {
-            tcLog('AI 返回为空，追加指令重试一次…', 'warn');
+            tcLog('AI 返回为空（思考内容已丢弃），追加指令重试一次…', 'warn');
             var msgs = (messages || []).concat([{
                 role: 'user',
-                content: '请直接输出正文，不要输出思考过程、不要解释、不要留空。'
+                content: '请直接输出最终回复正文，不要输出任何思考过程、不要解释、不要留空。'
             }]);
             return run({ messages: msgs, temperature: 0.3, maxTokens: opt.maxTokens || 0 })
                 .catch(function (e2) {
@@ -6604,6 +6763,29 @@ function tcChat(messages, opt) {
             return tcSleep(5000).then(function () { return run(baseCfg); });
         }
         throw err;
+    });
+
+    // 输出被 token 上限截断：续写一次，避免只拿到半句
+    return p.then(function (txt) {
+        var t = String(txt || '');
+        var meta = opt.metaOut || {};
+        if (meta.finish_reason === 'length' && t.length < 60) {
+            tcLog('[AI] 输出被截断（length，' + t.length + ' 字），续写一次', 'warn');
+            var cont = (messages || []).slice();
+            if (t) cont.push({ role: 'assistant', content: t });
+            cont.push({ role: 'user', content: '请紧接着继续写完，只输出最终回复正文，不要重复已写内容，不要输出思考过程。' });
+            var meta2 = {};
+            return run({ messages: cont, temperature: 0.4, maxTokens: 8192, metaOut: meta2 })
+                .then(function (t2) {
+                    if (opt.metaOut) {
+                        opt.metaOut.finish_reason = meta2.finish_reason;
+                        opt.metaOut.usage = meta2.usage;
+                    }
+                    return t + String(t2 || '');
+                })
+                .catch(function () { return t; });
+        }
+        return t;
     });
 }
 
@@ -6746,8 +6928,11 @@ function tcWaitTeacherReply(doc, snap, timeout) {
     timeout = timeout || 180000;
     var start = tcNow();
     var matched = false;
+    var matchedAt = 0;
     var stable = 0;
     var lastLen = -1;
+    var lastCount = -1;
+    var countStable = 0;
 
     tcBusyStart('等待老师回复…');
     return new Promise(function (resolve) {
@@ -6760,18 +6945,31 @@ function tcWaitTeacherReply(doc, snap, timeout) {
 
             if (!matched && (els.length > snap.count || last !== snap.lastText)) {
                 matched = true;
+                matchedAt = tcNow();
                 tcLog('检测到老师新消息（' + (snap.count ? snap.count : 0) + '→' + els.length + ' 条，长度 0→' + len + '）', 'muted');
             }
+
             if (matched) {
                 tcBusySetLabel('老师正在输入…（' + len + ' 字）');
-                if (len > 0 && len === lastLen) stable++; else stable = 0;
-                lastLen = len;
-                if (stable >= 3 && !tcContinueBtn(doc) && tcTurnReady(doc)) {
-                    tcLog('老师消息已输出完毕（' + len + ' 字，稳定 ' + (stable * 0.4).toFixed(1) + 's）', 'muted');
-                    tcBusyStop();
-                    return resolve(last);
+                // 条数稳定（老师连发多条时继续等）
+                if (els.length === lastCount) countStable++; else countStable = 0;
+                lastCount = els.length;
+                // 以「输入框就绪」为主信号，文本稳定只作二次确认
+                if (tcTurnReady(doc) && !tcContinueBtn(doc)) {
+                    if (len > 0 && len === lastLen) stable++; else stable = 0;
+                    lastLen = len;
+                    if (stable >= 2 && countStable >= 2 && (tcNow() - matchedAt) >= 600) {
+                        var latest = '';
+                        try { latest = tcTeacherText(els[els.length - 1]); } catch (e) { latest = last; }
+                        tcLog('老师消息已输出完毕（' + latest.length + ' 字，等待 ' + ((tcNow() - matchedAt) / 1000).toFixed(1) + 's）', 'muted');
+                        tcBusyStop();
+                        return resolve(latest || last);
+                    }
+                } else {
+                    stable = 0;
                 }
             }
+
             if (tcNow() - start > timeout) {
                 tcLog('等待老师回复超时（' + Math.round(timeout / 1000) + 's），按当前文本继续', 'warn');
                 tcBusyStop();
@@ -6859,6 +7057,18 @@ function tcDialogueNode(node, entered) {
                         }
                         return reply;
                     }).then(function (reply) {
+                        // 空/过短/疑似思考过程 → 不发送
+                        var plain = String(reply || '').replace(/\s/g, '');
+                        if (plain.length < 8) throw new Error('AI 回复为空或过短（思考内容已丢弃）');
+                        if (/^(让我|我需要|首先我|分析如下|思考过程|好的，?我需要|We need)/.test(String(reply).trim())) {
+                            tcLog('回复疑似思考过程，重写一次', 'warn');
+                            return tcComposeReply(cur, teacher + '\n（请直接给出最终答复，不要输出分析或思考过程）', history, st.discussed, st.carryOver)
+                                .then(function (r3) { return tcCleanReply(r3); })
+                                .then(function (r4) {
+                                    if (String(r4 || '').replace(/\s/g, '').length < 8) throw new Error('AI 回复为空或过短（思考内容已丢弃）');
+                                    return r4;
+                                });
+                        }
                         if (tcCfg('taskChainDryRun', false)) {
                             tcLog('[DryRun] 拟发送：' + reply.slice(0, 120) + '…', 'skip');
                             return 'dryrun';
@@ -8428,6 +8638,7 @@ function tcChainLoop(mode) {
             tcSaveState(st);
             tcUpdateStatusBar('任务链：已完成（共发现 ' + ((st.nodes || []).length) + ' 个节点）');
             _tcRunning = false;
+            tcLockRelease();
             return;
         }
         var nodes = tcScanNodes();
@@ -8474,6 +8685,7 @@ function tcChainLoop(mode) {
                 tcLog('连续多次刷新没有发现新的可进入节点，停止。可能已全部完成或需人工确认。', 'warn');
                 tcUpdateStatusBar('任务链：已停止（无新节点，已完成 ' + merged.filter(function (n) { return n.done; }).length + ' 个）');
                 _tcRunning = false;
+                tcLockRelease();
                 return;
             }
             tcLog('未发现可进入节点（已发现 ' + nodes.length + ' 个），刷新等待解锁…', 'warn');
@@ -8496,19 +8708,21 @@ function tcChainLoop(mode) {
             return tcUploadNode(cur, true);
         });
         p.then(function () {
-            if (mode === 'node') { tcLog('单节点模式结束'); _tcRunning = false; return; }
+            if (mode === 'node') { tcLog('单节点模式结束'); _tcRunning = false; tcLockRelease(); return; }
             tcReload();
         }).catch(function (e) {
             if (e && e.cancelled) {
                 tcLog('已按你的选择取消，任务链停止（刷新页面可重新开始）', 'warn');
                 tcBusyReset();
                 _tcRunning = false;
+                tcLockRelease();
                 return;
             }
             tcLog('节点失败：' + (e && (e.msg || e.message) || e), 'error');
             tcLog('已停止，请处理后可刷新页面继续', 'error');
             tcBusyReset();
             _tcRunning = false;
+            tcLockRelease();
         });
     }
     step();
@@ -8625,6 +8839,7 @@ function tcEnsureControls() {
         document.getElementById('tcStopBtn').addEventListener('click', function () {
             _tcRunning = false; _tcPaused = false;
             tcBusyReset();
+            tcLockRelease();
             tcLog('已停止任务链，可刷新页面重新开始', 'warn');
         });
         wrap.style.display = 'block';
@@ -8637,18 +8852,13 @@ function tcBoot(mode) {
     if (!tcCfg('taskChain', true)) { tcLog('任务链自动作答已在设置中关闭', 'muted'); return; }
     if (mode === 'solo') { tcLog('当前为对话页独立打开模式，由任务链父页面统一驱动，本页不单独启动', 'muted'); return; }
 
-    // 多标签互斥：同一浏览器只允许一个标签执行，避免两边同时点“进入任务”
+    // 多标签互斥：这里只检查，不抢锁；真正开始时再获取（tcEnsureLock）
     try {
-        var lockRaw = localStorage.getItem(TC_LOCK_KEY);
-        var lock = lockRaw ? JSON.parse(lockRaw) : null;
-        if (lock && lock.owner && lock.owner !== '__NONE__' && (tcNow() - lock.ts) < 120000 && lock.owner !== sessionStorage.getItem('ne21.tabId')) {
-            tcLog('检测到另一个标签页正在执行任务链，本页不再启动', 'warn');
-            return;
+        if (tcLockOwnerAlive()) tcLog('另一个标签页正在执行本任务链，开始时可选择接管', 'warn');
+        if (!_tcLockRel) {
+            _tcLockRel = 1;
+            window.addEventListener('beforeunload', tcLockRelease);
         }
-        if (!sessionStorage.getItem('ne21.tabId')) {
-            sessionStorage.setItem('ne21.tabId', 'tab_' + tcNow() + '_' + Math.floor(Math.random() * 1000));
-        }
-        localStorage.setItem(TC_LOCK_KEY, JSON.stringify({ owner: sessionStorage.getItem('ne21.tabId'), ts: tcNow() }));
     } catch (e) { }
 
     tcWaitDetect(20000).then(function (found) {
@@ -8692,7 +8902,14 @@ function tcBoot(mode) {
                 return;
             }
             if (d.remember) { st.remember = true; tcSaveState(st); }
-            tcChainLoop(d.action === 'node' ? 'node' : 'chain');
+            tcEnsureLock(nodes, st).then(function (got) {
+                if (!got) {
+                    tcLog('已放弃启动（另一标签页占用本任务链）', 'warn');
+                    tcShowStartButton();
+                    return;
+                }
+                tcChainLoop(d.action === 'node' ? 'node' : 'chain');
+            });
         });
     });
 }

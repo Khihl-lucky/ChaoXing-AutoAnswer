@@ -2,7 +2,7 @@
 
 > 基于 DeepSeek 原生多模态的学习通自动刷课/答题用户脚本
 
-[![Version](https://img.shields.io/badge/version-2.6.4-blue)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer)
+[![Version](https://img.shields.io/badge/version-2.6.7-blue)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer)
 [![License](https://img.shields.io/badge/license-MIT-green)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer/blob/main/LICENSE)
 
 ## 简介
@@ -14,6 +14,23 @@
 > v2.2.0 起，DeepSeek 原生多模态（Vision）已正式可用，脚本不再依赖第三方多模态服务，原先的 Kimi 配置已全部移除。
 
 ## 更新日志
+
+### v2.6.7
+
+- **修复**：复杂问题下把模型的 `reasoning_content`（思维链）当成回复发送；现丢弃思考内容并按“空回复”重试，仍空则不下发
+- **新增**：对话回复被 `finish_reason=length` 截断时自动续写一次（显式 8192 tokens），拼接为完整答复
+- **优化**：老师回复改为「就绪优先」捕获——以输入框恢复可用为主信号，文本稳定 0.8s 仅作二次确认，不再靠 1.2s 猜测
+- **修复**：发送前校验，空/过短/明显是思考过程的回复会被拦截重写
+- **重做**：多标签互斥锁——按任务链分键、运行时 10s 心跳、停止/完成/关页即释放、冲突时可一键「接管并开始」
+
+### v2.6.6
+
+- **修复**：更新提示长期停在旧版本——检查节流由 6 小时改为 30 分钟，缓存版本低于本地版本时立即失效重查
+- **新增**：版本号 tooltip 显示「上次检查时间 + 本版 build」，启动日志打印版本与 build，关于弹窗增加构建号
+- **优化**：所有版本探测 URL 追加 `?ts=`，绕开代理缓存；GitHub Contents API 返回 JSON 时自动 base64 解码解析版本
+
+<details>
+<summary>历史版本（v2.6.4 及更早）</summary>
 
 ### v2.6.4
 
@@ -33,9 +50,6 @@
 - **变更**：检查入口从「关于」弹窗移到标题栏版本号，点击即检查，显示「检查中… / 已是最新 / 新版本 vX / 检查失败」
 - **新增**：`@connect api.github.com` / `ghproxy.net` / `gh-proxy.com`
 - **优化**：「立即更新」使用本次实际可达的安装地址
-
-<details>
-<summary>历史版本（v2.6.1 及更早）</summary>
 
 ### v2.6.1
 
