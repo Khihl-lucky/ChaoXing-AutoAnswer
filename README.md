@@ -2,7 +2,7 @@
 
 > 基于 DeepSeek 原生多模态的学习通自动刷课/答题用户脚本
 
-[![Version](https://img.shields.io/badge/version-2.6.0-blue)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer)
+[![Version](https://img.shields.io/badge/version-2.6.1-blue)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer)
 [![License](https://img.shields.io/badge/license-MIT-green)](https://github.com/Khihl-lucky/ChaoXing-AutoAnswer/blob/main/LICENSE)
 
 ## 简介
@@ -15,6 +15,17 @@
 
 ## 更新日志
 
+### v2.6.1
+
+- **新增**：浮窗更新提示——标题栏蓝色「新版本」徽标、通知栏「发现新版本 / 立即更新 / 忽略此版本」
+- **新增**：关于弹窗显示「当前版本 / 最新版本」，并提供「检查更新」按钮
+- **新增**：`@connect raw.githubusercontent.com`，脚本可直接读取 `@updateURL` 的版本头
+- **优化**：标题栏与关于弹窗版本号改为读取 `GM_info.script.version`，发版无需手改
+- **策略**：6 小时节流、失败静默、可忽略指定版本
+
+<details>
+<summary>历史版本（v2.6.0 及更早）</summary>
+
 ### v2.6.0
 
 - **修复**：文档类附件（.doc/.docx）的预览页是分页图片，脚本曾把整页 HTML 当作正文注入，导致模型去“解析示例文件”并产出空话；现按类型分流处理
@@ -25,10 +36,7 @@
 - **优化**：文件名沿用模板命名规则（如 `学号+姓名+实验二.doc` → `2507010124+张钟鑫+实验二.docx`）
 - **约束**：提示词明确「附件是参考材料，不是分析对象」；禁止声称“已通过系统检查/评分达标”
 
-<details>
-<summary>历史版本（v2.5.2 及更早）</summary>
-
-### v2.5.2
+### v2.6.0
 
 - **新增**：浮窗「AI 正在思考」指示器，显示当前动作与已耗时秒数，覆盖 AI 请求、读取附件、等待老师流式输出、上传、评估、评分
 - **修复**：无 DOM 环境（单元测试）调用时不再抛错
