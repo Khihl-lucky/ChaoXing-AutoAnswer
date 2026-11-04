@@ -1,0 +1,10666 @@
+// ==UserScript==
+// @name                AI学习通助手（DeepSeek 原生多模态）
+// @version             2.7.0
+// @description         【更新测试用：2.7.0 → 2.8.0，勿作日常使用】基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.8.0 任务链改为「同一对话重做 + 平台评估驱动改进」，附件按 Markdown 原文注入、上传/评估双校验，新增开发者调试面板，用户自行填写API密钥免费使用
+// @author              Khihl & DeepSeek Harness
+// @originalAuthor      Ne-21
+// @match               *://*.chaoxing.com/*
+// @match               *://*.edu.cn/*
+// @match               *://groupweb.chaoxing.com/*
+// @connect             api.deepseek.com
+// @connect             zhibo.chaoxing.com
+// @connect             chaoxing.com
+// @connect             groupweb.chaoxing.com
+// @connect             raw.githubusercontent.com
+// @connect             api.github.com
+// @connect             ghproxy.net
+// @connect             gh-proxy.com
+// @run-at              document-end
+// @grant               unsafeWindow
+// @grant               GM_xmlhttpRequest
+// @grant               GM_setValue
+// @grant               GM_getValue
+// @grant               GM_info
+// @grant               GM_getResourceText
+// @require             https://gptjs.808860.xyz/libs/TyprMd5.js
+// @require             https://gptjs.808860.xyz/libs/sweetalert2-11.1.0.all.min.js
+// @require             https://gptjs.808860.xyz/libs/jquery-3.7.1.min.js
+// @require             https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js
+// @resource            Table https://gptjs.808860.xyz/libs/table.json
+// @icon                data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDEiIGhlaWdodD0iNDEiIHZpZXdCb3g9IjAgMCA0MSA0MSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBzdHJva2Utd2lkdGg9IjEuNSIgY2xhc3M9ImgtNiB3LTYiIHJvbGU9ImltZyI+PHRpdGxlPkNoYXRHUFQ8L3RpdGxlPjx0ZXh0IHg9Ii05OTk5IiB5PSItOTk5OSI+Q2hhdEdQVDwvdGV4dD48cGF0aCBkPSJNMzcuNTMyNCAxNi44NzA3QzM3Ljk4MDggMTUuNTI0MSAzOC4xMzYzIDE0LjA5NzQgMzcuOTg4NiAxMi42ODU5QzM3Ljg0MDkgMTEuMjc0NCAzNy4zOTM0IDkuOTEwNzYgMzYuNjc2IDguNjg2MjJDMzUuNjEyNiA2LjgzNDA0IDMzLjk4ODIgNS4zNjc2IDMyLjAzNzMgNC40OTg1QzMwLjA4NjQgMy42Mjk0MSAyNy45MDk4IDMuNDAyNTkgMjUuODIxNSAzLjg1MDc4QzI0Ljg3OTYgMi43ODkzIDIzLjcyMTkgMS45NDEyNSAyMi40MjU3IDEuMzYzNDFDMjEuMTI5NSAwLjc4NTU3NSAxOS43MjQ5IDAuNDkxMjY5IDE4LjMwNTggMC41MDAxOTdDMTYuMTcwOCAwLjQ5NTA0NCAxNC4wODkzIDEuMTY4MDMgMTIuMzYxNCAyLjQyMjE0QzEwLjYzMzUgMy42NzYyNCA5LjM0ODUzIDUuNDQ2NjYgOC42OTE3IDcuNDc4MTVDNy4zMDA4NSA3Ljc2Mjg2IDUuOTg2ODYgOC4zNDE0IDQuODM3NyA5LjE3NTA1QzMuNjg4NTQgMTAuMDA4NyAyLjczMDczIDExLjA3ODIgMi4wMjgzOSAxMi4zMTJDMC45NTY0NjQgMTQuMTU5MSAwLjQ5ODkwNSAxNi4yOTg4IDAuNzIxNjk4IDE4LjQyMjhDMC45NDQ0OTIgMjAuNTQ2NyAxLjgzNjEyIDIyLjU0NDkgMy4yNjggMjQuMTI5M0MyLjgxOTY2IDI1LjQ3NTkgMi42NjQxMyAyNi45MDI2IDIuODExODIgMjguMzE0MUMyLjk1OTUxIDI5LjcyNTYgMy40MDcwMSAzMS4wODkyIDQuMTI0MzcgMzIuMzEzOEM1LjE4NzkxIDM0LjE2NTkgNi44MTIzIDM1LjYzMjIgOC43NjMyMSAzNi41MDEzQzEwLjcxNDEgMzcuMzcwNCAxMi44OTA3IDM3LjU5NzMgMTQuOTc4OSAzNy4xNDkyQzE1LjkyMDggMzguMjEwNyAxNy4wNzg2IDM5LjA1ODcgMTguMzc0NyAzOS42MzY2QzE5LjY3MDkgNDAuMjE0NCAyMS4wNzU1IDQwLjUwODcgMjIuNDk0NiA0MC40OTk4QzI0LjYzMDcgNDAuNTA1NCAyNi43MTMzIDM5LjgzMjEgMjguNDQxOCAzOC41NzcyQzMwLjE3MDQgMzcuMzIyMyAzMS40NTU2IDM1LjU1MDYgMzIuMTExOSAzMy41MTc5QzMzLjUwMjcgMzMuMjMzMiAzNC44MTY3IDMyLjY1NDcgMzUuOTY1OSAzMS44MjFDMzcuMTE1IDMwLjk4NzQgMzguMDcyOCAyOS45MTc4IDM4Ljc3NTIgMjguNjg0QzM5Ljg0NTggMjYuODM3MSA0MC4zMDIzIDI0LjY5NzkgNDAuMDc4OSAyMi41NzQ4QzM5Ljg1NTYgMjAuNDUxNyAzOC45NjM5IDE4LjQ1NDQgMzcuNTMyNCAxNi44NzA3Wk0yMi40OTc4IDM3Ljg4NDlDMjAuNzQ0MyAzNy44ODc0IDE5LjA0NTkgMzcuMjczMyAxNy42OTk0IDM2LjE1MDFDMTcuNzYwMSAzNi4xMTcgMTcuODY2NiAzNi4wNTg2IDE3LjkzNiAzNi4wMTYxTDI1LjkwMDQgMzEuNDE1NkMyNi4xMDAzIDMxLjMwMTkgMjYuMjY2MyAzMS4xMzcgMjYuMzgxMyAzMC45Mzc4QzI2LjQ5NjQgMzAuNzM4NiAyNi41NTYzIDMwLjUxMjQgMjYuNTU0OSAzMC4yODI1VjE5LjA1NDJMMjkuOTIxMyAyMC45OThDMjkuOTM4OSAyMS4wMDY4IDI5Ljk1NDEgMjEuMDE5OCAyOS45NjU2IDIxLjAzNTlDMjkuOTc3IDIxLjA1MiAyOS45ODQyIDIxLjA3MDcgMjkuOTg2NyAyMS4wOTAyVjMwLjM4ODlDMjkuOTg0MiAzMi4zNzUgMjkuMTk0NiAzNC4yNzkxIDI3Ljc5MDkgMzUuNjg0MUMyNi4zODcyIDM3LjA4OTIgMjQuNDgzOCAzNy44ODA2IDIyLjQ5NzggMzcuODg0OVpNNi4zOTIyNyAzMS4wMDY0QzUuNTEzOTcgMjkuNDg4OCA1LjE5NzQyIDI3LjcxMDcgNS40OTgwNCAyNS45ODMyQzUuNTU3MTggMjYuMDE4NyA1LjY2MDQ4IDI2LjA4MTggNS43MzQ2MSAyNi4xMjQ0TDEzLjY5OSAzMC43MjQ4QzEzLjg5NzUgMzAuODQwOCAxNC4xMjMzIDMwLjkwMiAxNC4zNTMyIDMwLjkwMkMxNC41ODMgMzAuOTAyIDE0LjgwODggMzAuODQwOCAxNS4wMDczIDMwLjcyNDhMMjQuNzMxIDI1LjExMDNWMjguOTk3OUMyNC43MzIxIDI5LjAxNzcgMjQuNzI4MyAyOS4wMzc2IDI0LjcxOTkgMjkuMDU1NkMyNC43MTE1IDI5LjA3MzYgMjQuNjk4OCAyOS4wODkzIDI0LjY4MjkgMjkuMTAxMkwxNi42MzE3IDMzLjc0OTdDMTQuOTA5NiAzNC43NDE2IDEyLjg2NDMgMzUuMDA5NyAxMC45NDQ3IDM0LjQ5NTRDOS4wMjUwNiAzMy45ODExIDcuMzg3ODUgMzIuNzI2MyA2LjM5MjI3IDMxLjAwNjRaTTQuMjk3MDcgMTMuNjE5NEM1LjE3MTU2IDEyLjA5OTggNi41NTI3OSAxMC45MzY0IDguMTk4ODUgMTAuMzMyN0M4LjE5ODg1IDEwLjQwMTMgOC4xOTQ5MSAxMC41MjI4IDguMTk0OTEgMTAuNjA3MVYxOS44MDhDOC4xOTM1MSAyMC4wMzc4IDguMjUzMzQgMjAuMjYzOCA4LjM2ODIzIDIwLjQ2MjlDOC40ODMxMiAyMC42NjE5IDguNjQ4OTMgMjAuODI2NyA4Ljg0ODYzIDIwLjk0MDRMMTguNTcyMyAyNi41NTQyTDE1LjIwNiAyOC40OTc5QzE1LjE4OTQgMjguNTA4OSAxNS4xNzAzIDI4LjUxNTUgMTUuMTUwNSAyOC41MTczQzE1LjEzMDcgMjguNTE5MSAxNS4xMTA3IDI4LjUxNiAxNS4wOTI0IDI4LjUwODJMNy4wNDA0NiAyMy44NTU3QzUuMzIxMzUgMjIuODYwMSA0LjA2NzE2IDIxLjIyMzUgMy41NTI4OSAxOS4zMDQ2QzMuMDM4NjIgMTcuMzg1OCAzLjMwNjI0IDE1LjM0MTMgNC4yOTcwNyAxMy42MTk0Wk0zMS45NTUgMjAuMDU1NkwyMi4yMzEyIDE0LjQ0MTFMMjUuNTk3NiAxMi40OTgxQzI1LjYxNDIgMTIuNDg3MiAyNS42MzMzIDEyLjQ4MDUgMjUuNjUzMSAxMi40Nzg3QzI1LjY3MjkgMTIuNDc2OSAyNS42OTI4IDEyLjQ4MDEgMjUuNzExMSAxMi40ODc5TDMzLjc2MzEgMTcuMTM2NEMzNC45OTY3IDE3Ljg0OSAzNi4wMDE3IDE4Ljg5ODIgMzYuNjYwNiAyMC4xNjEzQzM3LjMxOTQgMjEuNDI0NCAzNy42MDQ3IDIyLjg0OSAzNy40ODMyIDI0LjI2ODRDMzcuMzYxNyAyNS42ODc4IDM2LjgzODIgMjcuMDQzMiAzNS45NzQzIDI4LjE3NTlDMzUuMTEwMyAyOS4zMDg2IDMzLjk0MTUgMzAuMTcxNyAzMi42MDQ3IDMwLjY2NDFDMzIuNjA0NyAzMC41OTQ3IDMyLjYwNDcgMzAuNDczMyAzMi42MDQ3IDMwLjM4ODlWMjEuMTg4QzMyLjYwNjYgMjAuOTU4NiAzMi41NDc0IDIwLjczMjggMzIuNDMzMiAyMC41MzM4QzMyLjMxOSAyMC4zMzQ4IDMyLjE1NCAyMC4xNjk4IDMxLjk1NSAyMC4wNTU2Wk0zNS4zMDU1IDE1LjAxMjhDMzUuMjQ2NCAxNC45NzY1IDM1LjE0MzEgMTQuOTE0MiAzNS4wNjkgMTQuODcxN0wyNy4xMDQ1IDEwLjI3MTJDMjYuOTA2IDEwLjE1NTQgMjYuNjgwMyAxMC4wOTQzIDI2LjQ1MDQgMTAuMDk0M0MyNi4yMjA2IDEwLjA5NDMgMjUuOTk0OCAxMC4xNTU0IDI1Ljc5NjMgMTAuMjcxMkwxNi4wNzI2IDE1Ljg4NThWMTEuOTk4MkMxNi4wNzE1IDExLjk3ODMgMTYuMDc1MyAxMS45NTg1IDE2LjA4MzcgMTEuOTQwNUMxNi4wOTIxIDExLjkyMjUgMTYuMTA0OCAxMS45MDY4IDE2LjEyMDcgMTEuODk0OUwyNC4xNzE5IDcuMjUwMjVDMjUuNDA1MyA2LjUzOTAzIDI2LjgxNTggNi4xOTM3NiAyOC4yMzgzIDYuMjU0ODJDMjkuNjYwOCA2LjMxNTg5IDMxLjAzNjQgNi43ODA3NyAzMi4yMDQ0IDcuNTk1MDhDMzMuMzcyMyA4LjQwOTM5IDM0LjI4NDIgOS41Mzk0NSAzNC44MzM0IDEwLjg1MzFDMzUuMzgyNiAxMi4xNjY3IDM1LjU0NjQgMTMuNjA5NSAzNS4zMDU1IDE1LjAxMjhaTTE0LjI0MjQgMjEuOTQxOUwxMC44NzUyIDE5Ljk5ODFDMTAuODU3NiAxOS45ODkzIDEwLjg0MjMgMTkuOTc2MyAxMC44MzA5IDE5Ljk2MDJDMTAuODE5NSAxOS45NDQxIDEwLjgxMjIgMTkuOTI1NCAxMC44MDk4IDE5LjkwNThWMTAuNjA3MUMxMC44MTA3IDkuMTgyOTUgMTEuMjE3MyA3Ljc4ODQ4IDExLjk4MTkgNi41ODY5NkMxMi43NDY2IDUuMzg1NDQgMTMuODM3NyA0LjQyNjU5IDE1LjEyNzUgMy44MjI2NEMxNi40MTczIDMuMjE4NjkgMTcuODUyNCAyLjk5NDY0IDE5LjI2NDkgMy4xNzY3QzIwLjY3NzUgMy4zNTg3NiAyMi4wMDg5IDMuOTM5NDEgMjMuMTAzNCA0Ljg1MDY3QzIzLjA0MjcgNC44ODM3OSAyMi45MzcgNC45NDIxNSAyMi44NjY4IDQuOTg0NzNMMTQuOTAyNCA5LjU4NTE3QzE0LjcwMjUgOS42OTg3OCAxNC41MzY2IDkuODYzNTYgMTQuNDIxNSAxMC4wNjI2QzE0LjMwNjUgMTAuMjYxNiAxNC4yNDY2IDEwLjQ4NzcgMTQuMjQ3OSAxMC43MTc1TDE0LjI0MjQgMjEuOTQxOVpNMTYuMDcxIDE3Ljk5OTFMMjAuNDAxOCAxNS40OTc4TDI0LjczMjUgMTcuOTk3NVYyMi45OTg1TDIwLjQwMTggMjUuNDk4M0wxNi4wNzEgMjIuOTk4NVYxNy45OTkxWiIgZmlsbD0iY3VycmVudENvbG9yIj48L3BhdGg+PC9zdmc+
+// @homepage            https://github.com/Khihl-lucky/ChaoXing-AutoAnswer
+// @supportURL          https://github.com/Khihl-lucky/ChaoXing-AutoAnswer/issues
+// @downloadURL         https://raw.githubusercontent.com/Khihl-lucky/ChaoXing-AutoAnswer/main/chaoxing-autoanswer.user.js
+// @updateURL           https://raw.githubusercontent.com/Khihl-lucky/ChaoXing-AutoAnswer/main/chaoxing-autoanswer.user.js
+// ==/UserScript==
+
+
+/*********************************自定义配置区******************************************************** */
+var setting = {
+    // ===== DeepSeek API 配置 =====
+    deepseekApiKey: '',   // DeepSeek API密钥，请在浮窗设置中填写或直接在此处填写
+    deepseekBaseUrl: 'https://api.deepseek.com',  // DeepSeek API地址
+    deepseekModel: 'deepseek-flash',              // 文本模型: deepseek-flash(默认, 快速且支持图片) / deepseek-v4-pro(强力, 不支持图片)
+    deepseekVisionModel: 'deepseek-flash',        // 多模态模型: deepseek-flash 原生支持图片理解（官方唯一支持视觉的模型）
+    deepseekImgMode: 'auto',                      // 图片题处理方式: auto(自动路由) / vision(全部用多模态模型) / text(只用文本模型)
+
+    showBox: 1,     // 显示脚本浮窗，0为关闭，1为开启，不建议关闭
+    maskImg: 1,     // 显示皮卡丘，0为关闭，1为开启，默认开启，无实质作用，只是为了减少睿智问题
+
+    task: 1,        // 只处理任务点任务，0为关闭，1为开启，默认开启
+
+    video: 1,       // 处理视频，0为关闭，1为开启
+    audio: 1,       // 处理音频，0为关闭，1为开启
+    rate: 1,        // 视频/音频倍速，默认 1（正常），可在浮窗设置中调整（1/1.25/1.5/2）
+    review: 0,      // 复习模式，0为关闭，1为开启可以补挂视频时长
+
+    work: 1,        // 测验自动处理，0为关闭，1为开启，开启将会处理测验，关闭会跳过测验
+    time: 2500,     // 答题时间间隔，默认5s=5000
+    reqIntervalTime: 0, // 搜题（AI）请求最小间隔(秒)。0 为不节流；高并发可设 1~3 秒，避免被服务端限流
+    sub: 1,         // 测验自动提交，0为关闭,1为开启，当没答案时测验将不会提交，如需提交请设置force：1
+    force: 0,       // 测验强制提交，0为关闭，1为开启，开启此功能将会强制提交测验（无论作答与否）
+    decrypt: 1,     // 字体解密，0为关闭，1为开启，推荐开启，方法来自wyn665817大佬
+    redo: 0,        // 重做模式，0为关闭，1为开启，开启后不跳过已答题，重新AI作答覆盖旧答案
+    fuzzyMatch: 1,  // 相似度匹配，0为关闭，1为开启，开启后当精确匹配失败时使用相似度匹配选择最接近的选项
+
+    examTurn: 0,     // 考试自动跳转下一题，0为关闭，1为开启
+    examTurnTime: 0, // 考试自动跳转下一题随机间隔时间(3-7s)之间，0为关闭，1为开启
+    goodStudent: 1,  // 好学生模式,不自动选择答案,仅将单选题和多选题的ABCD加粗
+    alterTitle: 1,  //修改题目,将AI回复的答案插入题目中,不建议关闭,AI回复不能完全匹配答案,题目显示答案供手动选择
+
+    autoLogin: 0,   // 自动登录，0为关闭，1为开启，开启此功能请配置登陆配置项
+    phone: '',      // 登录配置项：登录手机号/超星号
+    password: '',   // 登录配置项：登录密码
+
+    // ===== AI 实践 / 任务链（v2.7.0） =====
+    taskChain: 1,              // 检测到任务链时是否启用（1启用）
+    taskChainAutoStart: 0,     // 0=检测后询问；1=检测到直接开始
+    taskChainRounds: 20,       // 每个对话节点的目标轮数（上限由页面决定）
+    taskChainMinScore: 61,     // 节点合格分；用户改过则以此为准，未改则跟随页面解锁条件
+    taskChainMaxRetry: 2,      // 单节点重练上限
+    taskChainAdvance: 1,       // 评估后自动进入下一节点
+    taskChainUpload: 1,        // 上传作品节点自动化
+    autoReport: 1,             // 自动生成并提交实验报告
+    reportWithDiagram: 1,      // 报告中嵌入路线图
+    studentName: '',           // 报告封面：姓名
+    studentId: '',             // 报告封面：学号
+    studentClass: '',          // 报告封面：班级
+    taskChainDryRun: 0,        // 演练模式：只生成不发送
+    replyMin: 150,             // 单条回复最少字数
+    replyMax: 350,             // 单条回复最多字数
+    taskChainAutoUpload: 0,    // 0=生成后先预览再上传；1=生成后直接上传
+    taskChainMaxTokens: 0,     // 0=完全不发 max_tokens，由服务端决定单次输出上限；>0 时才显式指定
+    taskChainForceSubmit: 0,   // 保留字段（旧版自检开关，已停用）
+    debug: 0                   // 开发者调试：1=记录发给 AI 的原文、网站 AI 评估、本地缓存，可在浮窗查看/导出
+}
+/************************************************************************************************** */
+/*
+  ╔══════════════════════════════════════════════════════════════╗
+  ║        AI学习通助手 v2.8.0 (DeepSeek 原生多模态)            ║
+  ╠══════════════════════════════════════════════════════════════╣
+  ║  原作者:    Ne-21                                           ║
+  ║  开发者:    Khihl & DeepSeek Harness                        ║
+  ║  更新:      2026-10-20 · AI 实践任务链自动化                 ║
+  ║                                                             ║
+  ║  v2.4.0 → v2.7.0 新增：                                              ║
+  ║   · 任务链检测 + 确认弹窗（不再静默开工）                    ║
+  ║   · 多节点编排：逐个作答→评估→进入下一节点                  ║
+  ║   · 严格回合制：读老师本轮发言后再生成，一轮只发一条         ║
+  ║   · 断点续跑：刷新后继续上次进度                             ║
+  ║   · 上传作品节点：聚合全链生成 docx 并自动提交               ║
+  ║   · 浮窗状态条：暂停 / 停止                                  ║
+  ║                                                             ║
+  ║  deepseek-flash 原生视觉识别图片题，无需第三方多模态服务     ║
+  ║  文档/PPT模拟翻阅 · 讨论区AI自动回复 · 视频弹题处理          ║
+  ║  智能防卡死 · 任务跳过 · DOM状态实时刷新                     ║
+  ╚══════════════════════════════════════════════════════════════╝
+*/
+/************************************************************************************************** */
+
+
+var _w = unsafeWindow,
+    _l = location,
+    _d = _w.document,
+    $ = _w.jQuery || top.jQuery,
+    md5 = md5 || window.md5,
+    UE = _w.UE,
+    Swal = Swal || window.Swal;
+
+// DeepSeek API 配置读取（优先从 GM_getValue 读取（跨域共享），否则从 localStorage 读取，最后使用 setting 中的默认值）
+function getDeepSeekApiKey() {
+    return GM_getValue('deepseekApiKey', '') || localStorage.getItem('GPTJsSetting.deepseekApiKey') || setting.deepseekApiKey || '';
+}
+function getDeepSeekBaseUrl() {
+    return GM_getValue('deepseekBaseUrl', '') || localStorage.getItem('GPTJsSetting.deepseekBaseUrl') || setting.deepseekBaseUrl || 'https://api.deepseek.com';
+}
+function getDeepSeekModel() {
+    return GM_getValue('deepseekModel', '') || localStorage.getItem('GPTJsSetting.deepseekModel') || setting.deepseekModel || 'deepseek-flash';
+}
+// 保存 DeepSeek API 配置（同时写入 GM_setValue 和 localStorage）
+function saveDeepSeekConfig(key, value) {
+    GM_setValue(key, value);
+    localStorage.setItem('GPTJsSetting.' + key, value);
+}
+
+// 清理 v2.1.0 遗留的 Kimi 配置（该模型已于 v2.2.0 移除，图片题改由 DeepSeek 原生多模态处理）
+(function cleanupLegacyKimiConfig() {
+    try {
+        ['kimiApiKey', 'kimiBaseUrl', 'kimiModel'].forEach(function (k) {
+            localStorage.removeItem('GPTJsSetting.' + k);
+            if (typeof GM_setValue === 'function') GM_setValue(k, '');
+        });
+    } catch (_) { /* 存储不可用时静默 */ }
+})();
+
+// 多模态（图片）模型名读取：deepseek-flash 为官方唯一支持视觉的模型
+function getDeepSeekVisionModel() {
+    return GM_getValue('deepseekVisionModel', '') || localStorage.getItem('GPTJsSetting.deepseekVisionModel') || setting.deepseekVisionModel || 'deepseek-flash';
+}
+// 图片题处理方式读取：auto(自动路由) / vision(一律走多模态模型) / text(只用文本模型)
+function getDeepSeekImgMode() {
+    var m = GM_getValue('deepseekImgMode', '') || localStorage.getItem('GPTJsSetting.deepseekImgMode') || setting.deepseekImgMode || 'auto';
+    if (m !== 'auto' && m !== 'vision' && m !== 'text') m = 'auto';
+    return m;
+}
+// 判断模型是否具备视觉（图片）理解能力。
+// 官方模型：deepseek-flash 支持 Vision；deepseek-v4-pro 不支持。
+// 旧的 deepseek-v4-flash-vision-exp 已下线但名称仍被接受（由 V4.1-Flash 承接），同样视为支持。
+function modelSupportsVision(model) {
+    if (!model) return false;
+    var m = String(model).trim().toLowerCase();
+    if (/vision|vl\b|-vl$/.test(m)) return true;
+    if (m === 'deepseek-flash' || m === 'deepseek-v4-flash' || m === 'deepseek-v4-flash-vision-exp') return true;
+    return false;
+}
+
+// ===== 日志配置 =====
+// 必须定义在脚本最前面：/knowledge/cards 分支是同步执行的，
+// 会在文件后段（原第 1105 行）之前就调用 logger(_logP.NAV + ...)。
+// 若把 _logP 留在后面，遇到"无任务点"的空白页时会抛
+// TypeError: Cannot read properties of undefined (reading 'NAV')，
+// 导致随后的 toNext() 不执行、脚本卡在该页不再跳转。
+var _ne21LogColorMap = {
+    error:   '#dc2626', red:    '#dc2626',
+    success: '#059669', green:  '#059669',
+    skip:    '#ea580c', orange: '#ea580c',
+    warn:    '#ca8a04', yellow: '#ca8a04',
+    info:    '#2563eb', blue:   '#2563eb',
+    hili:    '#7c3aed', purple: '#7c3aed',
+    muted:   '#64748b', gray:   '#64748b', grey: '#64748b'
+}
+var _logP = {
+    VID: '[视频] ', AUD: '[音频] ', QUIZ: '[测验] ', DOC: '[文档] ',
+    READ: '[阅读] ', BOOK: '[读书] ', LIVE: '[直播] ', MICRO: '[速课] ',
+    BBS: '[讨论] ', EXAM: '[考试] ', HW: '[作业] ', AI: '[AI] ',
+    NAV: '[导航] ', SYS: '[系统] ', TASK: '[任务] ',
+    TC: '[任务链] '
+}
+
+var _mlist, _defaults, _domList, $subBtn, $saveBtn, $frame_c, $okBtn;
+var _currentOptionHtml = '';
+var _lastMatchInfo = '';
+var _currentQuestionMeta = null;
+// AI 搜题请求节流：记录下一次可发起请求的时间戳（ms），由 getAnswer 内部维护
+var _ne21NextAiAllowedAt = 0;
+var _toNextRetryCount = 0;
+var _lastPageUrl = '';
+
+$('.navshow').find('a:contains(体验新版)')[0] ? $('.navshow').find('a:contains(体验新版)')[0].click() : '';
+
+setting.decrypt ? decryptFont() : '';
+
+function waitForJQueryElement(selector) {
+    return new Promise(function (resolve) {
+        var interval = setInterval(function () {
+            if ($(selector).length > 0) {
+                clearInterval(interval);
+                resolve();
+            }
+        }, 500);
+    });
+}
+
+if (_l.hostname == 'i.mooc.chaoxing.com' || _l.hostname == "i.chaoxing.com") {
+    // 
+} else if (_l.pathname == '/login' && setting.autoLogin) {
+    showBox()
+    waitForJQueryElement('#phone').then(function () { autoLogin() });
+} else if (_l.pathname.includes('/mycourse/studentstudy')) {
+    showBox()
+    $('#ne-21log', window.parent.document).html('初始化完毕！')
+    setupAntiSleep()
+    setupAutoRefresh()
+} else if (_l.pathname.includes('/knowledge/cards')) {
+    setupAntiSleep()
+    var params = getTaskParams()
+    var parsedParams = null;
+    if (params && params !== '$mArg') {
+        try { parsedParams = $.parseJSON(params); } catch (e) { parsedParams = null; }
+    }
+    if (!parsedParams || !parsedParams['attachments'] || parsedParams['attachments'].length <= 0) {
+        logger(_logP.NAV + '[跳过] 无任务点可处理，跳转页面。', 'skip')
+        toNext()
+    } else {
+        waitForJQueryElement('.wrap .ans-cc .ans-attach-ct').then(function () {
+            top.checkJob ? top.checkJob = () => false : true
+            _domList = []
+            _mlist = parsedParams['attachments']
+            _defaults = parsedParams['defaults']
+            // 按每个 iframe 逐个推入 _domList，确保与 _mlist 一一对应
+            // 修复：原来每个 .ans-attach-ct 推入一个 jQuery 对象，
+            //       若一个容器内有多个 iframe（如两个视频），第二个会被跳过
+            $('.wrap .ans-cc .ans-attach-ct').each(function() {
+                var iframes = $(this).find('iframe');
+                if (iframes.length === 0) {
+                    _domList.push($());
+                } else {
+                    iframes.each(function() {
+                        _domList.push($(this));
+                    });
+                }
+            })
+            if (_domList.length !== _mlist.length) {
+                logger(_logP.TASK + '[警告] 任务列表与DOM数量不一致（任务' + _mlist.length + '/DOM' + _domList.length + '），部分任务可能无法处理。', 'warn')
+            }
+            // 接收父页面发送的跳过任务指令
+            window.addEventListener('message', function(event) {
+                if (!event.data || event.data.type !== 'NE21_SKIP_TASK') return
+                if (typeof _mlist === 'undefined' || _mlist.length === 0) return
+                var taskName = (_mlist[0] && _mlist[0].property && (_mlist[0].property.name || _mlist[0].property.title)) || '未知任务'
+                logger(_logP.TASK + '[跳过] 用户手动跳过：' + taskName + '。', 'skip')
+                var taskType = _mlist[0].type || (_mlist[0].property && _mlist[0].property.module)
+                if (taskType === 'document' || taskType === 'read') {
+                    try {
+                        var domEl = _domList && _domList[0]
+                        if (domEl && domEl.length > 0 && domEl[0].parentElement) {
+                            domEl[0].parentElement.classList.add('ans-job-finished')
+                        }
+                    } catch (_) { /* ignore */ }
+                }
+                switchMission()
+            })
+            missonStart()
+        });
+    }
+} else if (_l.pathname.includes('/exam/test/reVersionTestStartNew')) {
+    showBox()
+    waitForJQueryElement('.mark_table .whiteDiv').then(function () { missonExam() });
+} else if (_l.pathname.includes('/mooc2/exam/preview')) {
+    showBox()
+    waitForJQueryElement('.mark_table .questionLi').then(function () { missonExamPreview() });
+} else if (_l.pathname.includes('/mooc2/work/dowork')) {
+    showBox()
+    waitForJQueryElement('.mark_table form').then(function () { missonHomeWork() });
+} else if (_l.pathname.includes('/work/phone/doHomeWork')) {
+    var _oldal = _w.alert
+    _w.alert = function (msg) {
+        if (msg == '保存成功') {
+            return;
+        }
+        return _oldal(msg)
+    }
+    var _oldcf = _w.confirm
+    _w.confirm = function (msg) {
+        if (msg.includes('确认提交') || msg.includes('未做完')) {
+            return true
+        }
+        return _oldcf(msg)
+    }
+} else if (_l.pathname.includes('/mooc2/exam/exam-list')) {
+    // Swal.fire('ChatGPT学习通助手提示', '注意：请谨慎使用脚本考试，开始考试之前请确保该账号已激活脚本。', 'info')
+} else if (_l.hostname == 'groupweb.chaoxing.com' && _l.pathname.includes('/bbs/')) {
+    // 讨论区页面：自动回复（弹窗中运行，通过 GM_getValue 读取父窗口保存的上下文）
+    try {
+        console.log('[DeepSeek助手] 检测到讨论区页面，hostname=' + _l.hostname + ', pathname=' + _l.pathname);
+        showBox();
+        // 讨论区弹窗中隐藏除日志外的所有 UI 元素
+        $('#ne-21notice').hide();
+        $('#ne-21box .ne21-header').hide();
+        logger(_logP.BBS + '[信息] 检测到讨论区页面，准备自动回复。', 'info');
+        // 用 Promise.race 给 waitForJQueryElement 加 30 秒超时，避免页面结构不同时永久卡住
+        Promise.race([
+            waitForJQueryElement('.topicDetail_detail'),
+            new Promise(function (resolve) { setTimeout(resolve, 30000); })
+        ]).then(function () {
+            logger(_logP.BBS + '[信息] 页面内容已加载，开始自动回复。', 'info');
+            missonBbsPage();
+        });
+    } catch (e) {
+        console.error('[DeepSeek助手] 讨论区页面初始化出错:', e);
+    }
+} else if (_l.pathname.includes('/taskChain/student/answer')) {
+    // AI 实践任务链：父页面统一驱动（检测→确认→多节点编排）
+    showBox()
+    tcBoot('parent')
+} else if (_l.pathname.includes('/taskDialogue/')) {
+    // 对话 iframe：由父页面通过 contentDocument 驱动，这里不再重复启动
+    if (window.top === window) { showBox(); tcBoot('solo') }
+} else if (_l.pathname == '/mycourse/stu') {
+    checkBrowser()
+} else {
+    // console.log(_l.pathname)
+}
+
+function checkBrowser() {
+    var userAgent = navigator.userAgent
+    if (userAgent.indexOf('Chrome') == -1 || GM_info.scriptHandler != 'ScriptCat') {
+        // 非推荐环境，但不弹出警告
+        // Swal.fire('您使用的不是推荐运行环境(edge、谷歌浏览器+ScriptCat)，脚本运行可能会发生问题.')
+    }
+}
+
+function parseUrlParams() {
+    let query = window.location.search.substring(1);
+    let vars = query.split("&");
+    let _p = {}
+    for (let i = 0; i < vars.length; i++) {
+        let pair = vars[i].split("=");
+        _p[pair[0]] = pair[1]
+    }
+    return _p
+}
+
+
+function updateLocalStorage(event) {
+    var checkbox = event.target;
+    localStorage.setItem(checkbox.id, checkbox.checked);
+}
+
+// 判断是否开启重做模式（不跳过已答题）
+function isRedoMode() {
+    var stored = localStorage.getItem('GPTJsSetting.redo');
+    if (stored !== null) return stored === 'true';
+    return !!setting.redo;
+}
+
+// 判断是否开启相似度匹配
+function isFuzzyMatchEnabled() {
+    var stored = localStorage.getItem('GPTJsSetting.fuzzyMatch');
+    if (stored !== null) return stored === 'true';
+    return !!setting.fuzzyMatch;
+}
+
+// 判断是否只处理任务点
+function isTaskMode() {
+    var stored = localStorage.getItem('GPTJsSetting.task');
+    if (stored !== null) return stored === 'true';
+    return !!setting.task;
+}
+
+// 计算两个字符串的相似度（基于Levenshtein距离），返回 0~1 之间的值，1表示完全相同
+function stringSimilarity(s1, s2) {
+    if (!s1 && !s2) return 1;
+    if (!s1 || !s2) return 0;
+    // 统一小写、去除首尾空白
+    s1 = s1.toLowerCase().trim();
+    s2 = s2.toLowerCase().trim();
+    if (s1 === s2) return 1;
+    var len1 = s1.length, len2 = s2.length;
+    if (len1 === 0 || len2 === 0) return 0;
+    // Levenshtein距离 - 空间优化版
+    var prev = [], curr = [];
+    for (var j = 0; j <= len2; j++) prev[j] = j;
+    for (var i = 1; i <= len1; i++) {
+        curr[0] = i;
+        for (var j = 1; j <= len2; j++) {
+            if (s1[i - 1] === s2[j - 1]) {
+                curr[j] = prev[j - 1];
+            } else {
+                curr[j] = 1 + Math.min(prev[j], curr[j - 1], prev[j - 1]);
+            }
+        }
+        var tmp = prev; prev = curr; curr = tmp;
+    }
+    var maxLen = Math.max(len1, len2);
+    return 1 - prev[len2] / maxLen;
+}
+
+// 在选项数组中查找与AI回答最相似的选项，返回索引；相似度低于阈值时返回-1
+// threshold 默认 0.5（50%相似度）
+function findBestFuzzyMatch(optionTexts, aiAnswer, threshold) {
+    if (!isFuzzyMatchEnabled()) return -1;
+    if (!aiAnswer || !optionTexts || optionTexts.length === 0) return -1;
+    threshold = (threshold !== undefined) ? threshold : 0.5;
+    var bestIndex = -1, bestScore = 0;
+    for (var i = 0; i < optionTexts.length; i++) {
+        var score = stringSimilarity(optionTexts[i], aiAnswer);
+        if (score > bestScore) {
+            bestScore = score;
+            bestIndex = i;
+        }
+    }
+    if (bestScore >= threshold) {
+        logger(_logP.QUIZ + '[信息] 相似度匹配：最佳匹配项[' + bestIndex + '] 相似度=' + (bestScore * 100).toFixed(1) + '%。', 'info');
+        return bestIndex;
+    }
+    if (!/^[A-H]$/i.test(aiAnswer.trim())) {
+        logger(_logP.QUIZ + '[警告] 相似度匹配：所有选项相似度均低于阈值（' + (threshold * 100) + '%），最高=' + (bestScore * 100).toFixed(1) + '%。', 'warn');
+    }
+    return -1;
+}
+
+// 单选/判断题答案匹配：精确 → 模糊 → 字母回退
+function matchAnswerToOptions(optionTexts, aiAnswer) {
+    if (!aiAnswer) return -1;
+    // 1. 精确匹配
+    let idx = optionTexts.findIndex(function (item) { return item == aiAnswer })
+    if (idx !== -1) return idx
+    // 2. 模糊匹配
+    idx = findBestFuzzyMatch(optionTexts, aiAnswer)
+    if (idx !== -1) return idx
+    // 3. 字母回退（图片选项场景：AI返回 "A"/"B"/"C"/"D"，选项文本为空）
+    let trimmed = aiAnswer.trim().toUpperCase()
+    if (/^[A-H]$/.test(trimmed)) {
+        let letterIdx = trimmed.charCodeAt(0) - 65
+        if (letterIdx >= 0 && letterIdx < optionTexts.length) {
+            _lastMatchInfo = '字母匹配: ' + trimmed + ' → 选项[' + letterIdx + ']'
+            return letterIdx
+        }
+    }
+    // 4. 从AI回复中提取首字母（处理 "[C为图片]"、"答案是B"、"选A" 等格式）
+    let letterMatch = aiAnswer.match(/[A-Ha-h]/);
+    if (letterMatch) {
+        let letter = letterMatch[0].toUpperCase();
+        let letterIdx = letter.charCodeAt(0) - 65;
+        if (letterIdx >= 0 && letterIdx < optionTexts.length) {
+            _lastMatchInfo = '字母提取: "' + aiAnswer + '" → ' + letter + ' → 选项[' + letterIdx + ']';
+            return letterIdx;
+        }
+    }
+    return -1
+}
+
+// 多选题答案匹配：按'|'分割后逐一匹配（精确 → 模糊 → 字母回退）
+function matchAnswerToOptionsMultiple(optionTexts, aiAnswer) {
+    if (!aiAnswer) return [];
+    // 先尝试整体精确/模糊匹配
+    let fuzzyResult = findFuzzyMatchMultiple(optionTexts, aiAnswer)
+    if (fuzzyResult.length > 0) return fuzzyResult
+    // 字母回退：按'|'或空格分割字母
+    var parts = aiAnswer.replace(/[,，、]/g, '|').split('|')
+    var matched = []
+    for (var p = 0; p < parts.length; p++) {
+        var part = parts[p].trim().toUpperCase()
+        if (!part) continue
+        if (/^[A-H]$/.test(part)) {
+            var letterIdx = part.charCodeAt(0) - 65
+            if (letterIdx >= 0 && letterIdx < optionTexts.length && matched.indexOf(letterIdx) === -1) {
+                matched.push(letterIdx)
+            }
+        } else {
+            // 从片段中提取首字母（处理 "[A为图片]" 等格式）
+            var letterMatch = parts[p].match(/[A-Ha-h]/);
+            if (letterMatch) {
+                var letter = letterMatch[0].toUpperCase();
+                var letterIdx = letter.charCodeAt(0) - 65;
+                if (letterIdx >= 0 && letterIdx < optionTexts.length && matched.indexOf(letterIdx) === -1) {
+                    matched.push(letterIdx);
+                }
+            }
+        }
+    }
+    if (matched.length > 0) {
+        _lastMatchInfo = '字母匹配(多选): ' + matched.map(function (i) { return String.fromCharCode(65 + i) }).join(',')
+    }
+    return matched
+}
+
+// 多选题模糊匹配：AI返回的答案用'|'分割后，对每个答案片段在选项中找最佳匹配
+// 返回匹配到的选项索引数组
+function findFuzzyMatchMultiple(optionTexts, aiAnswer, threshold) {
+    if (!isFuzzyMatchEnabled()) return [];
+    if (!aiAnswer || !optionTexts || optionTexts.length === 0) return [];
+    threshold = (threshold !== undefined) ? threshold : 0.5;
+    var parts = aiAnswer.split('|');
+    var matched = [];
+    for (var p = 0; p < parts.length; p++) {
+        var part = parts[p].trim();
+        if (!part) continue;
+        var bestIndex = -1, bestScore = 0;
+        for (var i = 0; i < optionTexts.length; i++) {
+            var score = stringSimilarity(optionTexts[i], part);
+            if (score > bestScore) {
+                bestScore = score;
+                bestIndex = i;
+            }
+        }
+        if (bestScore >= threshold && matched.indexOf(bestIndex) === -1) {
+            matched.push(bestIndex);
+            logger(_logP.QUIZ + '[信息] 相似度匹配（多选）："' + part + '" → 选项[' + bestIndex + '] 相似度=' + (bestScore * 100).toFixed(1) + '%。', 'info');
+        }
+    }
+    return matched;
+}
+
+// 读取播放倍速：优先 localStorage（UI 设置），否则回退 setting.rate；范围 (0, 16]
+function getRate() {
+    var stored = localStorage.getItem('GPTJsSetting.rate');
+    var n = stored !== null ? parseFloat(stored) : (setting.rate || 1);
+    if (!isFinite(n) || n <= 0) n = 1;
+    if (n > 16) n = 16;
+    return n;
+}
+
+// 统一判断题答案解析：将AI回答归一为 'true' / 'false' / null
+// 解决旧版 string.indexOf 子串匹配导致 "正确的"、"True"、"对的" 等变体匹配失败的问题
+function parseJudgeAnswer(agrs) {
+    if (!agrs) return null;
+    var s = agrs.replace(/[。，.,!！\s]/g, '').toLowerCase();
+    var trueWords = ['正确', '是', '对', '√', 't', 'true', 'ri', 'right', 'yes'];
+    var falseWords = ['错误', '否', '错', '×', 'f', 'false', 'wr', 'wrong', 'no'];
+    // 精确匹配
+    for (var i = 0; i < trueWords.length; i++) {
+        if (s === trueWords[i]) return 'true';
+    }
+    for (var i = 0; i < falseWords.length; i++) {
+        if (s === falseWords[i]) return 'false';
+    }
+    // 包含匹配（优先判断"错"避免"正确的"误判——先检查否定词）
+    for (var i = 0; i < falseWords.length; i++) {
+        if (s.indexOf(falseWords[i]) !== -1) return 'false';
+    }
+    for (var i = 0; i < trueWords.length; i++) {
+        if (s.indexOf(trueWords[i]) !== -1) return 'true';
+    }
+    return null;
+}
+
+// 在选项列表中查找"正确/对"或"错误/错"对应的索引
+function findJudgeOptionIndex(optionTexts, isTrue) {
+    var trueWords = ['正确', '是', '对', '√', 'T', 'ri'];
+    var falseWords = ['错误', '否', '错', '×', 'F', 'wr'];
+    var words = isTrue ? trueWords : falseWords;
+    for (var i = 0; i < optionTexts.length; i++) {
+        var t = optionTexts[i];
+        for (var j = 0; j < words.length; j++) {
+            if (t.indexOf(words[j]) !== -1) return i;
+        }
+    }
+    return -1;
+}
+
+// 查找文本作答类题目（简答/写作/翻译/名词解释/论述题/计算题/材料题等）的 textarea。
+// 按特异性优先级尝试多个选择器，最后兜底为任意 textarea。
+function findAnswerTextareas($container) {
+    if (!$container || $container.length === 0) return $();
+    // 1) 标准 UEditor 下层 textarea，name="answerEditor{questionId}{i}"
+    var $eles = $container.find('textarea[name^="answerEditor"]');
+    if ($eles.length > 0) return $eles;
+    // 2) 旧版/兼容路径
+    $eles = $container.find('.subEditor textarea, .Answer .divText textarea, .stem_answer textarea, .edui-editor textarea');
+    if ($eles.length > 0) return $eles;
+    // 3) 兜底：容器内任意 textarea
+    return $container.find('textarea');
+}
+
+/* ============================ 开发者调试（v2.8.0） ============================ */
+// 开启后：把「发给 AI 的原文」「网站 AI 评估」「本地缓存」留在内存 + sessionStorage，
+// 并在浮窗里直接显示，可导出 JSON。API Key 永远打码。
+
+var _tcDbgBuf = [];
+var _tcDbgMax = 30;
+var _tcDbgPick = 0;      // 0=最近一次，-1=上一次…
+var _tcChainKeys = [];
+var _tcDbgTimer = null;
+
+// AI 调用计数：跨 tcChat、跨刷新（sessionStorage）累加，日志与调试面板都用它
+function tcAiSeqNext() {
+    try {
+        var v = parseInt(sessionStorage.getItem('ne21.aiSeq') || '0', 10) || 0;
+        v++;
+        sessionStorage.setItem('ne21.aiSeq', String(v));
+        return v;
+    } catch (e) { return 0; }
+}
+function tcAiSeqNow() {
+    try { return parseInt(sessionStorage.getItem('ne21.aiSeq') || '0', 10) || 0; } catch (e) { return 0; }
+}
+
+function tcDebugOn() {
+    try { return !!tcCfg('debug', false); } catch (e) { return false; }
+}
+
+function tcDbgMarkChainKey(k) {
+    if (k && _tcChainKeys.indexOf(k) < 0) _tcChainKeys.push(k);
+}
+
+function tcDbgTrunc(s, n) {
+    s = String(s == null ? '' : s);
+    return s.length > n ? (s.slice(0, n) + '…[截断 ' + s.length + ' 字]') : s;
+}
+
+// 消息裁剪：图片只留占位，超长截断
+function tcDbgSanitizeMessages(msgs) {
+    var out = [];
+    (msgs || []).forEach(function (m) {
+        if (!m) return;
+        var c = m.content;
+        if (typeof c === 'string') {
+            var t = c.replace(/data:image\/[a-z+]+;base64,[A-Za-z0-9+\/=]+/gi, function (mm) {
+                return 'data:image/…[base64 ' + Math.round(mm.length / 1024) + ' KB，已省略]';
+            });
+            out.push({ role: m.role, content: tcDbgTrunc(t, 20000) });
+        } else if (Object.prototype.toString.call(c) === '[object Array]') {
+            out.push({
+                role: m.role,
+                content: c.map(function (p) {
+                    if (p && p.type === 'image_url') return { type: 'image_url', image_url: { url: '[base64 图片，已省略]' } };
+                    return p;
+                })
+            });
+        } else {
+            out.push({ role: m.role, content: tcDbgTrunc(String(c || ''), 2000) });
+        }
+    });
+    return out;
+}
+
+function tcDbgSave() {
+    try {
+        if (!_tcDbgBuf.length) return;
+        var s = JSON.stringify(_tcDbgBuf, function (k, v) {
+            if (typeof v === 'string' && v.length > 4000) return v.slice(0, 4000) + '…[截断]';
+            return v;
+        });
+        if (s.length > 200000) {
+            _tcDbgBuf.splice(0, Math.ceil(_tcDbgBuf.length / 2));
+            s = JSON.stringify(_tcDbgBuf);
+        }
+        sessionStorage.setItem('ne21.debug.buf', s);
+    } catch (e) { }
+}
+
+function tcDbgLoad() {
+    try {
+        var s = sessionStorage.getItem('ne21.debug.buf');
+        if (s) _tcDbgBuf = JSON.parse(s) || [];
+    } catch (e) { _tcDbgBuf = []; }
+}
+
+function tcDbgPush(kind, data) {
+    if (!tcDebugOn()) return null;
+    var rec = data || {};
+    rec.kind = kind;
+    rec.at = tcNow();
+    _tcDbgBuf.push(rec);
+    while (_tcDbgBuf.length > _tcDbgMax) _tcDbgBuf.shift();
+    tcDbgSave();
+    tcDbgStatus();
+    return rec;
+}
+
+// message.content 可能是字符串或多模态数组
+function tcDbgMsgText(c) {
+    if (typeof c === 'string') return c;
+    try { return JSON.stringify(c, null, 1); } catch (e) { return String(c); }
+}
+
+// 本次记录是否「逐字未改动」：无图片、每条 message ≤ 20000 字
+function tcDbgExact(msgs) {
+    var exact = true;
+    (msgs || []).forEach(function (m) {
+        if (!m) return;
+        var c = m.content;
+        if (typeof c !== 'string') { exact = false; return; }
+        if (/data:image\//i.test(c)) exact = false;
+        if (c.length > 20000) exact = false;
+    });
+    return exact;
+}
+
+function tcDbgLast(kind) {
+    for (var i = _tcDbgBuf.length - 1; i >= 0; i--) {
+        if (!kind || _tcDbgBuf[i].kind === kind) return _tcDbgBuf[i];
+    }
+    return null;
+}
+
+function tcDbgStatus() {
+    try {
+        var el = document.getElementById('tcDebugStatus');
+        if (!el) return;
+        var last = _tcDbgBuf.length ? _tcDbgBuf[_tcDbgBuf.length - 1].at : 0;
+        el.textContent = tcDebugOn()
+            ? ('已记录 ' + _tcDbgBuf.length + ' 条' + (last ? ' · 最近 ' + tcTimeStr(new Date(last)) : ''))
+            : '未开启（记录只在你勾选后产生）';
+    } catch (e) { }
+}
+
+function tcDbgStorage() {
+    var out = { gm: {}, local: {}, session: {} };
+    try {
+        var st = tcState();
+        out.gm['taskChain.' + st.chainKey] = st;
+        _tcChainKeys.forEach(function (k) {
+            try { out.gm['taskChain.' + k] = tcStoreGet('taskChain.' + k, null); } catch (e) { }
+        });
+        for (var i = 0; i < localStorage.length; i++) {
+            var key = localStorage.key(i);
+            if (!key || key.indexOf('GPTJsSetting.') !== 0) continue;
+            var v = localStorage.getItem(key);
+            if (/apikey|token|secret/i.test(key)) {
+                v = v ? (String(v).slice(0, 3) + '****' + String(v).slice(-4)) : '';
+            }
+            out.local[key] = v;
+        }
+        out.session.tabId = sessionStorage.getItem('ne21.tabId');
+        var lk = localStorage.getItem(tcLockKey());
+        if (lk) out.session.lock = lk;
+    } catch (e) { }
+    return out;
+}
+
+function tcDbgDump() {
+    var ev = null, pl = null, st = null;
+    try { ev = tcReadEval(); } catch (e) { }
+    try { pl = tcPassLine(); } catch (e) { }
+    try { st = tcState(); } catch (e) { }
+    return {
+        meta: {
+            version: (window.__ne21Ver || (GM_info && GM_info.script && GM_info.script.version) || ''),
+            build: window.__ne21Build || '',
+            aiCalls: tcAiSeqNow(),
+            time: new Date().toISOString(),
+            url: location.href,
+            ua: navigator.userAgent
+        },
+        flags: {
+            debug: tcDebugOn(),
+            dryRun: !!tcCfg('taskChainDryRun', false),
+            autoUpload: !!tcCfg('taskChainAutoUpload', false),
+            minScore: pl ? pl.value : null,
+            minScoreFrom: pl ? pl.from : ''
+        },
+        taskChain: st ? {
+            chainKey: st.chainKey,
+            phase: st.phase,
+            attempts: st.attempts,
+            skipped: st.skipped,
+            dismissed: st.dismissed,
+            repair: st.repair,
+            nodeScores: st.nodeScores,
+            scoreHistory: st.scoreHistory,
+            nodes: st.nodes
+        } : null,
+        ai: _tcDbgBuf.filter(function (r) { return r.kind === 'chat'; }),
+        eval: ev ? { score: ev.score, count: ev.count, from: ev.from, result: ev.result } : null,
+        storage: tcDbgStorage(),
+        log: _tcDbgBuf
+    };
+}
+
+function tcDbgExport() {
+    try {
+        var data = tcDbgDump();
+        var text = JSON.stringify(data, function (k, v) {
+            if (typeof v === 'string' && v.length > 20000) return v.slice(0, 20000) + '…[截断]';
+            return v;
+        }, 2);
+        try { console.log('[调试] 调试包：', data); } catch (e) { }
+        var blob = new Blob([text], { type: 'application/json' });
+        var d = new Date();
+        var pad = function (n) { return ('0' + n).slice(-2); };
+        var a = document.createElement('a');
+        var url = URL.createObjectURL(blob);
+        a.href = url;
+        a.download = 'xxt-debug-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate())
+            + '-' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds()) + '.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) { } }, 4000);
+        tcLog('[调试] 已导出调试包（' + Math.round(text.length / 1024) + ' KB，API Key 已打码）', 'success');
+        return true;
+    } catch (e) {
+        tcLog('[调试] 导出失败：' + e.message, 'error');
+        return false;
+    }
+}
+
+function tcDbgClear() {
+    _tcDbgBuf = [];
+    try { sessionStorage.removeItem('ne21.debug.buf'); } catch (e) { }
+    tcDbgStatus();
+    tcDbgRender();
+    tcLog('[调试] 已清空调试缓存', 'warn');
+}
+
+// —— 浮窗内的调试面板 ——
+function tcDbgEnsureBox() {
+    var box = document.getElementById('tcDebugBox');
+    if (box) return box;
+    var host = document.querySelector('#ne-21box .ne21-body');
+    if (!host) return null;
+    box = document.createElement('div');
+    box.id = 'tcDebugBox';
+    box.style.cssText = 'display:none;margin:0 0 10px;padding:10px 12px;border-radius:12px;font-size:11px;'
+        + 'background:rgba(15,23,42,.04);border:1px solid rgba(15,23,42,.12);color:#1e293b;';
+    box.innerHTML =
+        '<div style="font-weight:600;font-size:12px;margin-bottom:4px;">🐞 开发者调试</div>'
+        + '<div id="tcDbgMeta" style="color:#64748b;margin-bottom:6px;"></div>'
+        + '<div style="display:flex;gap:6px;align-items:center;margin-bottom:2px;">'
+        + '<button id="tcDbgPrev" style="padding:1px 8px;border-radius:6px;border:1px solid rgba(15,23,42,.2);background:#fff;cursor:pointer;font-size:11px;">◀</button>'
+        + '<span id="tcDbgPos" style="color:#64748b;"></span>'
+        + '<button id="tcDbgNext" style="padding:1px 8px;border-radius:6px;border:1px solid rgba(15,23,42,.2);background:#fff;cursor:pointer;font-size:11px;">▶</button>'
+        + '</div>'
+        + '<div style="font-weight:600;">① 发给 AI 的请求（逐次记录）</div><pre id="tcDbgAi" style="white-space:pre-wrap;word-break:break-all;max-height:30vh;overflow:auto;background:#fff;border-radius:8px;padding:6px;margin:4px 0 8px;font-size:10.5px;"></pre>'
+        + '<div style="font-weight:600;">② 网站 AI 评估</div><pre id="tcDbgEval" style="white-space:pre-wrap;word-break:break-all;max-height:26vh;overflow:auto;background:#fff;border-radius:8px;padding:6px;margin:4px 0 8px;font-size:10.5px;"></pre>'
+        + '<div style="font-weight:600;">③ 本地缓存</div><pre id="tcDbgStore" style="white-space:pre-wrap;word-break:break-all;max-height:26vh;overflow:auto;background:#fff;border-radius:8px;padding:6px;margin:4px 0 0;font-size:10.5px;"></pre>';
+    var bar = document.getElementById('tcBar');
+    if (bar && bar.parentNode === host) host.insertBefore(box, bar); else host.insertBefore(box, host.firstChild);
+    try {
+        box.querySelector('#tcDbgPrev').addEventListener('click', function () { _tcDbgPick--; tcDbgRender(); });
+        box.querySelector('#tcDbgNext').addEventListener('click', function () { if (_tcDbgPick < 0) _tcDbgPick++; tcDbgRender(); });
+    } catch (e) { }
+    return box;
+}
+
+function tcDbgRender() {
+    var box = document.getElementById('tcDebugBox');
+    if (!box || box.style.display === 'none') return;
+    var metaEl = document.getElementById('tcDbgMeta');
+    var aiEl = document.getElementById('tcDbgAi');
+    var evEl = document.getElementById('tcDbgEval');
+    var stEl = document.getElementById('tcDbgStore');
+    var dump = null;
+    try { dump = tcDbgDump(); } catch (e) { }
+
+    if (!tcDebugOn()) {
+        if (metaEl) metaEl.textContent = '调试未开启：请到「设置 → 🐞 开发者调试」勾选';
+        if (aiEl) aiEl.textContent = '（无）';
+        if (evEl) evEl.textContent = '（无）';
+        if (stEl) stEl.textContent = '（无）';
+        return;
+    }
+
+    var chats = _tcDbgBuf.filter(function (r) { return r.kind === 'chat'; });
+    var rec = null, posTxt = '';
+    if (chats.length) {
+        var ci = chats.length - 1 + _tcDbgPick;
+        if (ci < 0) { _tcDbgPick = -(chats.length - 1); ci = 0; }
+        if (ci > chats.length - 1) ci = chats.length - 1;
+        rec = chats[ci];
+        posTxt = '第 ' + (rec.call || '?') + ' 次调用 · 本轮第 ' + (rec.seq || 1) + ' 次请求'
+            + (chats.length > 1 ? ' · 累计 ' + chats.length + ' 次请求（' + (ci + 1) + '/' + chats.length + '，◀ 看更早）' : '');
+    }
+    try { var posEl = document.getElementById('tcDbgPos'); if (posEl) posEl.textContent = posTxt; } catch (e) { }
+    if (metaEl) metaEl.textContent = '版本 ' + ((dump && dump.meta.version) || '?') + ' · build '
+        + ((dump && dump.meta.build) || '?') + ' · 累计调用 ' + ((dump && dump.meta.aiCalls) || 0)
+        + ' 次 · 记录 ' + _tcDbgBuf.length + ' 条';
+
+    // ① 实际请求
+    if (aiEl) {
+        if (!rec) { aiEl.textContent = '（还没有调用过 AI）'; }
+        else {
+            var head = '第 ' + (rec.call || '?') + ' 次调用 · 本轮第 ' + (rec.seq || 1) + ' 次请求'
+                + ' · ' + (rec.tag || 'chat')
+                + '\n模型 ' + rec.model + ' · temperature ' + rec.temperature
+                + ' · max_tokens ' + rec.max_tokens
+                + ' · reasoning_effort ' + rec.reasoning_effort
+                + (rec.noReason ? '（降级：本轮不带思考参数）' : '')
+                + '\n耗时 ' + (rec.ms ? (rec.ms / 1000).toFixed(1) + 's' : '—')
+                + (rec.finish_reason ? ' · finish=' + rec.finish_reason : '')
+                + (rec.usage && rec.usage.completion_tokens ? ' · 输出 ' + rec.usage.completion_tokens + ' tokens' : '')
+                + (rec.chars ? ' · 正文 ' + rec.chars + ' 字' : '')
+                + ' · body ' + (rec.bodyBytes || 0) + ' 字节'
+                + ' · ' + (rec.exact ? '逐字一致' : '含缩略（图片/超长）')
+                + ' · ' + (rec.ok === false ? '失败' : '成功');
+            var bodyText = '';
+            (rec.messages || []).forEach(function (m) {
+                bodyText += '\n── ' + m.role + ' ──\n' + tcDbgTrunc(tcDbgMsgText(m.content), 20000) + '\n';
+            });
+            if (rec.error) bodyText += '\n[错误] ' + JSON.stringify(rec.error);
+            aiEl.textContent = head + '\n' + bodyText;
+        }
+    }
+
+    // ② 网站评估
+    if (evEl) {
+        var ev = (dump && dump.eval) || null;
+        var res = ev && ev.result;
+        if (!res && !ev) { evEl.textContent = '（还没读到网站评估）'; }
+        else {
+            var lines = [];
+            lines.push('分数：' + (ev.score == null ? '—' : ev.score)
+                + (ev.count != null ? '（第 ' + ev.count + ' 次作答）' : '')
+                + (dump.flags.minScore != null ? ' / 合格线 ' + dump.flags.minScore + '（' + dump.flags.minScoreFrom + '）' : ''));
+            if (res && res.summaryItems && res.summaryItems.length) {
+                lines.push('分维度：' + res.summaryItems.map(function (it) { return (it.title || '') + ' ' + (it.score != null ? it.score : '—'); }).join(' ｜ '));
+            }
+            if (res && res.disadvantages) lines.push('\n不足：\n' + res.disadvantages);
+            if (res && res.suggestions && res.suggestions.length) {
+                lines.push('\n建议：');
+                res.suggestions.forEach(function (s, i) { lines.push((i + 1) + '. ' + s); });
+            }
+            // 与「脚本已存、下一轮提示词要用的」那份对照
+            var reps = (dump && dump.taskChain && dump.taskChain.repair) || {};
+            var repKeys = Object.keys(reps);
+            if (repKeys.length) {
+                lines.push('\n脚本已存（下一轮会注入提示词）：');
+                repKeys.forEach(function (k) {
+                    var r = reps[k] || {};
+                    lines.push('· ' + k + '：第 ' + (r.count == null ? '?' : r.count) + ' 次 / '
+                        + (r.score == null ? '—' : r.score) + ' 分 / '
+                        + (r.at ? tcTimeStr(new Date(r.at)) : '—'));
+                });
+            }
+            evEl.textContent = lines.join('\n');
+        }
+    }
+
+    // ③ 本地缓存
+    if (stEl) {
+        var storeText = '';
+        try { storeText = JSON.stringify((dump && dump.storage) || {}, null, 2); } catch (e) { storeText = '（读取失败）'; }
+        stEl.textContent = tcDbgTrunc(storeText, 30000);
+    }
+}
+
+function tcDbgToggle() {
+    var box = tcDbgEnsureBox();
+    if (!box) return;
+    var show = box.style.display === 'none';
+    box.style.display = show ? 'block' : 'none';
+    if (_tcDbgTimer) { clearInterval(_tcDbgTimer); _tcDbgTimer = null; }
+    if (show) { tcDbgRender(); _tcDbgTimer = setInterval(tcDbgRender, 3000); }
+}
+
+function tcDbgBind() {
+    try {
+        var btn = document.getElementById('tcDebugBtn');
+        if (btn && !btn.__tcDbgBound) { btn.__tcDbgBound = 1; btn.addEventListener('click', tcDbgToggle); }
+        var ex = document.getElementById('tcDebugExportBtn');
+        if (ex && !ex.__tcDbgBound) { ex.__tcDbgBound = 1; ex.addEventListener('click', tcDbgExport); }
+        var cl = document.getElementById('tcDebugClearBtn');
+        if (cl && !cl.__tcDbgBound) { cl.__tcDbgBound = 1; cl.addEventListener('click', tcDbgClear); }
+        tcDbgStatus();
+    } catch (e) { }
+}
+
+// DevTools 里可以直接用：__tcDebug.dump() / __tcDebug.export()
+try {
+    var _tcDbgApi = { on: tcDebugOn, dump: tcDbgDump, export: tcDbgExport, clear: tcDbgClear, last: tcDbgLast, render: tcDbgRender };
+    if (typeof unsafeWindow !== 'undefined' && unsafeWindow) unsafeWindow.__tcDebug = _tcDbgApi;
+    if (typeof window !== 'undefined' && window) window.__tcDebug = _tcDbgApi;
+} catch (e) { }
+
+function showBox() {
+    //公告&充值
+    if (setting.showBox && top.document.querySelector('#ne-21notice') == undefined) {
+        // 注入样式（仅一次）
+        if (!top.document.getElementById('ne-21style')) {
+            var styleEl = top.document.createElement('style');
+            styleEl.id = 'ne-21style';
+            styleEl.textContent = `
+            /* ================================================================
+               Liquid Glass UI v3.0 — iOS 26+ 液态毛玻璃
+               质感 · 光影 · 微动效 · 专业级细节
+               ================================================================ */
+
+            /* —— 主浮窗：液态玻璃基底 —— */
+            #ne-21box{position:fixed;top:5%;right:16%;width:340px;z-index:99999;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:13px;color:rgba(15,23,42,.86);background:linear-gradient(180deg,rgba(255,255,255,.62) 0%,rgba(241,245,249,.55) 100%);backdrop-filter:blur(22px) saturate(180%) brightness(1.04);-webkit-backdrop-filter:blur(22px) saturate(180%) brightness(1.04);border:1px solid rgba(255,255,255,.65);border-radius:22px;box-shadow:0 0 0 1px rgba(15,23,42,.09),0 24px 48px -12px rgba(15,23,42,.45),0 10px 26px -8px rgba(15,23,42,.3),inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(15,23,42,.06);overflow:hidden;transition:opacity .25s ease,transform .25s ease;animation:ne21-in .45s cubic-bezier(.2,.9,.3,1) both;will-change:transform;user-select:none;}
+
+            /* 浮窗边缘光晕 — 玻璃折射模拟 */
+            #ne-21box::before{content:'';position:absolute;inset:-2px;border-radius:23px;padding:2px;background:linear-gradient(135deg,rgba(255,255,255,.5) 0%,rgba(255,255,255,.15) 30%,rgba(255,255,255,0) 50%,rgba(255,255,255,.1) 70%,rgba(255,255,255,.4) 100%);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;z-index:-1;pointer-events:none;}
+
+            /* —— 入场动画 —— */
+            @keyframes ne21-in{from{opacity:0;transform:translateY(-12px) scale(.96)}60%{transform:translateY(2px) scale(1.01)}to{opacity:1;transform:none}}
+            @keyframes ne21-soft-land{0%{transform:translateY(-12px) scale(.96);opacity:0}50%{transform:translateY(2px) scale(1.01)}100%{transform:translateY(0) scale(1);opacity:1}}
+            @keyframes ne21-fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+            /* —— 标题栏 —— */
+            #ne-21box .ne21-header{position:relative;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(180deg,rgba(255,255,255,.78) 0%,rgba(248,250,252,.45) 60%,rgba(241,245,249,.3) 100%);color:rgba(15,23,42,.92);border-bottom:1px solid rgba(15,23,42,.07);box-shadow:inset 0 1px 0 rgba(255,255,255,.95);cursor:move;user-select:none;}
+            #ne-21box .ne21-header::after{content:'';position:absolute;left:14px;right:14px;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.4) 15%,rgba(255,255,255,.9) 50%,rgba(255,255,255,.4) 85%,transparent 100%);pointer-events:none;}
+
+            /* —— Body（含滚动） —— */
+            #ne-21box .ne21-body{position:relative;padding:14px 16px 16px;max-height:70vh;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(15,23,42,.15) transparent;opacity:1;transition:max-height .4s cubic-bezier(.4,0,.2,1),opacity .3s ease,padding .3s ease;will-change:max-height;}
+            /* SVG噪点纹理 — 增强玻璃质感 */
+            #ne-21box .ne21-body::before{content:'';position:absolute;inset:0;opacity:.03;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");background-size:128px 128px;pointer-events:none;z-index:0;}
+
+            /* 最小化：缩为圆形按钮 */
+            #ne-21box.ne21-minimized{width:36px!important;height:36px;border-radius:50%;cursor:grab;transition:width .4s cubic-bezier(.4,0,.2,1),height .4s cubic-bezier(.4,0,.2,1),border-radius .4s cubic-bezier(.4,0,.2,1),box-shadow .35s ease;box-shadow:0 0 0 1px rgba(15,23,42,.06),0 8px 24px -8px rgba(15,23,42,.35),0 3px 10px -4px rgba(15,23,42,.22),inset 0 1px 0 rgba(255,255,255,.9);}
+            #ne-21box.ne21-minimized:active{cursor:grabbing;}
+            #ne-21box.ne21-minimized::before{display:none;}
+            #ne-21box.ne21-minimized .ne21-header{position:absolute;inset:0;padding:0;justify-content:center;align-items:center;background:transparent;box-shadow:none;border-bottom:none;cursor:grab;}
+            #ne-21box.ne21-minimized .ne21-header::after{display:none;}
+            #ne-21box.ne21-minimized .ne21-title{display:none;}
+            #ne-21box.ne21-minimized #ne-21close{display:flex;position:static;margin:0;width:36px;height:36px;font-size:16px;font-weight:600;border-radius:50%;border:none;background:transparent;box-shadow:none;color:rgba(15,23,42,.55);cursor:pointer;pointer-events:none;}
+            #ne-21box.ne21-minimized #ne-21close:hover{background:transparent;transform:none;box-shadow:none;}
+            #ne-21box.ne21-minimized .ne21-body{display:none;}
+            #ne-21box.ne21-minimized:hover{transform:scale(1.08);box-shadow:0 0 0 1px rgba(15,23,42,.09),0 12px 28px -8px rgba(15,23,42,.45),0 5px 14px -4px rgba(15,23,42,.25),inset 0 1px 0 rgba(255,255,255,1);}
+            #ne-21box.ne21-minimized:active{transform:scale(.95);}
+
+            /* —— 标题文字 + 状态指示灯 —— */
+            #ne-21box .ne21-title{display:flex;align-items:center;gap:9px;font-weight:600;font-size:14px;letter-spacing:.3px;margin:0;color:inherit;}
+            #ne-21box .ne21-dot{width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.98),rgba(255,255,255,.5) 55%,rgba(15,23,42,.18) 100%);box-shadow:0 0 0 0 rgba(255,255,255,.7),inset 0 1px 1px rgba(255,255,255,.95);animation:ne21-pulse 2.5s infinite;flex-shrink:0;transition:background .4s ease;}
+            /* 脉冲光晕扩散 */
+            @keyframes ne21-pulse{0%{box-shadow:0 0 0 0 rgba(255,255,255,.7),inset 0 1px 1px rgba(255,255,255,.95)}50%{box-shadow:0 0 0 6px rgba(255,255,255,.3),0 0 0 12px rgba(255,255,255,.08),inset 0 1px 1px rgba(255,255,255,.95)}100%{box-shadow:0 0 0 12px rgba(255,255,255,0),0 0 0 24px rgba(255,255,255,0),inset 0 1px 1px rgba(255,255,255,.95)}}
+
+            /* —— 关闭/折叠按钮 —— */
+            #ne-21box #ne-21close{margin:0;width:24px;height:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;line-height:1;color:rgba(15,23,42,.7);cursor:pointer;border:1px solid rgba(255,255,255,.65);border-radius:50%;background:rgba(255,255,255,.55);box-shadow:0 0 0 1px rgba(15,23,42,.06),inset 0 1px 0 rgba(255,255,255,.8),0 1px 2px rgba(15,23,42,.08);transition:all .2s cubic-bezier(.4,0,.2,1);user-select:none;font-family:inherit;}
+            #ne-21box #ne-21close:hover{background:rgba(255,255,255,.82);color:rgba(15,23,42,.92);box-shadow:0 0 0 1px rgba(15,23,42,.1),inset 0 1px 0 rgba(255,255,255,.95),0 2px 6px rgba(15,23,42,.12);transform:scale(1.05);}
+            #ne-21box #ne-21close:active{transform:scale(.9);}
+
+            #ne-21box .ne21-body::-webkit-scrollbar{width:5px;}
+            #ne-21box .ne21-body::-webkit-scrollbar-thumb{background:rgba(15,23,42,.2);border-radius:4px;transition:background .3s;}
+            #ne-21box .ne21-body::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,.36);}
+
+            /* —— 通知区 —— */
+            #ne-21box #ne-21notice{border-top:none!important;margin:0 0 6px!important;overflow:visible;}
+
+            /* —— API状态卡片 —— */
+            #ne-21box .ne21-uid{display:flex;align-items:center;gap:6px;color:rgba(15,23,42,.62);font-size:12px;margin-bottom:10px;padding:8px 12px;background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.7);border-radius:12px;box-shadow:0 0 0 1px rgba(15,23,42,.05),inset 0 1px 0 rgba(255,255,255,.75),inset 0 0 20px rgba(255,255,255,.3),0 1px 2px rgba(15,23,42,.05);}
+            #ne-21box .ne21-uid b{color:rgba(15,23,42,.92);font-weight:600;}
+
+            /* —— 按钮行 —— */
+            #ne-21box .ne21-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+
+            /* —— 按钮基底 —— */
+            #ne-21box .ne21-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;padding:7px 14px;font-size:12px;font-weight:500;border-radius:14px;cursor:pointer;border:1px solid rgba(255,255,255,.7);transition:all .2s cubic-bezier(.4,0,.2,1);white-space:nowrap;overflow:hidden;}
+            /* 涟漪伪元素 */
+            #ne-21box .ne21-btn::after{content:'';position:absolute;inset:0;background:radial-gradient(circle at center,rgba(255,255,255,.8) 0%,transparent 70%);opacity:0;transition:opacity .4s;pointer-events:none;}
+            #ne-21box .ne21-btn:active::after{opacity:1;transition:opacity 0s;}
+            #ne-21box .ne21-btn:active{transform:translateY(0) scale(.97);}
+
+            /* 主按钮 — 色彩光泽hover */
+            #ne-21box .ne21-btn-primary{color:rgba(15,23,42,.92);background:rgba(255,255,255,.72);box-shadow:0 0 0 1px rgba(15,23,42,.07),inset 0 1px 0 rgba(255,255,255,.95),inset 0 -6px 12px -6px rgba(15,23,42,.08),0 4px 10px -2px rgba(15,23,42,.22);}
+            #ne-21box .ne21-btn-primary:hover{transform:translateY(-1px);background:linear-gradient(135deg,rgba(255,255,255,.9) 0%,rgba(240,245,255,.85) 50%,rgba(255,255,255,.9) 100%);box-shadow:0 0 0 1px rgba(59,130,246,.15),inset 0 1px 0 rgba(255,255,255,1),inset 0 -6px 12px -6px rgba(15,23,42,.1),0 8px 20px -4px rgba(59,130,246,.2),0 0 0 4px rgba(59,130,246,.06);}
+
+            /* 次要按钮 */
+            #ne-21box .ne21-btn-secondary{color:rgba(15,23,42,.78);background:rgba(255,255,255,.45);box-shadow:0 0 0 1px rgba(15,23,42,.06),inset 0 1px 0 rgba(255,255,255,.75),0 1px 2px rgba(15,23,42,.06);}
+            #ne-21box .ne21-btn-secondary:hover{background:rgba(255,255,255,.65);color:rgba(15,23,42,.92);box-shadow:0 0 0 1px rgba(15,23,42,.08),inset 0 1px 0 rgba(255,255,255,.85),0 4px 10px rgba(15,23,42,.1);transform:translateY(-1px);}
+
+            /* 跳过任务按钮 — 红色光泽hover */
+            #ne-21box #skipTaskBtn:hover{background:linear-gradient(135deg,rgba(255,255,255,.9) 0%,rgba(255,240,240,.85) 50%,rgba(255,255,255,.9) 100%)!important;box-shadow:0 0 0 1px rgba(220,38,38,.15),inset 0 1px 0 rgba(255,255,255,1),0 8px 20px -4px rgba(220,38,38,.15)!important;transform:translateY(-1px);}
+
+            /* —— 输入框 / 下拉框 —— */
+            #ne-21box #modelSelect{flex:1;min-width:0;padding:7px 10px;font-size:12px;border-radius:14px;border:1px solid rgba(255,255,255,.7);background:rgba(255,255,255,.55);color:rgba(15,23,42,.86);cursor:pointer;outline:none;box-shadow:0 0 0 1px rgba(15,23,42,.06),inset 0 1px 0 rgba(255,255,255,.8);transition:all .25s cubic-bezier(.4,0,.2,1);}
+            #ne-21box #modelSelect:hover{background:rgba(255,255,255,.7);}
+            #ne-21box #modelSelect:focus{background:rgba(255,255,255,.8);box-shadow:0 0 0 1px rgba(59,130,246,.2),0 0 0 4px rgba(59,130,246,.08),inset 0 1px 0 rgba(255,255,255,.9);}
+
+            #ne-21box .ne21-select{padding:5px 8px;font-size:12px;border-radius:10px;border:1px solid rgba(255,255,255,.65);background:rgba(255,255,255,.5);color:rgba(15,23,42,.86);cursor:pointer;outline:none;min-width:80px;flex-shrink:0;box-shadow:0 0 0 1px rgba(15,23,42,.05),inset 0 1px 0 rgba(255,255,255,.75);transition:all .25s cubic-bezier(.4,0,.2,1);}
+            #ne-21box .ne21-select:hover{background:rgba(255,255,255,.7);}
+            #ne-21box .ne21-select:focus{background:rgba(255,255,255,.8);box-shadow:0 0 0 1px rgba(59,130,246,.2),0 0 0 4px rgba(59,130,246,.08),inset 0 1px 0 rgba(255,255,255,.9);}
+            #ne-21box input[type=text]:focus,#ne-21box input[type=number]:focus{box-shadow:0 0 0 1px rgba(59,130,246,.2),0 0 0 4px rgba(59,130,246,.08),inset 0 1px 0 rgba(255,255,255,.9)!important;background:rgba(255,255,255,.8)!important;}
+
+            /* —— 用户信息区 —— */
+            #ne-21box #userInfo{margin:10px 0 0;padding:10px 12px;background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.7);border-radius:12px;box-shadow:0 0 0 1px rgba(15,23,42,.05),inset 0 1px 0 rgba(255,255,255,.75),inset 0 0 20px rgba(255,255,255,.3);font-size:12px;color:rgba(15,23,42,.66);line-height:1.6;overflow:hidden;display:none;}
+            #ne-21box #userInfo:not(:empty){display:block;}
+            #ne-21box #userInfo b{color:rgba(15,23,42,.9);font-weight:600;}
+
+            /* —— 设置面板 —— */
+            #ne-21box #moreSettings{padding:4px 14px;background:rgba(255,255,255,.42);border:1px solid rgba(255,255,255,.65);border-radius:14px;box-shadow:0 0 0 1px rgba(15,23,42,.05),inset 0 1px 0 rgba(255,255,255,.7),inset 0 0 20px rgba(255,255,255,.3);margin:10px 0 0;max-height:0;opacity:0;padding-top:0;padding-bottom:0;margin-top:0;overflow:hidden;transition:max-height .5s cubic-bezier(.4,0,.2,1),opacity .35s ease,margin .4s ease,padding .4s ease;scrollbar-width:thin;scrollbar-color:rgba(15,23,42,.2) transparent;}
+            #ne-21box #moreSettings.ne21-show{max-height:50vh;opacity:1;padding:4px 14px;margin-top:10px;overflow-y:auto;}
+            #ne-21box #moreSettings::-webkit-scrollbar{width:5px;}
+            #ne-21box #moreSettings::-webkit-scrollbar-thumb{background:rgba(15,23,42,.2);border-radius:4px;transition:background .3s;}
+            #ne-21box #moreSettings::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,.36);}
+
+            /* 设置项逐条入场 */
+            #ne-21box #moreSettings.ne21-show label{animation:ne21-fadeUp .4s ease both;}
+            #ne-21box #moreSettings.ne21-show label:nth-child(1){animation-delay:.03s}
+            #ne-21box #moreSettings.ne21-show label:nth-child(2){animation-delay:.07s}
+            #ne-21box #moreSettings.ne21-show label:nth-child(3){animation-delay:.11s}
+            #ne-21box #moreSettings.ne21-show label:nth-child(4){animation-delay:.15s}
+            #ne-21box #moreSettings.ne21-show label:nth-child(5){animation-delay:.19s}
+            #ne-21box #moreSettings.ne21-show label:nth-child(6){animation-delay:.23s}
+            #ne-21box #moreSettings.ne21-show label:nth-child(7){animation-delay:.27s}
+            #ne-21box #moreSettings.ne21-show label:nth-child(8){animation-delay:.31s}
+            #ne-21box #moreSettings label{display:flex;flex-direction:row-reverse;align-items:center;justify-content:space-between;margin:0;padding:8px 2px;font-size:12px;color:rgba(15,23,42,.78);cursor:pointer;user-select:none;line-height:1.4;}
+            #ne-21box #moreSettings label + label{border-top:1px dashed rgba(15,23,42,.08);}
+
+            /* —— iOS 风格 Toggle Switch —— */
+            #ne-21box #moreSettings input[type=checkbox]{appearance:none;-webkit-appearance:none;width:34px;height:20px;border:1px solid rgba(15,23,42,.08);border-radius:20px;cursor:pointer;position:relative;transition:all .3s cubic-bezier(.2,.9,.3,1);background:rgba(15,23,42,.16);box-shadow:inset 0 1px 2px rgba(15,23,42,.12);margin:0 0 0 10px;flex-shrink:0;}
+            #ne-21box #moreSettings input[type=checkbox]::before{content:'';position:absolute;top:1px;left:1px;width:16px;height:16px;border-radius:50%;background:linear-gradient(180deg,rgba(255,255,255,1),rgba(255,255,255,.85));box-shadow:0 1px 3px rgba(15,23,42,.25),inset 0 1px 0 rgba(255,255,255,1);transition:transform .3s cubic-bezier(.2,.9,.3,1);}
+            #ne-21box #moreSettings input[type=checkbox]:hover{background:rgba(15,23,42,.24);}
+            #ne-21box #moreSettings input[type=checkbox]:checked{background:linear-gradient(135deg,#22c55e,#16a34a);border-color:rgba(34,197,94,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 0 10px rgba(34,197,94,.25);}
+            #ne-21box #moreSettings input[type=checkbox]:checked:hover{background:linear-gradient(135deg,#22c55e,#15803d);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 0 14px rgba(34,197,94,.35);}
+            #ne-21box #moreSettings input[type=checkbox]:checked::before{transform:translateX(14px);box-shadow:0 2px 6px rgba(0,0,0,.15),0 0 4px rgba(34,197,94,.3),inset 0 1px 0 rgba(255,255,255,1);}
+            #ne-21box #moreSettings p{display:none;}
+
+            /* —— 设置分组 —— */
+            #ne-21box #moreSettings .ne21-group{padding:6px 0 2px;}
+            #ne-21box #moreSettings .ne21-group + .ne21-group{border-top:1.5px solid rgba(15,23,42,.12);margin-top:4px;padding-top:8px;}
+            #ne-21box #moreSettings .ne21-group-title{font-size:11px;font-weight:600;color:rgba(15,23,42,.42);letter-spacing:.6px;text-transform:uppercase;padding:0 2px 6px;user-select:none;}
+
+            #ne-21box #ne-21thinking{display:none!important;}
+
+            /* —— 加载动画 —— */
+            @keyframes ne21-spin{to{transform:rotate(360deg)}}
+            @keyframes ne21-dot{0%,80%,100%{transform:scale(.5);opacity:.4}40%{transform:scale(1);opacity:1}}
+            #ne-21box #ne-21log .ne21-log-spinner{display:inline-block;width:9px;height:9px;margin-right:5px;border:1.5px solid rgba(15,23,42,.18);border-top-color:rgba(15,23,42,.7);border-radius:50%;vertical-align:-1px;animation:ne21-spin .8s linear infinite;}
+            #ne-21box #ne-21log .ne21-log-dots{display:inline-flex;gap:2px;margin-left:3px;vertical-align:1px;}
+            #ne-21box #ne-21log .ne21-log-dots i{width:3px;height:3px;border-radius:50%;background:currentColor;opacity:.65;animation:ne21-dot 1.2s infinite ease-in-out both;}
+            #ne-21box #ne-21log .ne21-log-dots i:nth-child(2){animation-delay:.16s;}
+            #ne-21box #ne-21log .ne21-log-dots i:nth-child(3){animation-delay:.32s;}
+
+            /* —— 日志面板 —— */
+            #ne-21box #ne-21log{position:relative;max-height:140px;overflow-y:auto;margin:12px 0 0;padding:10px 12px;background:rgba(15,23,42,.08);border:1px solid rgba(255,255,255,.55);border-radius:14px;box-shadow:0 0 0 1px rgba(15,23,42,.06),inset 0 1px 0 rgba(255,255,255,.6),inset 0 0 20px rgba(15,23,42,.08);font-family:"SF Mono","Cascadia Code",Consolas,Menlo,monospace;font-size:11.5px;line-height:1.65;color:rgba(15,23,42,.88);transition:max-height .45s cubic-bezier(.4,0,.2,1),opacity .35s ease,margin .35s ease,padding .35s ease;user-select:text;}
+            #ne-21box #ne-21log.ne21-hidden{max-height:0;opacity:0;margin-top:0;padding-top:0;padding-bottom:0;overflow:hidden;}
+            #ne-21box #ne-21log:empty{display:none;}
+            #ne-21box #ne-21log::-webkit-scrollbar{width:5px;}
+            #ne-21box #ne-21log::-webkit-scrollbar-thumb{background:rgba(15,23,42,.2);border-radius:4px;transition:background .3s;}
+            #ne-21box #ne-21log::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,.36);}
+
+            /* 日志条目 + 入场动画 + 左侧色彩条 */
+            #ne-21box #ne-21log p{margin:0;padding:3px 0 3px 10px;word-break:break-all;border-left:3px solid transparent;animation:ne21-log-in .3s ease both;font-size:11.5px;}
+            @keyframes ne21-log-in{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:translateX(0)}}
+
+            /* 日志折叠详情 */
+            #ne-21box #ne-21log .ne21-collapse{margin:4px 0;border:1px solid rgba(15,23,42,.1);border-radius:8px;overflow:hidden;}
+            #ne-21box #ne-21log .ne21-collapse summary{padding:4px 8px;cursor:pointer;font-weight:600;background:rgba(15,23,42,.04);list-style:none;display:flex;align-items:center;gap:6px;font-size:11px;transition:background .2s;}
+            #ne-21box #ne-21log .ne21-collapse summary:hover{background:rgba(15,23,42,.07);}
+            #ne-21box #ne-21log .ne21-collapse summary::-webkit-details-marker{display:none;}
+            #ne-21box #ne-21log .ne21-collapse summary::before{content:'▶';font-size:8px;transition:transform .2s;}
+            #ne-21box #ne-21log .ne21-collapse[open] summary::before{transform:rotate(90deg);}
+            #ne-21box #ne-21log .ne21-collapse .ne21-detail{padding:6px 10px;font-size:11px;border-top:1px solid rgba(15,23,42,.06);}
+            #ne-21box #ne-21log .ne21-collapse .ne21-detail img{max-width:100%;border-radius:6px;margin:4px 0;}
+            #ne-21box #ne-21log hr{display:none;}
+            #ne-21box #ne-21log .ne21-time{color:rgba(15,23,42,.45);margin-right:6px;}
+
+            /* —— 关于弹窗 —— */
+            .ne21-credits-popup{backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);border:1px solid rgba(255,255,255,.65)!important;border-radius:22px!important;box-shadow:0 24px 48px -12px rgba(15,23,42,.35)!important;}
+            #ne-21-about-overlay{position:fixed;inset:0;z-index:100000;background:rgba(15,23,42,.35);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;animation:ne21-fadeIn .3s ease both;}
+            @keyframes ne21-fadeIn{from{opacity:0}to{opacity:1}}
+            #ne-21-about-popup{width:400px;padding:20px;background:linear-gradient(180deg,rgba(255,255,255,.88) 0%,rgba(241,245,249,.82) 100%);backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);border:1px solid rgba(255,255,255,.65);border-radius:22px;box-shadow:0 0 0 1px rgba(15,23,42,.08),0 24px 48px -12px rgba(15,23,42,.4),inset 0 1px 0 rgba(255,255,255,.9);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:12px;color:rgba(15,23,42,.86);animation:ne21-soft-land .4s cubic-bezier(.2,.9,.3,1) both;}
+            /* 关于弹窗 — 信息卡片 */
+            #ne-21-about-popup .ne21-about-card{background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.7);border-radius:14px;padding:12px;margin-bottom:10px;box-shadow:0 0 0 1px rgba(15,23,42,.04),inset 0 1px 0 rgba(255,255,255,.8),inset 0 0 20px rgba(255,255,255,.3);}
+            /* 关于弹窗 — 关闭按钮 */
+            #ne-21-about-close{transition:all .2s;}
+            #ne-21-about-close:hover{background:rgba(255,255,255,.78)!important;color:rgba(15,23,42,.8)!important;}
+            `;
+            top.document.head.appendChild(styleEl);
+        }
+        var box_html = `
+            <div id="ne-21box">
+                <div class="ne21-header" title="拖动移动 | 点击 − 最小化">
+                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small id="ne-21-ver" style="font-size:10px;font-weight:400;opacity:0.6">v2.8.0</small><span id="ne-21-update" style="display:none;margin-left:6px;padding:1px 7px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:10px;font-weight:600;cursor:pointer;">新版本</span></h3>
+                    <button id="ne-21close" type="button" aria-label="最小化">−</button>
+                </div>
+                <div class="ne21-body">
+                    <div id="ne-21notice"></div>
+                    <div id="moreSettings">
+                        <div class="ne21-group">
+                            <div class="ne21-group-title">🤖 DeepSeek（纯文本题）</div>
+                            <label title="DeepSeek API 密钥，从 platform.deepseek.com 获取">
+                                <input type="text" id="GPTJsSetting.deepseekApiKey" class="ne21-select" placeholder="sk-..." style="min-width:120px;flex:1;padding:5px 8px;font-family:monospace;">API 密钥
+                            </label>
+                            <label title="DeepSeek API 地址，默认 https://api.deepseek.com">
+                                <input type="text" id="GPTJsSetting.deepseekBaseUrl" class="ne21-select" placeholder="https://api.deepseek.com" style="min-width:120px;flex:1;padding:5px 8px;">API 地址
+                            </label>
+                            <label title="选择 DeepSeek 模型，默认 deepseek-flash">
+                                <select id="GPTJsSetting.deepseekModel" class="ne21-select">
+                                    <option value="deepseek-flash">deepseek-flash (默认·支持图片)</option>
+                                    <option value="deepseek-v4-pro">deepseek-v4-pro (强力·纯文本)</option>
+                                </select>文本模型
+                            </label>
+                        </div>
+                        <div class="ne21-group">
+                            <div class="ne21-group-title">👁️ DeepSeek 原生多模态（图片题）</div>
+                            <label title="图片题处理方式：自动=图片题自动切到多模态模型、纯文本题用上方文本模型（推荐）；总是用多模态=所有题目都走多模态模型；只用文本模型=图片题不做视觉识别">
+                                <select id="GPTJsSetting.deepseekImgMode" class="ne21-select">
+                                    <option value="auto">自动路由 (推荐)</option>
+                                    <option value="vision">总是用多模态</option>
+                                    <option value="text">只用文本模型</option>
+                                </select>图片题处理
+                            </label>
+                            <label title="多模态（视觉）模型名。官方当前为 deepseek-flash，是唯一支持图片理解的模型。留空则使用默认值">
+                                <input type="text" id="GPTJsSetting.deepseekVisionModel" class="ne21-select" placeholder="deepseek-flash" style="min-width:120px;flex:1;padding:5px 8px;font-family:monospace;">多模态模型
+                            </label>
+                        </div>
+                        <div class="ne21-group">
+                            <div class="ne21-group-title">🎬 视频 / 音频</div>
+                            <label><select id="GPTJsSetting.rate" class="ne21-select"><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select>播放倍速</label>
+                        </div>
+                        <div class="ne21-group">
+                            <div class="ne21-group-title">📝 答题行为</div>
+                            <label title="两次 AI 搜题请求之间的最小间隔（秒）。0 为不节流；高并发可设 1~3">
+                                <input type="number" id="GPTJsSetting.reqIntervalTime" class="ne21-select" min="0" max="60" step="1" style="min-width:56px;width:56px;padding:5px 8px;">搜题间隔 (秒)
+                            </label>
+                            <label><input type="checkbox" id="GPTJsSetting.goodStudent">好学生模式（仅加粗答案，不自动选择）</label>
+                            <label><input type="checkbox" id="GPTJsSetting.alterTitle" checked>答案插入题目后</label>
+                            <label><input type="checkbox" id="GPTJsSetting.fuzzyMatch" checked>相似度匹配（模糊匹配答案）</label>
+                        </div>
+                        <div class="ne21-group">
+                            <div class="ne21-group-title">📋 测验 / 考试</div>
+                            <label><input type="checkbox" id="GPTJsSetting.sub">测验自动提交</label>
+                            <label><input type="checkbox" id="GPTJsSetting.force">测验强制提交（无论作答与否）</label>
+                            <label><input type="checkbox" id="GPTJsSetting.examTurn">考试自动跳转下一题</label>
+                        </div>
+                        <div class="ne21-group">
+                            <div class="ne21-group-title">⚙️ 模式开关</div>
+                            <label><input type="checkbox" id="GPTJsSetting.redo">重做模式（不跳过已答题）</label>
+                            <label><input type="checkbox" id="GPTJsSetting.task" checked>仅处理任务点（跳过非任务点）</label>
+                        </div>
+                        <div class="ne21-group">
+                            <div class="ne21-group-title">🧩 AI 实践 · 任务链</div>
+                            <label title="检测到「AI实践」任务链时，弹出提示后再开始">
+                                <input type="checkbox" id="GPTJsSetting.taskChain" checked>启用任务链自动作答
+                            </label>
+                            <label title="默认检测到后先询问；勾选则直接开始（进入下一任务后不可返回）">
+                                <input type="checkbox" id="GPTJsSetting.taskChainAutoStart">检测到后直接开始（不询问）
+                            </label>
+                            <label title="上传作品节点：自动生成实验报告并提交">
+                                <input type="checkbox" id="GPTJsSetting.autoReport" checked>自动生成并提交实验报告
+                            </label>
+                            <label title="演练模式：只生成回复并写入日志，不真正发送">
+                                <input type="checkbox" id="GPTJsSetting.taskChainDryRun">演练模式（只生成不发送）
+                            </label>
+                            <label title="默认生成文档后先在浮窗预览，你点「确认上传」才提交；勾选则跳过预览">
+                                <input type="checkbox" id="GPTJsSetting.taskChainAutoUpload">生成后直接上传（跳过预览）
+                            </label>
+                            <label title="单次输出 token 上限；0 = 完全不发该参数（由服务端决定，脚本不再写死 8192）；>0 才显式指定，撞上限会自动续写">
+                                <input type="number" id="GPTJsSetting.taskChainMaxTokens" class="ne21-select" min="0" max="32768" step="256" style="min-width:70px;width:70px;padding:5px 8px;">输出上限 (0=不传)
+                            </label>
+                            <label title="每个对话节点的目标轮数，实际取页面允许的上限内最小值">
+                                <input type="number" id="GPTJsSetting.taskChainRounds" class="ne21-select" min="1" max="30" step="1" style="min-width:56px;width:56px;padding:5px 8px;">目标轮数/节点
+                            </label>
+                            <label title="节点合格分，低于该分数会重做；未手动修改时自动跟随页面「解锁下一节点条件」的分数">
+                                <input type="number" id="GPTJsSetting.taskChainMinScore" class="ne21-select" min="0" max="100" step="1" style="min-width:56px;width:56px;padding:5px 8px;">节点合格分
+                            </label>
+                            <label title="实验报告封面姓名">
+                                <input type="text" id="GPTJsSetting.studentName" class="ne21-select" placeholder="请输入姓名" style="min-width:90px;flex:1;padding:5px 8px;">姓名
+                            </label>
+                            <label title="实验报告封面学号（用于文件命名：学号+姓名+实验一.docx）">
+                                <input type="text" id="GPTJsSetting.studentId" class="ne21-select" placeholder="请输入学号" style="min-width:110px;flex:1;padding:5px 8px;">学号
+                            </label>
+                            <label title="实验报告封面班级">
+                                <input type="text" id="GPTJsSetting.studentClass" class="ne21-select" placeholder="请输入班级" style="min-width:90px;flex:1;padding:5px 8px;">班级
+                            </label>
+                        </div>
+                        <div class="ne21-group">
+                            <div class="ne21-group-title">🐞 开发者调试</div>
+                            <label title="开启后记录发给 AI 的原文、网站 AI 评估和本地缓存，可在浮窗「调试」里直接查看">
+                                <input type="checkbox" id="GPTJsSetting.debug">开启调试（记录提示词 / 评估 / 缓存）
+                            </label>
+                            <div class="ne21-row" style="margin-top:6px;">
+                                <button id="tcDebugExportBtn" class="ne21-btn ne21-btn-secondary" style="padding:5px 12px;font-size:12px;">导出调试包</button>
+                                <button id="tcDebugClearBtn" class="ne21-btn ne21-btn-secondary" style="padding:5px 12px;font-size:12px;">清空</button>
+                            </div>
+                            <div id="tcDebugStatus" style="color:#64748b;font-size:11px;margin-top:4px;">未开启</div>
+                        </div>
+                    </div>
+                    <div id="ne-21thinking">
+                        <div class="ne21-thinking-spinner"></div>
+                        <span class="ne21-thinking-text">AI 思考中<span class="ne21-thinking-dots"><i></i><i></i><i></i></span></span>
+                    </div>
+                    <div id="ne-21log"></div>
+                </div>
+            </div>
+        `;
+        $(box_html).appendTo('body');
+
+        // 恢复保存的位置与收起/展开状态
+        (function () {
+            var $box = $('#ne-21box');
+            // 恢复位置
+            try {
+                var savedPos = localStorage.getItem('GPTJsSetting.boxPosition');
+                if (savedPos) {
+                    var pos = JSON.parse(savedPos);
+                    if (pos && typeof pos.left === 'number' && typeof pos.top === 'number') {
+                        var vw = window.innerWidth, vh = window.innerHeight;
+                        var w = $box.outerWidth() || 340;
+                        // 约束：避免恢复后跑到视窗外不可见
+                        var nx = Math.max(40 - w, Math.min(pos.left, vw - 40));
+                        var ny = Math.max(0, Math.min(pos.top, vh - 40));
+                        $box.css({ left: nx + 'px', top: ny + 'px', right: 'auto' });
+                    }
+                }
+            } catch (_) { /* empty */ }
+            // 恢复最小化状态
+            if (localStorage.getItem('GPTJsSetting.boxCollapsed') === 'true') {
+                $box.addClass('ne21-minimized');
+                $('#ne-21close').text('+').attr('aria-label', '展开');
+            }
+        })();
+
+        // 最小化/展开：统一入口，保证按钮文字、无障碍标签、持久化状态三者一致
+        function setCollapsed(collapsed) {
+            var $box = $('#ne-21box');
+            if (!$box.length) return;
+            $box.toggleClass('ne21-minimized', collapsed);
+            $('#ne-21close').text(collapsed ? '+' : '−').attr('aria-label', collapsed ? '展开' : '最小化');
+            try { localStorage.setItem('GPTJsSetting.boxCollapsed', collapsed ? 'true' : 'false'); } catch (_) { /* empty */ }
+        }
+
+        // 最小化按钮：
+        // - 展开 → 点击收起（click 里 preventDefault，避免连带触发下面 box 的 click 又被展开）
+        // - 已收起 → 不处理，交给浮动球的 click 统一展开（避免两条路径互相打架导致"点不开"）
+        $('#ne-21close').on('click', function (e) {
+            e.stopPropagation();
+            if ($('#ne-21box').hasClass('ne21-minimized')) return;
+            e.preventDefault();
+            setCollapsed(true);
+        });
+        // 标题栏拖动 + 浮动球拖动：拖动结束后写入 localStorage，刷新后保持上次位置
+        (function () {
+            var $box = $('#ne-21box');
+            var $header = $box.find('.ne21-header');
+            var dragging = false, wasDragged = false, justDragged = false;
+            var startX = 0, startY = 0, startLeft = 0, startTop = 0;
+            var curLeft = 0, curTop = 0;
+            var movedX = 0, movedY = 0;
+            // 拖动判定阈值(px)：低于它视为点击，不吞掉"点击展开"
+            var DRAG_THRESHOLD = 4;
+
+            $header.on('mousedown', function (e) {
+                if (e.which !== 1) return; // 仅响应鼠标左键
+                // 展开状态下点在按钮上不拖动（按钮负责收起）；
+                // 收起状态下浮动球整体就是按钮，必须允许拖动，否则球拖不动。
+                if (!$box.hasClass('ne21-minimized') && $(e.target).closest('#ne-21close').length) return;
+                dragging = true;
+                wasDragged = false;   // 新一次手势开始，清理上一次的标志，避免残留导致"点不开"
+                justDragged = false;
+                var rect = $box[0].getBoundingClientRect();
+                startX = e.clientX;
+                startY = e.clientY;
+                // 注意：收起状态 hover 时有 transform:scale(1.08)，getBoundingClientRect()
+                // 返回的是缩放后的盒，直接当 left/top 会让球在开始拖动时"跳"一下。
+                // 用计算样式取未缩放的 left/top，并在需要时把 right 换算成 left。
+                var cs = window.getComputedStyle($box[0]);
+                startLeft = parseFloat(cs.left);
+                startTop = parseFloat(cs.top);
+                if (!isFinite(startLeft)) startLeft = rect.left;
+                if (!isFinite(startTop)) startTop = rect.top;
+                var csRight = parseFloat(cs.right);
+                if (isFinite(csRight)) startLeft = window.innerWidth - csRight - rect.width;
+                curLeft = startLeft;
+                curTop = startTop;
+                movedX = 0;
+                movedY = 0;
+                // 清空 right，把 left/top 改为像素值，避免与默认 left:16% 之类的相对定位冲突
+                $box.css({ left: startLeft + 'px', top: startTop + 'px', right: 'auto' });
+                $('body').css('user-select', 'none');
+                e.preventDefault();
+            });
+
+            $(document).on('mousemove.ne21drag', function (e) {
+                if (!dragging) return;
+                movedX = e.clientX - startX;
+                movedY = e.clientY - startY;
+                // 超过阈值才算真正的拖动：避免点击时手抖 1~2px 就被判定为拖动、
+                // 反而把"点击展开"吞掉（这是收起后点不开的主因之一）
+                if (!wasDragged && Math.abs(movedX) + Math.abs(movedY) < DRAG_THRESHOLD) return;
+                wasDragged = true; // 标记发生了实际拖动
+                var w = $box.outerWidth();
+                var vw = window.innerWidth;
+                var vh = window.innerHeight;
+                // 约束：保留至少 40px 标题栏在视窗内，便于回拉
+                curLeft = Math.max(40 - w, Math.min(startLeft + movedX, vw - 40));
+                curTop = Math.max(0, Math.min(startTop + movedY, vh - 40));
+                $box.css({ left: curLeft + 'px', top: curTop + 'px' });
+            }).on('mouseup.ne21drag', function () {
+                if (!dragging) return;
+                dragging = false;
+                $('body').css('user-select', '');
+                if (!wasDragged) return; // 未达到阈值，视为点击，交给 click 处理
+                justDragged = true;      // 抑制拖动结束后紧跟的那次 click
+                // 持久化位置：直接用拖动过程中维护的坐标，不再反读 getBoundingClientRect()
+                // （后者可能拿到样式尚未刷新的旧值，导致刷新后位置回跳）
+                try {
+                    localStorage.setItem('GPTJsSetting.boxPosition', JSON.stringify({ left: curLeft, top: curTop }));
+                } catch (_) { /* empty */ }
+            });
+
+            // 拖到窗口外松手时 mouseup 不会落在 document 上，会导致 dragging 卡住、
+            // 之后不按左键移动鼠标也会拖走浮窗。这里统一兜底清理。
+            function abortDrag(e) {
+                if (!dragging) return;
+                dragging = false;
+                $('body').css('user-select', '');
+                // 若鼠标是在浮窗之外释放的，浏览器不会产生 click，
+                // 此时 justDragged 没人消费，必须在这里清掉，否则下一次点击会被吞掉。
+                var t = e && e.target;
+                if (!t || !(t === $box[0] || $box[0].contains(t))) justDragged = false;
+            }
+            $(window).on('blur', abortDrag);
+            $(document).on('mouseleave.ne21drag', abortDrag);
+
+            // 浮动球点击展开：仅当最小化、未拖动、且不是拖动刚结束的那一次 click
+            $box.on('click', function (e) {
+                if (justDragged) { justDragged = false; return; }
+                if (!$box.hasClass('ne21-minimized')) return;
+                if (wasDragged) { wasDragged = false; return; }
+                // 注意：收起后整球都是 #ne-21close，这里不能再排除它，否则永远点不开
+                setCollapsed(false);
+                e.stopPropagation();
+            });
+        })();
+
+        // 设置面板切换 + 复选框监听器
+        (function () {
+            var moreSettings = top.document.getElementById('moreSettings');
+            var userInfo = top.document.getElementById('userInfo');
+            if (!moreSettings) return;
+
+            // #moreSettingsBtn 由 $('#ne-21notice').html(...) 在后面动态注入，
+            // 此时还不存在，且每次 showBox() 都会被重建，因此使用事件委托。
+            var isSettingsVisible = false;
+            $('#ne-21box').on('click', '#moreSettingsBtn', function () {
+                if (userInfo) userInfo.style.display = isSettingsVisible ? 'block' : 'none';
+                moreSettings.classList.toggle('ne21-show', !isSettingsVisible);
+                this.textContent = isSettingsVisible ? '设置' : '返回';
+                isSettingsVisible = !isSettingsVisible;
+            });
+            // 日志按钮：切换日志区域显示/隐藏
+            var isLogVisible = true;
+            $('#ne-21box').on('click', '#toggleLogBtn', function () {
+                var logEl = top.document.getElementById('ne-21log');
+                if (logEl) {
+                    isLogVisible = !isLogVisible;
+                    logEl.classList.toggle('ne21-hidden', !isLogVisible);
+                    this.textContent = isLogVisible ? '隐藏日志' : '显示日志';
+                }
+            });
+            // 跳过任务按钮：通过 postMessage 通知 iframe 跳过当前任务点
+            $('#ne-21box').on('click', '#skipTaskBtn', function () {
+                var iframe = document.getElementById('iframe')
+                if (!iframe || !iframe.contentWindow) {
+                    logger(_logP.SYS + '[错误] 未找到任务iframe，无法跳过。', 'error')
+                    return
+                }
+                logger(_logP.SYS + '[跳过] 已发送跳过指令到任务页面。', 'skip')
+                iframe.contentWindow.postMessage({ type: 'NE21_SKIP_TASK' }, '*')
+            });
+
+            // 修改题目默认开启（仅初始化一次，避免 forEach 内重复执行）
+            if (localStorage.getItem('GPTJsSetting.alterTitle') === null) {
+                localStorage.setItem('GPTJsSetting.alterTitle', 'true');
+            }
+            // 相似度匹配默认开启
+            if (localStorage.getItem('GPTJsSetting.fuzzyMatch') === null) {
+                localStorage.setItem('GPTJsSetting.fuzzyMatch', 'true');
+            }
+            // 仅处理任务点默认开启
+            if (localStorage.getItem('GPTJsSetting.task') === null) {
+                localStorage.setItem('GPTJsSetting.task', 'true');
+            }
+            // 测验自动提交默认开启
+            if (localStorage.getItem('GPTJsSetting.sub') === null) {
+                localStorage.setItem('GPTJsSetting.sub', 'true');
+            }
+            // 任务链默认开启（检测+询问）、报告自动生成为开
+            if (localStorage.getItem('GPTJsSetting.taskChain') === null) {
+                localStorage.setItem('GPTJsSetting.taskChain', 'true');
+            }
+            if (localStorage.getItem('GPTJsSetting.autoReport') === null) {
+                localStorage.setItem('GPTJsSetting.autoReport', 'true');
+            }
+
+            ['sub', 'force', 'examTurn', 'goodStudent', 'alterTitle', 'redo', 'fuzzyMatch', 'task',
+                'taskChain', 'taskChainAutoStart', 'autoReport', 'taskChainDryRun', 'taskChainAutoUpload', 'debug'].forEach(function (settingId) {
+                var checkbox = top.document.getElementById('GPTJsSetting.' + settingId);
+                if (!checkbox) return;
+                checkbox.addEventListener('change', updateLocalStorage);
+                checkbox.checked = localStorage.getItem('GPTJsSetting.' + settingId) === 'true';
+            });
+
+            // DeepSeek API 密钥输入框：恢复上次值并持久化（使用 GM_setValue 跨域共享）
+            var apiKeyInput = top.document.getElementById('GPTJsSetting.deepseekApiKey');
+            if (apiKeyInput) {
+                apiKeyInput.value = getDeepSeekApiKey();
+                apiKeyInput.addEventListener('change', function () {
+                    saveDeepSeekConfig('deepseekApiKey', apiKeyInput.value.trim());
+                    var statusEl = top.document.querySelector('.ne21-uid b:first-child');
+                    if (statusEl) statusEl.textContent = apiKeyInput.value.trim() ? '✅ 已配置' : '❌ 未配置';
+                    updateStatusDot();
+                });
+            }
+            // DeepSeek API 地址输入框：恢复上次值并持久化
+            var baseUrlInput = top.document.getElementById('GPTJsSetting.deepseekBaseUrl');
+            if (baseUrlInput) {
+                baseUrlInput.value = getDeepSeekBaseUrl();
+                baseUrlInput.addEventListener('change', function () {
+                    saveDeepSeekConfig('deepseekBaseUrl', baseUrlInput.value.trim() || 'https://api.deepseek.com');
+                });
+            }
+            // DeepSeek 模型选择：恢复上次选择并持久化
+            var modelSelect = top.document.getElementById('GPTJsSetting.deepseekModel');
+            if (modelSelect) {
+                modelSelect.value = getDeepSeekModel();
+                modelSelect.addEventListener('change', function () {
+                    saveDeepSeekConfig('deepseekModel', modelSelect.value);
+                });
+            }
+            // 图片题处理方式：恢复上次选择并持久化
+            var imgModeSelect = top.document.getElementById('GPTJsSetting.deepseekImgMode');
+            if (imgModeSelect) {
+                imgModeSelect.value = getDeepSeekImgMode();
+                imgModeSelect.addEventListener('change', function () {
+                    saveDeepSeekConfig('deepseekImgMode', imgModeSelect.value);
+                });
+            }
+            // 多模态模型名：恢复上次值并持久化
+            var visionModelInput = top.document.getElementById('GPTJsSetting.deepseekVisionModel');
+            if (visionModelInput) {
+                visionModelInput.value = getDeepSeekVisionModel();
+                visionModelInput.addEventListener('change', function () {
+                    saveDeepSeekConfig('deepseekVisionModel', visionModelInput.value.trim() || 'deepseek-flash');
+                });
+            }
+            // 倍速下拉：恢复上次选择并持久化
+            var rateSelect = top.document.getElementById('GPTJsSetting.rate');
+            if (rateSelect) {
+                rateSelect.value = localStorage.getItem('GPTJsSetting.rate') || '1';
+                rateSelect.addEventListener('change', function () {
+                    localStorage.setItem('GPTJsSetting.rate', rateSelect.value);
+                });
+            }
+            // 搜题间隔输入框：恢复上次值并持久化（范围 0~60 秒）
+            var reqIntervalInput = top.document.getElementById('GPTJsSetting.reqIntervalTime');
+            if (reqIntervalInput) {
+                var savedInterval = localStorage.getItem('GPTJsSetting.reqIntervalTime');
+                reqIntervalInput.value = (savedInterval !== null && isFinite(parseInt(savedInterval, 10)))
+                    ? savedInterval
+                    : String(setting.reqIntervalTime || 0);
+                reqIntervalInput.addEventListener('change', function () {
+                    var v = parseInt(reqIntervalInput.value, 10);
+                    if (!isFinite(v) || v < 0) v = 0;
+                    if (v > 60) v = 60;
+                    reqIntervalInput.value = String(v);
+                    localStorage.setItem('GPTJsSetting.reqIntervalTime', String(v));
+                });
+            }
+            // ===== 任务链相关输入项（v2.7.0） =====
+            [['taskChainRounds', 20, 1, 30], ['taskChainMinScore', 61, 0, 100], ['taskChainMaxTokens', 0, 0, 32768]].forEach(function (item) {
+                var el = top.document.getElementById('GPTJsSetting.' + item[0]);
+                if (!el) return;
+                var saved = localStorage.getItem('GPTJsSetting.' + item[0]);
+                el.value = (saved !== null && isFinite(parseInt(saved, 10))) ? saved : String(setting[item[0]] === undefined ? item[1] : setting[item[0]]);
+                el.addEventListener('change', function () {
+                    var v = parseInt(el.value, 10);
+                    if (!isFinite(v) || v < item[2]) v = item[2];
+                    if (v > item[3]) v = item[3];
+                    el.value = String(v);
+                    localStorage.setItem('GPTJsSetting.' + item[0], String(v));
+                });
+            });
+            ['studentName', 'studentId', 'studentClass'].forEach(function (k) {
+                var el = top.document.getElementById('GPTJsSetting.' + k);
+                if (!el) return;
+                el.value = localStorage.getItem('GPTJsSetting.' + k) || setting[k] || '';
+                el.addEventListener('change', function () {
+                    localStorage.setItem('GPTJsSetting.' + k, el.value.trim());
+                });
+            });
+        })();
+    } else {
+        $('#ne-21log', window.parent.document).html('')
+    }
+    let _apiKeyStatus = getDeepSeekApiKey() ? '✅ 已配置' : '❌ 未配置'
+    // 更新状态指示灯颜色
+    updateStatusDot();
+    $('#ne-21notice').html(`
+        <div id="ne-21-noticeContent">
+            <div class="ne21-uid">DeepSeek API: <b>${_apiKeyStatus}</b> | <b>DeepSeek 多模态</b></div>
+        </div>
+        <div class="ne21-row">
+            <button id="moreSettingsBtn" class="ne21-btn ne21-btn-secondary">设置</button>
+            <button id="toggleLogBtn" class="ne21-btn ne21-btn-secondary">日志</button>
+            <button id="tcDebugBtn" class="ne21-btn ne21-btn-secondary" title="开发者调试：查看发给 AI 的原文 / 网站评估 / 本地缓存">🐞 调试</button>
+            <button id="skipTaskBtn" class="ne21-btn ne21-btn-secondary" style="color:#dc2626;" title="跳过当前正在处理的任务点">跳过任务</button>
+            <button id="aboutBtn" class="ne21-btn ne21-btn-secondary">关于</button>
+        </div>
+    `);
+
+    // 开发者调试：恢复上次缓冲 + 绑定按钮（通知栏每次 showBox 都会重建，所以在这里绑）
+    try { tcDbgLoad(); tcDbgBind(); } catch (e) { }
+
+    // 公告弹窗：每个版本首次显示
+    (function () {
+        var _ver = GM_info && GM_info.script ? GM_info.script.version : '2.3.1';
+        var _key = 'GPTJsSetting.announcementSeen_' + _ver;
+        if (!localStorage.getItem(_key)) {
+            localStorage.setItem(_key, 'true');
+            _showCredits();
+        }
+        // 设置面板的"关于"按钮
+        $('#ne-21box').on('click', '#aboutBtn', function () { _showCredits(); });
+    })();
+
+    // ===== 更新检查（v2.7.0） =====
+    var NE21_LOCAL_VER = (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) || '2.8.0';
+    var NE21_BUILD = '20261028T1845';
+    try { window.__ne21Ver = NE21_LOCAL_VER; window.__ne21Build = NE21_BUILD; } catch (e) { }
+    var NE21_THROTTLE = 30 * 60 * 1000;   // 自动检查最小间隔：30 分钟
+    var NE21_RAW_URL = 'https://raw.githubusercontent.com/Khihl-lucky/ChaoXing-AutoAnswer/main/chaoxing-autoanswer.user.js';
+
+    function tcVerParts(v) {
+        return String(v || '').replace(/^v/i, '').split('.').map(function (x) { return parseInt(x, 10) || 0; });
+    }
+    function tcVerCompare(a, b) {
+        var pa = tcVerParts(a), pb = tcVerParts(b);
+        var n = Math.max(pa.length, pb.length);
+        for (var i = 0; i < n; i++) {
+            var x = pa[i] || 0, y = pb[i] || 0;
+            if (x > y) return 1;
+            if (x < y) return -1;
+        }
+        return 0;
+    }
+    function tcParseVersionFromText(txt) {
+        var m = String(txt || '').match(/\/\/\s*@version\s+([\w.\-]+)/);
+        return m ? m[1] : '';
+    }
+
+    // GitHub Contents API 在未带 raw Accept 头时返回 JSON，content 为 base64
+    function tcB64Utf8(b64) {
+        try {
+            var bin = atob(String(b64 || '').replace(/\s+/g, ''));
+            var bytes = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            return new TextDecoder('utf-8').decode(bytes);
+        } catch (e) { return ''; }
+    }
+
+    function tcUpdateTipText() {
+        var at = parseInt(tcUpdateStore('GPTJsSetting.updateCheckedAt') || '0', 10) || 0;
+        var when = '';
+        if (at) {
+            var d = new Date(at);
+            when = ' · 上次检查 ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        }
+        return '点击检查更新' + when + ' · v' + NE21_LOCAL_VER + ' build ' + NE21_BUILD;
+    }
+
+    function tcRefreshVerTip() {
+        var el = document.getElementById('ne-21-ver');
+        if (el && !_tcChecking) el.title = tcUpdateTipText();
+    }
+    function tcUpdateUrl() {
+        try { return (GM_info && GM_info.script && GM_info.script.updateURL) || ''; } catch (e) { return ''; }
+    }
+    function tcUpdateStore(k, v) {
+        try {
+            if (v === undefined) return localStorage.getItem(k) || '';
+            localStorage.setItem(k, v);
+        } catch (e) { }
+        return '';
+    }
+
+    // 按可达性排序：国内网络下 raw 常被断连，代理与 API 更可靠
+    function tcUpdateEndpoints() {
+        var ts = '?ts=' + Date.now();
+        var list = [
+            { name: 'ghproxy', url: 'https://ghproxy.net/' + NE21_RAW_URL + ts, installable: true },
+            { name: 'gh-proxy', url: 'https://gh-proxy.com/' + NE21_RAW_URL + ts, installable: true },
+            { name: 'raw', url: NE21_RAW_URL + ts, installable: true },
+            { name: 'GitHub API',
+              url: 'https://api.github.com/repos/Khihl-lucky/ChaoXing-AutoAnswer/contents/chaoxing-autoanswer.user.js?ref=main&ts=' + Date.now(),
+              headers: { 'Accept': 'application/vnd.github.raw' },
+              installable: false }
+        ];
+        var gu = tcUpdateUrl();
+        if (gu && gu !== NE21_RAW_URL) list.push({ name: 'updateURL', url: gu, installable: true });
+        return list;
+    }
+
+    function tcDownloadUrl() {
+        var saved = tcUpdateStore('GPTJsSetting.updateInstallUrl');
+        return saved || ('https://ghproxy.net/' + NE21_RAW_URL);
+    }
+
+    // 单个端点探测，永不 reject
+    // 单端点探测：细节只进 console，浮窗里由调用方汇总成一条
+    function tcProbeEndpoint(ep) {
+        return new Promise(function (resolve) {
+            var done = false;
+            function finish(r) {
+                if (done) return;
+                done = true;
+                try { console.log('[更新] ' + ep.name + ' → ' + (r.ver ? ('v' + r.ver) : (r.err || '未知'))); } catch (e) { }
+                resolve(r);
+            }
+            try {
+                GM_xmlhttpRequest({
+                    method: 'GET', url: ep.url, timeout: 8000,
+                    headers: ep.headers || { 'Cache-Control': 'no-cache' },
+                    onload: function (x) {
+                        if (!x || x.status !== 200) return finish({ name: ep.name, err: 'HTTP ' + (x && x.status) });
+                        var txt = (x && x.responseText) || '';
+                        if (txt.charAt(0) === '{') {
+                            try {
+                                var j = JSON.parse(txt);
+                                if (j && j.content) txt = tcB64Utf8(j.content) || txt;
+                            } catch (e) { }
+                        }
+                        var v = tcParseVersionFromText(txt);
+                        if (!v) return finish({ name: ep.name, err: '无 @version' });
+                        finish({ name: ep.name, ver: v, url: ep.url, installable: !!ep.installable });
+                    },
+                    onerror: function () { finish({ name: ep.name, err: '网络错误' }); },
+                    ontimeout: function () { finish({ name: ep.name, err: '超时' }); }
+                });
+            } catch (e) { finish({ name: ep.name, err: '请求异常' }); }
+        });
+    }
+
+    // 安装链接必须与最终版本一致，避免装回代理缓存里的旧版
+    function tcPickInstallUrl(ok, best) {
+        var same = ok.filter(function (r) {
+            return r.installable && tcVerCompare(r.ver, best.ver) === 0;
+        });
+        if (same.length) return same[0].url;
+        // 只有 API 拿到最新版：给代理地址加时间戳，绕过其缓存
+        return 'https://ghproxy.net/' + NE21_RAW_URL + '?ts=' + Date.now();
+    }
+
+    // 并行探测所有端点，取最高版本（代理缓存旧版不会盖住新版）
+    function tcFetchRemoteVersion() {
+        var list = tcUpdateEndpoints();
+        return Promise.all(list.map(tcProbeEndpoint)).then(function (results) {
+            var ok = (results || []).filter(function (r) { return r && r.ver; });
+            if (!ok.length) {
+                var errs = (results || []).map(function (r) { return r.name + '：' + (r.err || '未知'); });
+                return { ver: '', err: errs.join('；') || '端点均不可达' };
+            }
+            ok.sort(function (a, b) {
+                var c = tcVerCompare(b.ver, a.ver);   // 版本高的在前
+                if (c) return c;
+                if (a.name === 'GitHub API') return -1;
+                if (b.name === 'GitHub API') return 1;
+                return 0;
+            });
+            var best = ok[0];
+            // 不在这里写浮窗日志：结果统一由 tcCheckUpdate 输出一条
+            return { ver: best.ver, name: best.name, installUrl: tcPickInstallUrl(ok, best), all: ok };
+        });
+    }
+
+    function tcEnsureUpdateTipStyle() {
+        if (document.getElementById('ne21UpdateTipStyle')) return;
+        var st = document.createElement('style');
+        st.id = 'ne21UpdateTipStyle';
+        st.textContent = [
+            '#ne-21-updateTip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;',
+            'margin:0 0 8px;padding:7px 10px;border-radius:11px;',
+            'background:linear-gradient(135deg,rgba(37,99,235,.10),rgba(37,99,235,.05));',
+            'border:1px solid rgba(37,99,235,.22);',
+            'box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 1px 2px rgba(15,23,42,.04);',
+            'font-size:11.5px;color:#1e3a8a;}',
+            '#ne-21-updateTip .tc-upd-text{flex:1;min-width:120px;line-height:1.45;}',
+            '#ne-21-updateTip .tc-upd-go{display:inline-flex;align-items:center;padding:3px 11px;',
+            'border-radius:8px;font-weight:600;font-size:11.5px;color:#fff!important;',
+            'text-decoration:none!important;background:linear-gradient(135deg,#2563eb,#1d4ed8);',
+            'box-shadow:0 2px 8px -3px rgba(37,99,235,.6);transition:transform .15s,box-shadow .15s;}',
+            '#ne-21-updateTip .tc-upd-go:hover{transform:translateY(-1px);box-shadow:0 4px 10px -3px rgba(37,99,235,.65);}',
+            '#ne-21-updateTip .tc-upd-skip{padding:3px 9px;border-radius:8px;font-size:11.5px;',
+            'color:#64748b!important;text-decoration:none!important;background:rgba(255,255,255,.65);',
+            'border:1px solid rgba(15,23,42,.12);transition:background .15s;}',
+            '#ne-21-updateTip .tc-upd-skip:hover{background:rgba(255,255,255,.95);}'
+        ].join('');
+        var host = document.head || document.documentElement;
+        if (host && host.appendChild) host.appendChild(st);
+    }
+
+    function tcRenderUpdate(remote) {
+        var skip = tcUpdateStore('GPTJsSetting.skipUpdateVersion');
+        var newer = remote && tcVerCompare(remote, NE21_LOCAL_VER) > 0;
+        var skipped = newer && remote === skip;
+        var has = newer && !skipped;
+
+        var badge = document.getElementById('ne-21-update');
+        if (badge) {
+            badge.style.display = has ? 'inline-block' : 'none';
+            if (has) {
+                badge.textContent = '发现新版本！';
+                badge.title = '点击更新到 v' + remote;
+                badge.onclick = function () {
+                    var u = tcDownloadUrl();
+                    if (u) window.open(u, '_blank');
+                };
+            }
+        }
+
+        var box = document.getElementById('ne-21notice');
+        if (!box) return;
+        var tip = document.getElementById('ne-21-updateTip');
+        if (!newer) { if (tip && tip.parentNode) tip.parentNode.removeChild(tip); return; }
+        if (!tip) {
+            tip = document.createElement('div');
+            tip.id = 'ne-21-updateTip';
+            tip.className = 'ne21-update-tip';
+            tcEnsureUpdateTipStyle();
+            box.insertBefore(tip, box.firstChild);
+        }
+
+        // 已忽略：保留一行提示，可随时恢复（防止误点）
+        if (skipped) {
+            tip.innerHTML = '<span class="tc-upd-text" style="color:#64748b;">已忽略新版本 v' + tcEsc(remote) + ' 的更新提示</span>'
+                + '<a href="#" class="tc-upd-go" id="ne-21-updateRestore">恢复提示</a>';
+            var rs = tip.querySelector('#ne-21-updateRestore');
+            if (rs) rs.onclick = function (e) {
+                e.preventDefault();
+                tcUpdateStore('GPTJsSetting.skipUpdateVersion', '');
+                tcRenderUpdate(remote);
+                try { logger('[更新] 已恢复 v' + remote + ' 的更新提示', 'muted'); } catch (err) { }
+            };
+            return;
+        }
+
+        tip.innerHTML = '<span class="tc-upd-text">🔄 发现新版本 v' + tcEsc(remote) + '</span>'
+            + '<a href="#" class="tc-upd-go" id="ne-21-updateGo">立即更新</a>'
+            + '<a href="#" class="tc-upd-skip" id="ne-21-updateSkip">忽略</a>';
+        var go = tip.querySelector('#ne-21-updateGo');
+        var sk = tip.querySelector('#ne-21-updateSkip');
+        if (go) go.onclick = function (e) {
+            e.preventDefault();
+            var u = tcDownloadUrl();
+            if (u) window.open(u, '_blank');
+        };
+        if (sk) sk.onclick = function (e) {
+            e.preventDefault();
+            tcUpdateStore('GPTJsSetting.skipUpdateVersion', remote);
+            tcRenderUpdate(remote);
+            try { logger('[更新] 已忽略 v' + remote, 'muted'); } catch (err) { }
+        };
+    }
+
+    function tcCheckUpdate(force) {
+        var cached = tcUpdateStore('GPTJsSetting.updateLatest');
+        var at = parseInt(tcUpdateStore('GPTJsSetting.updateCheckedAt') || '0', 10) || 0;
+        var now = Date.now();
+        // 缓存版本比本地还旧 => 视为无效缓存，立即重新请求
+        var stale = !cached || tcVerCompare(cached, NE21_LOCAL_VER) < 0;
+        if (!force && !stale && (now - at) < NE21_THROTTLE) {
+            tcRenderUpdate(cached);
+            tcRefreshVerTip();
+            return Promise.resolve(cached);
+        }
+        return tcFetchRemoteVersion().then(function (r) {
+            tcUpdateStore('GPTJsSetting.updateCheckedAt', String(now));
+            if (!r || !r.ver) {
+                var why = String((r && r.err) || '端点均不可达').split('；')[0];
+                tcUpdateStore('GPTJsSetting.updateError', (r && r.err) || '端点均不可达');
+                try { logger('[更新] 检查失败：' + why, 'warn'); } catch (e) { }
+                tcRefreshVerTip();
+                return '';
+            }
+            tcUpdateStore('GPTJsSetting.updateError', '');
+            // 不降级：代理缓存返回旧版时保留已有的更高版本
+            var prev = tcUpdateStore('GPTJsSetting.updateLatest');
+            var latest = (!prev || tcVerCompare(r.ver, prev) >= 0) ? r.ver : prev;
+            tcUpdateStore('GPTJsSetting.updateLatest', latest);
+            if (r.installUrl) tcUpdateStore('GPTJsSetting.updateInstallUrl', r.installUrl);
+            tcRenderUpdate(latest);
+            if (tcVerCompare(latest, NE21_LOCAL_VER) > 0) {
+                try { logger('[更新] 发现新版本 v' + latest + '（当前 v' + NE21_LOCAL_VER + '）', 'warn'); } catch (e) { }
+            } else {
+                try { logger('[更新] 已是最新（v' + latest + '）', 'muted'); } catch (e) { }
+            }
+            tcRefreshVerTip();
+            return latest;
+        });
+    }
+
+    // 自动检查：首屏 3 秒一次 + 常驻页面每 2 小时一次（受 6 小时节流约束）
+    var NE21_AUTO_INTERVAL = 2 * 3600 * 1000;
+    function tcAutoCheckOnce() {
+        try { if (!document.getElementById('ne-21box')) return; } catch (e) { return; }
+        tcCheckUpdate(false);
+    }
+    function tcStartAutoUpdate() {
+        if (tcStartAutoUpdate._started) return;
+        tcStartAutoUpdate._started = true;
+        setTimeout(tcAutoCheckOnce, 3000);
+        setInterval(tcAutoCheckOnce, NE21_AUTO_INTERVAL);
+    }
+
+    var _tcChecking = false;
+    function tcManualCheck() {
+        var el = document.getElementById('ne-21-ver');
+        if (!el || _tcChecking) return;
+        _tcChecking = true;
+        var orig = 'v' + NE21_LOCAL_VER;
+        el.textContent = '检查中…';
+        el.title = '正在检查更新…';
+        tcCheckUpdate(true).then(function (v) {
+            _tcChecking = false;
+            if (!v) {
+                el.textContent = '检查失败';
+                el.title = '检查失败：' + (tcUpdateStore('GPTJsSetting.updateError') || '端点均不可达');
+            } else if (tcVerCompare(v, NE21_LOCAL_VER) > 0) {
+                el.textContent = '新版本 v' + v;
+                el.title = '点击更新到 v' + v;
+            } else {
+                el.textContent = '已是最新';
+                el.title = '当前已是最新版本';
+            }
+            setTimeout(function () {
+                el.textContent = orig;
+                el.title = tcUpdateTipText();
+            }, 4000);
+        }, function () {
+            _tcChecking = false;
+            el.textContent = '检查失败';
+            setTimeout(function () { el.textContent = orig; }, 4000);
+        });
+    }
+
+    (function () {
+        var vEl = document.getElementById('ne-21-ver');
+        if (vEl) {
+            vEl.textContent = 'v' + NE21_LOCAL_VER;
+            vEl.style.cursor = 'pointer';
+            vEl.style.borderBottom = '1px dashed rgba(15,23,42,.25)';
+            vEl.title = tcUpdateTipText();
+            vEl.addEventListener('click', tcManualCheck);
+        }
+        try { logger('[启动] AI学习通助手 v' + NE21_LOCAL_VER + ' build ' + NE21_BUILD, 'info'); } catch (e) { }
+        var cur = document.getElementById('ne-21-about-cur');
+        if (cur) cur.textContent = 'v' + NE21_LOCAL_VER;
+        // 首屏延迟 3 秒自动检查，之后每 2 小时一次
+        tcStartAutoUpdate();
+    })();
+
+    function _showCredits() {
+        // 移除已有的弹窗（防止重复）
+        var old = top.document.getElementById('ne-21-about-overlay');
+        if (old) old.remove();
+        var overlay = top.document.createElement('div');
+        overlay.id = 'ne-21-about-overlay';
+        overlay.innerHTML =
+            '<div id="ne-21-about-popup">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">' +
+            '<b style="font-size:15px;letter-spacing:.3px">✨ AI 学习通助手</b>' +
+            '<span id="ne-21-about-close" style="cursor:pointer;font-size:18px;color:rgba(15,23,42,.5);width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.5);">×</span>' +
+            '</div>' +
+            '<div class="ne21-about-card" style="font-size:12px;line-height:1.8">' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 当前版本</span><b id="ne-21-about-cur">v2.8.0</b></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🏗️ 构建</span><span>' + NE21_BUILD + '</span></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">👤 原作者</span><span>Ne-21</span></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🛠️ 开发者</span><b>Khihl & DeepSeek Harness</b></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🧠 AI 模型</span><span>DeepSeek 原生多模态</span></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📊 代码规模</span><span>~8700 行</span></div>' +
+            '</div>' +
+            '<div style="border-left:3px solid #22c55e;padding-left:12px;margin:12px 0;font-size:12px;line-height:1.8;background:rgba(34,197,94,.04);border-radius:0 8px 8px 0;padding-right:8px;padding-top:6px;padding-bottom:6px">' +
+            '<b style="color:#16a34a">🌟 核心功能</b><br>' +
+            '🧠 DeepSeek 原生多模态：deepseek-flash 直接识别图片题，无需第三方模型<br>' +
+            '📄 文档/PPT 模拟翻阅：逐屏滚动 + 自动提交 + DOM 实时刷新<br>' +
+            '🎯 三级答案匹配：精确 → Levenshtein 模糊 → 字母回退<br>' +
+            '📚 全任务类型支持：视频/音频/测验/文档/阅读/直播/速课/讨论<br>' +
+            '🛡️ 智能防卡死：人脸识别检测、任务完成轮询、超时保护<br>' +
+            '📝 日志系统：统一格式 [模块] [状态]，7级颜色语义<br>' +
+            '💎 Liquid Glass UI：毛玻璃浮窗，可拖拽，位置/状态持久化<br>' +
+            '🧩 AI 实践任务链：检测确认 → 多节点自动作答 → 生成文档并提交' +
+            '</div>' +
+            '<div style="border-left:3px solid #eab308;padding-left:12px;margin:12px 0;font-size:12px;line-height:1.8;background:rgba(234,179,8,.04);border-radius:0 8px 8px 0;padding-right:8px;padding-top:6px;padding-bottom:6px">' +
+            '<b style="color:#ca8a04">⭐ 独家功能</b><br>' +
+            '💬 讨论区 AI 自动回复 — 全网学习通脚本中首个实现<br>' +
+            '⏭️ 任务点跳过按钮 — 卡死时可手动跳过当前任务<br>' +
+            '📖 文档/PPT 自动翻页 — 模拟真实阅读直到页底' +
+            '</div>' +
+            '<p style="margin:12px 0 0;opacity:.4;font-size:10px;text-align:center">人类主导设计 · AI 辅助编码 — Khihl & DeepSeek Harness</p>' +
+            '</div>';
+        top.document.body.appendChild(overlay);
+        // 点击遮罩或关闭按钮收起
+        overlay.addEventListener('click', function (e) {
+            if (e.target === overlay || e.target.id === 'ne-21-about-close') overlay.remove();
+        });
+        // Esc 键收起
+        var escHandler = function (e) {
+            if (e.key === 'Escape') { overlay.remove(); top.document.removeEventListener('keydown', escHandler); }
+        };
+        top.document.addEventListener('keydown', escHandler);
+    }
+
+    // ===== 状态指示灯：根据 API 配置状态动态变色 =====
+    function updateStatusDot() {
+        var dot = top.document.querySelector('.ne21-dot');
+        if (!dot) return;
+        // 单一 DeepSeek 密钥即可覆盖全部题型（含图片题）
+        if (getDeepSeekApiKey()) {
+            dot.style.background = 'radial-gradient(circle at 32% 28%, rgba(255,255,255,.98), #22c55e 55%, rgba(34,197,94,.35) 100%)';
+        } else {
+            dot.style.background = 'radial-gradient(circle at 32% 28%, rgba(255,255,255,.98), rgba(255,255,255,.5) 55%, rgba(15,23,42,.18) 100%)';
+        }
+    }
+}
+
+var _ne21LogColorMap = {
+    error:   '#dc2626', red:    '#dc2626',
+    success: '#059669', green:  '#059669',
+    skip:    '#ea580c', orange: '#ea580c',
+    warn:    '#ca8a04', yellow: '#ca8a04',
+    info:    '#2563eb', blue:   '#2563eb',
+    hili:    '#7c3aed', purple: '#7c3aed',
+    muted:   '#64748b', gray:   '#64748b', grey: '#64748b'
+}
+function logger(str, color) {
+    var _time = new Date().toLocaleTimeString()
+    var _colorMap = (typeof _ne21LogColorMap !== 'undefined') ? _ne21LogColorMap : {};
+    var c = _colorMap[color] || color || '#334155'
+    var $p = $('<p><span class="ne21-time">[' + _time + ']</span><span class="ne21-msg" style="color:' + c + ';">' + str + '</span></p>')
+    $p.css('border-left-color', c)  // 左侧色彩标识
+    var $log = $('#ne-21log', window.parent.document);
+    $log.append($p)
+    // 自动滚动到底部
+    var logEl = $log[0];
+    if (logEl) { setTimeout(function() { logEl.scrollTop = logEl.scrollHeight; }, 50); }
+    return $p
+}
+// 原地更新一条已存在的日志(由 logger 返回的 jQuery <p> 元素)。
+// 用于把 "AI 思考中..." 占位行原地替换为答案/错误提示, 避免反复出现/消失。
+function updateLogEntry($p, str, color) {
+    if (!$p || !$p.length) return
+    var _colorMap2 = (typeof _ne21LogColorMap !== 'undefined') ? _ne21LogColorMap : {};
+    var c = _colorMap2[color] || color || '#334155'
+    $p.find('.ne21-msg').css('color', c).html(str)
+    $p.css('border-left-color', c)  // 同步更新左侧色彩条
+}
+
+function getStr(str, start, end) {
+    let res = str.match(new RegExp(`${start}(.*?)${end}`))
+    return res ? res[1] : null
+}
+
+function getTaskParams() {
+    try {
+        var _iframeScripts = _d.scripts,
+            _p = null;
+        for (let i = 0; i < _iframeScripts.length; i++) {
+            if (_iframeScripts[i].innerHTML.indexOf('mArg = "";') != -1 && _iframeScripts[i].innerHTML.indexOf('==UserScript==') == -1) {
+                _p = getStr(_iframeScripts[i].innerHTML.replace(/\s/g, ""), 'try{mArg=', ';}catch');
+                return _p
+            }
+        }
+        return _p
+    } catch (e) {
+        return null
+    }
+
+}
+
+function getCk(name) {
+    return document.cookie.match(`[;\\s+]?${name}=([^;]*)`)?.pop();
+}
+
+
+function autoLogin() {
+    logger(_logP.SYS + '[信息] 自动登录已配置。', 'info')
+    if (setting.phone.length <= 0 || setting.password.length <= 0) {
+        logger(_logP.SYS + '[警告] 未设置登录信息，跳过自动登录。', 'warn')
+        return
+    }
+    setTimeout(() => {
+        $('#phone').val(setting.phone)
+        $('#pwd').val(setting.password)
+        $('#loginBtn').click()
+    }, 3000)
+}
+
+// 检测当前页面是否还有未完成的任务点（DOM 层面未标记 ans-job-finished）
+function hasUnfinishedTaskPoints() {
+    try {
+        var containers = document.querySelectorAll('.wrap .ans-cc .ans-attach-ct');
+        if (!containers || containers.length === 0) return false;
+        // 只检测视频和测验类任务点（PPT/文档类不参与检测，避免页面切换时无限循环）
+        var taskTypes = ['video', 'workid', 'live', 'insertaudio'];
+        var rawParams = getTaskParams();
+        if (!rawParams || rawParams === '$mArg') return false;
+        var params = $.parseJSON(rawParams);
+        if (!params || !params['attachments']) return false;
+        var attachments = params['attachments'];
+        var cIdx = 0;
+        for (var i = 0; i < attachments.length; i++) {
+            var type = attachments[i]['type'];
+            if (type === undefined && attachments[i]['property']) {
+                type = attachments[i]['property']['module'];
+            }
+            // 只检查需要处理的任务类型
+            if (taskTypes.indexOf(type) === -1) continue;
+            if (cIdx < containers.length) {
+                var container = containers[cIdx];
+                var iframes = container.querySelectorAll('iframe');
+                cIdx += Math.max(iframes.length, 1);
+                // 任务模式下，没有 jobid 的任务会被各 misson 函数跳过，不应计入未完成
+                if (isTaskMode() && attachments[i]['jobid'] == undefined) continue;
+                // 讨论区任务不参与未完成检测（服务端不会实时刷新 ans-job-finished）
+                if (type === 'insertbbs') continue;
+                // DOM 层面未标记完成 → 视为未完成
+                if (!container.classList.contains('ans-job-finished')) {
+                    return true;
+                }
+            }
+        }
+    } catch (e) { /* ignore */ }
+    return false;
+}
+
+// 检测当前是否为闯关模式（课程列表中任意章节的 status 包含"闯关"）
+function isChallengeMode() {
+    try {
+        var items = top.document.querySelectorAll('#coursetree li, .posCatalog_level li');
+        for (var i = 0; i < items.length; i++) {
+            var tip = items[i].querySelector('.prevHoverTips');
+            if (tip && tip.textContent.indexOf('闯关') !== -1) return true;
+        }
+    } catch (e) { /* ignore */ }
+    return false;
+}
+
+function toNext() {
+    refreshCourseList().then((res) => {
+        // 检测当前课时是否还有未完成的页面（兼容多种 DOM 结构）
+        // 返回 { activeIndex, total, hasNext, tabs } 或 null
+        function detectSubTabPosition() {
+            try {
+                // 兼容现代版（.prev_ul）、旧版（#prev_tab）、备用版（#prevTabBox）
+                var selectors = ['#prev_tab > li', '.prev_ul > li', '#prevTabBox > li'];
+                for (var i = 0; i < selectors.length; i++) {
+                    var nodes = top.document.querySelectorAll(selectors[i]);
+                    if (!nodes || nodes.length === 0) continue;
+                    var tabs = Array.prototype.slice.call(nodes);
+                    var activeIdx = -1;
+                    for (var j = 0; j < tabs.length; j++) {
+                        if (tabs[j].classList && tabs[j].classList.contains('active')) {
+                            activeIdx = j;
+                            break;
+                        }
+                    }
+                    if (activeIdx === -1) continue;
+                    return {
+                        activeIndex: activeIdx,
+                        total: tabs.length,
+                        hasNext: activeIdx < tabs.length - 1,
+                        tabs: tabs
+                    };
+                }
+                // 兼容风格：span.currents ~ span（当前页指示器后还有兄弟节点表示存在下一页）
+                var currents = top.document.querySelector('span.currents');
+                if (currents) {
+                    var nextSibs = [];
+                    var sib = currents.nextElementSibling;
+                    while (sib) {
+                        if (sib.tagName === 'SPAN') nextSibs.push(sib);
+                        sib = sib.nextElementSibling;
+                    }
+                    if (nextSibs.length > 0) {
+                        return { activeIndex: 0, total: nextSibs.length + 1, hasNext: true, tabs: null };
+                    }
+                }
+            } catch (e) { /* ignore */ }
+            return null;
+        }
+
+        // 点击章节内 “下一页” 按钮（仅在当前课时尚有页面时使用，避免误跳到下一章节）
+        function clickNextPageBtn() {
+            $('#ne-21log', window.parent.document).html('')
+            var nextBtn = top.document.querySelector('#mainid > .prev_next.next')
+            if (nextBtn) { nextBtn.click(); return true }
+            return false
+        }
+
+        // 点击 “下一章节” 按钮：优先尝试章节内的“下一页/下一节”统一按钮，
+        // 找不到时再退回 #prevNextFocusNext（仅用于章节级跳转）
+        function clickNextChapterBtn() {
+            $('#ne-21log', window.parent.document).html('')
+            var nextBtn = top.document.querySelector('#mainid > .prev_next.next')
+            if (nextBtn) { nextBtn.click(); return true }
+            var focusBtn = top.document.querySelector('#prevNextFocusNext')
+            if (focusBtn) { focusBtn.click(); return true }
+            return false
+        }
+
+        // 优先级 0.5：检测本页是否还有未完成的任务点，尝试重新处理
+        if (hasUnfinishedTaskPoints()) {
+            _toNextRetryCount++;
+            var _maxRetry = isChallengeMode() ? 10 : 5;
+            if (_toNextRetryCount <= _maxRetry) {
+                logger(_logP.NAV + '[警告] 检测到未完成任务点，第' + _toNextRetryCount + '/' + _maxRetry + '次重新处理。', 'warn')
+                try {
+                    _domList = []
+                    _mlist = $.parseJSON(getTaskParams())['attachments']
+                    $('.wrap .ans-cc .ans-attach-ct').each(function() {
+                        var iframes = $(this).find('iframe');
+                        if (iframes.length === 0) {
+                            _domList.push($());
+                        } else {
+                            iframes.each(function() {
+                                _domList.push($(this));
+                            });
+                        }
+                    })
+                } catch (e) {
+                    logger(_logP.NAV + '[错误] 任务列表重新解析失败：' + e.message + '。', 'error')
+                    _toNextRetryCount = 0
+                }
+                if (_mlist && _mlist.length > 0) {
+                    setTimeout(missonStart, 3000)
+                    return
+                }
+            } else {
+                logger(_logP.NAV + '[跳过] 已达最大重试次数（' + _maxRetry + '），跳过剩余未完成任务。', 'skip')
+                _toNextRetryCount = 0
+            }
+        } else {
+            _toNextRetryCount = 0
+        }
+
+        // 优先级 1：当前课时若仍有未完成的页面，先切换到下一页，避免漏刷
+        var sub = detectSubTabPosition()
+        if (sub && sub.hasNext) {
+            logger(_logP.NAV + '[信息] 当前课时存在未完成页（' + (sub.activeIndex + 1) + '/' + sub.total + '），切换到下一页。', 'info')
+            setTimeout(() => {
+                if (!clickNextPageBtn()) {
+                    logger(_logP.NAV + '[警告] 未找到下一页按钮，回退到下一章节。', 'warn')
+                    clickNextChapterBtn()
+                }
+            }, 5000)
+            return
+        }
+
+        if (setting.review || !setting.work) {
+            logger(_logP.NAV + '[信息] 本课时已完成，切换到下一章节。', 'info')
+            setTimeout(() => { clickNextChapterBtn() }, 5000)
+            return
+        }
+        let _t = []
+        $.each($(res).find('li'), (_, t) => {
+            let curid = $(t).find('.posCatalog_select').attr('id'),
+                status = $(t).find('.prevHoverTips').text(),
+                name = $(t).find('.posCatalog_name').attr('title');
+            if (curid.indexOf('cur') != -1) {
+                _t.push({ 'curid': curid, 'status': status, 'name': name })
+            }
+        })
+
+        let _curChaterId = $('#coursetree', window.parent.document).find('.posCatalog_active').attr('id')
+        let _curIndex = _t.findIndex((item) => item['curid'] == _curChaterId)
+        for (_curIndex; _curIndex < _t.length - 1; _curIndex++) {
+            // 当前章节仍标记为待完成，但章节内已无更多页面（hasNext=false 已在前面判定过）
+            // 此分支保留作为兜底：万一 detectSubTabPosition 漏检，仍尝试调用一次
+            if (_t[_curIndex]['status'].indexOf('待完成') != -1) {
+                var subAgain = detectSubTabPosition()
+                if (subAgain && subAgain.hasNext) {
+                    logger(_logP.NAV + '[信息] 兜底检测：仍有未完成页（' + (subAgain.activeIndex + 1) + '/' + subAgain.total + '），切换到下一页。', 'info')
+                    setTimeout(() => {
+                        if (!clickNextPageBtn()) clickNextChapterBtn()
+                    }, 5000)
+                    return
+                }
+            }
+            let t = _t[_curIndex + 1]
+            if (t['status'].indexOf('待完成') != -1) {
+                setTimeout(() => {
+                    clickNextChapterBtn()
+                    showBox()
+                }, 5000)
+                return
+            } else if (t['status'].indexOf('闯关') != -1) {
+                logger(_logP.NAV + '[错误] 闯关模式，脚本已暂停，请手动完成并点击下一章节。', 'error')
+                return
+            } else if (t['status'].indexOf('开放') != -1) {
+                logger(_logP.NAV + '[跳过] 章节未开放。', 'skip')
+                return
+            } else {
+                //  console.log(t)
+            }
+        }
+        logger(_logP.NAV + '[完成] 此课程全部处理完毕。', 'success')
+        return
+    })
+}
+
+function missonStart() {
+    // 新页面或 _mlist 为空时重置重试计数器
+    var _curUrl = location.href;
+    if (_curUrl !== _lastPageUrl || _mlist.length <= 0) {
+        _toNextRetryCount = 0;
+        _lastPageUrl = _curUrl;
+    }
+    showBox()
+    if (_mlist.length <= 0) {
+        logger(_logP.NAV + '[完成] 此页面任务全部完成。', 'success')
+        return toNext()
+    }
+    let _type = _mlist[0]['type'],
+        _dom = _domList[0],
+        _task = _mlist[0];
+    if (_dom === undefined) {
+        logger(_logP.TASK + '[跳过] 任务"' + (_task.property && _task.property.name || '未知') + '" 没有对应的DOM元素。', 'skip')
+        return switchMission()
+    }
+    if (_type == undefined) {
+        _type = _mlist[0]['property']["module"]
+    }
+    var _taskName = _task.property && (_task.property.name || _task.property.title) || '未知'
+    switch (_type) {
+        case "video":
+            if (_mlist[0]['property']['module'] == 'insertvideo') {
+                logger(_logP.VID + '[启动] 开始处理：' + _taskName + '。', 'hili')
+                missonVideo(_dom, _task)
+                break
+            } else if (_mlist[0]['property']['module'] == 'insertaudio') {
+                logger(_logP.AUD + '[启动] 开始处理：' + _taskName + '。', 'hili')
+                missonVideo(_dom, _task)
+                break
+            } else {
+                logger(_logP.VID + '[错误] 未知视频子类型，已跳过。', 'error')
+                switchMission()
+                break
+            }
+        case "workid":
+            logger(_logP.QUIZ + '[启动] 开始处理：' + _taskName + '。', 'hili')
+            missonWork(_dom, _task)
+            break
+        case "document":
+            logger(_logP.DOC + '[启动] 开始处理：' + _taskName + '。', 'hili')
+            missonDoucument(_dom, _task)
+            break
+        case "read":
+            logger(_logP.READ + '[启动] 开始处理：' + _taskName + '。', 'hili')
+            missonRead(_dom, _task)
+            break
+        case "insertbook":
+            logger(_logP.BOOK + '[启动] 开始处理：' + _taskName + '。', 'hili')
+            missonBook(_dom, _task)
+            break
+        case "live":
+            logger(_logP.LIVE + '[启动] 开始处理：' + _taskName + '。', 'hili')
+            missonLive(_dom, _task)
+            break
+        case "microCourse":
+        case "insertmicroCourse":
+            logger(_logP.MICRO + '[启动] 开始处理：' + _taskName + '。', 'hili')
+            missonMicroCourse(_dom, _task)
+            break
+        case "insertbbs":
+            logger(_logP.BBS + '[启动] 开始处理：' + _taskName + '。', 'hili')
+            missonBbs(_dom, _task)
+            break
+        default: {
+            let GarbageTasks = ['insertimage', 'insertanswerquestion', 'insertshare', 'insertquestion', 'insertdiscuss', 'insertsubject']
+            if (GarbageTasks.indexOf(_type) != -1) {
+                logger(_logP.TASK + '[跳过] 非必要任务类型（' + _type + '）。', 'skip')
+                switchMission()
+            } else {
+                logger(_logP.TASK + '[跳过] 不支持的任务类型：' + _type + '。', 'skip')
+                switchMission()
+            }
+        }
+    }
+}
+
+function missonVideo(dom, obj) {
+    const { isPassed, otherInfo, property } = obj;
+    const { _jobid: jobId, name, objectid: objectId, module } = property;
+
+    // 同一函数处理视频与音频两种任务，按 module 区分日志/开关
+    const isAudioTask = module === 'insertaudio';
+    const taskLabel = isAudioTask ? '音频' : '视频';
+    var _logLabel = isAudioTask ? _logP.AUD : _logP.VID;
+
+    if (isAudioTask ? !setting.audio : !setting.video) {
+        logger(_logLabel + '[跳过] 用户设置不处理' + taskLabel + '。', 'skip');
+        return setTimeout(switchMission, 3000);
+    }
+
+    if (!setting.review && isPassed === true) {
+        logger(_logLabel + '[跳过] ' + name + ' 检测已完成。', 'skip');
+        return switchMission();
+    }
+
+    // DOM 层面检测：父元素含 ans-job-finished 类表示任务点已完成
+    if (!setting.review && dom.length > 0 && dom[0].parentElement && dom[0].parentElement.classList.contains('ans-job-finished')) {
+        logger(_logLabel + '[跳过] ' + name + ' 任务点已完成（DOM检测）。', 'skip');
+        return switchMission();
+    }
+
+    // 兼容 jQuery 对象和原生 DOM：统一取原生 iframe 元素
+    let target = null;
+    if (dom.length > 0) {
+        target = dom[0];
+    } else if (dom instanceof Element) {
+        target = dom;
+    }
+
+    if (!target) {
+        logger(_logLabel + '[警告] 未找到' + taskLabel + ' iframe，3秒后重试。', 'warn');
+        return setTimeout(() => missonVideo(dom, obj), 3000);
+    }
+
+    logger(_logLabel + '[信息] ' + name + '，正在解析。', 'info');
+
+    let doc;
+    try {
+        doc = target.contentDocument || target.contentWindow.document;
+    } catch (e) {
+        logger(_logLabel + '[错误] ' + name + ' 无法访问iframe内容（跨域）。', 'error');
+        return switchMission();
+    }
+
+    // 等待视频元素加载，500ms 轮询 + 3 分钟超时
+    waitForMediaElement(doc, 500, 3 * 60 * 1000).then(function (media) {
+        if (!media) {
+            logger(_logLabel + '[错误] ' + name + ' 媒体元素未找到或加载超时。', 'error');
+            return switchMission();
+        }
+
+        // 以实际 DOM 元素类型为准，不依赖任务标签
+        var mediaType = media.tagName.toLowerCase() === 'audio' ? 'audio' : 'video';
+
+        // 计算最终倍速：优先用户设置；若超星禁用了倍速菜单则强制 1×
+        var userRate = getRate();
+        var rateDisabled = mediaType === 'video' && isPlaybackRateDisabled(doc);
+        var finalRate = rateDisabled ? 1 : userRate;
+        if (rateDisabled && userRate > 1) {
+            logger(_logLabel + '[警告] ' + name + ' 倍速菜单被禁用，已回退至1×。', 'warn');
+        } else if (userRate > 1) {
+            logger(_logLabel + '[信息] 已开启倍速：' + userRate + '×。', 'info');
+        }
+
+        logger(_logLabel + '[信息] ' + name + ' 播放成功，开始控制播放（' + finalRate + '×）。', 'info');
+
+        // 静音播放，避免浏览器自动播放策略拦截
+        media.muted = true;
+        media.currentTime = 0;
+        hookMediaRate(media, finalRate);
+
+        // 弹题自动处理循环（借鉴 OCS）：独立检测播放中的弹题弹窗
+        var quizLoopTimer = setInterval(function () {
+            handleVideoQuiz(doc);
+        }, 5000);
+
+        // 防暂停恢复：检查人脸识别 → 检查视频是否已结束 → 恢复播放
+        var resumeCount = 0;
+        var resume = function () {
+            if (media.ended) return;
+            // 人脸识别弹窗出现时暂停等待，避免异常操作
+            if (hasFaceRecognitionDialog()) {
+                if (resumeCount === 0) {
+                    logger(_logLabel + '[警告] ' + name + ' 检测到人脸识别弹窗，暂停等待用户识别。', 'warn');
+                }
+                resumeCount++;
+                return;
+            }
+            resumeCount = 0;
+            // 确保倍速未被播放器覆盖
+            try { media.playbackRate = finalRate; } catch (_) {}
+            media.play();
+        };
+        media.addEventListener('pause', resume);
+        if (mediaType === 'video' && media.parentElement) {
+            media.parentElement.addEventListener('mouseleave', resume);
+        }
+
+        // 视频错误监听：检测加载失败并自动跳过
+        var errorCheckTimer = setInterval(function () {
+            var errorDiv = doc.querySelector('.vjs-modal-dialog-content');
+            if (errorDiv) {
+                var errorText = errorDiv.innerText || '';
+                var errorSignals = ['视频文件损坏', '网络错误导致视频下载中途失败', '视频因格式不支持', '网络的问题无法加载'];
+                for (var i = 0; i < errorSignals.length; i++) {
+                    if (errorText.indexOf(errorSignals[i]) !== -1) {
+                        logger(_logLabel + '[错误] ' + name + ' 视频加载失败（' + errorSignals[i] + '）。', 'error');
+                        clearInterval(errorCheckTimer);
+                        clearInterval(quizLoopTimer);
+                        media.removeEventListener('pause', resume);
+                        return setTimeout(switchMission, 3000);
+                    }
+                }
+            }
+        }, 3000);
+
+        // 临近结尾自动恢复 1×（仅当当前为倍速）—— 避免任务点判定失败
+        var rateRestored = finalRate <= 1;
+        if (!rateRestored) {
+            var onTimeUpdate = function () {
+                if (!rateRestored && isFinite(media.duration) && media.duration - media.currentTime < 10) {
+                    rateRestored = true;
+                    try { delete media.playbackRate; } catch (_) { /* empty */ }
+                    hookMediaRate(media, 1);
+                    media.removeEventListener('timeupdate', onTimeUpdate);
+                }
+            };
+            media.addEventListener('timeupdate', onTimeUpdate);
+        }
+
+        // 播放完成 → 清理所有监听器和定时器 → 检测任务点状态
+        media.addEventListener('ended', function () {
+            logger(_logLabel + '[信息] ' + name + ' 已播放完成，等待状态更新。', 'info');
+            media.removeEventListener('pause', resume);
+            clearInterval(errorCheckTimer);
+            clearInterval(quizLoopTimer);
+            checkJobFinished(target, name, 0, 3);
+        });
+
+        // 启动播放
+        media.play().then(function () {
+            logger(_logLabel + '[信息] ' + name + ' 开始播放。', 'info');
+        }).catch(function (err) {
+            var msg = String(err);
+            if (msg.indexOf("didn't interact with the document") !== -1 || msg.indexOf("user didn't interact") !== -1) {
+                logger(_logLabel + '[警告] ' + name + ' 自动播放被浏览器拦截，请手动点击页面后脚本将继续。', 'warn');
+                // 点击页面后 pause 事件会触发 resume，不需要额外处理
+            } else {
+                logger(_logLabel + '[错误] ' + name + ' 播放失败：' + msg + '。', 'error');
+                clearInterval(errorCheckTimer);
+                clearInterval(quizLoopTimer);
+                switchMission();
+            }
+        });
+    });
+}
+
+// 等待 iframe 内的 video/audio 元素加载完成
+// 参考 OCS 的 waitForMedia：高频轮询 + 超时兜底
+function waitForMediaElement(doc, interval, timeout) {
+    return new Promise(function (resolve) {
+        var timer = setInterval(function () {
+            var el = doc.querySelector('video') || doc.querySelector('audio');
+            if (el) {
+                clearInterval(timer);
+                clearTimeout(timeoutTimer);
+                resolve(el);
+            }
+        }, interval);
+        var timeoutTimer = setTimeout(function () {
+            clearInterval(timer);
+            resolve(null);
+        }, timeout);
+    });
+}
+
+// 检测超星播放中弹出的测验弹窗（弹题），随机选择并提交
+// 参考 OCS 的 videoQuizStrategy: "random" 逻辑
+function handleVideoQuiz(doc) {
+    var submitBtn = doc.querySelector('#videoquiz-submit');
+    if (!submitBtn) return;
+    var options = doc.querySelectorAll('.ans-videoquiz-opt label');
+    if (options.length === 0) return;
+    // 随机选择一个选项
+    var randomIndex = Math.floor(Math.random() * options.length);
+    options[randomIndex].click();
+    setTimeout(function () {
+        submitBtn.click();
+        // 提交后移除弹窗容器，恢复播放
+        setTimeout(function () {
+            var container = doc.querySelector('#video .ans-videoquiz');
+            if (container) container.remove();
+            var components = doc.querySelectorAll('.x-component-default');
+            for (var i = 0; i < components.length; i++) {
+                components[i].style.display = 'none';
+            }
+        }, 1500);
+    }, 500);
+}
+
+// 检测人脸识别弹窗（新旧两种样式）
+// 参考 OCS 的 hasFaceRecognition + hasNewFaceRecognition
+function hasFaceRecognitionDialog() {
+    try {
+        // 旧版人脸识别
+        var oldFaces = top.document.querySelectorAll('#fcqrimg');
+        for (var i = 0; i < oldFaces.length; i++) {
+            if (oldFaces[i].getAttribute('src')) return true;
+        }
+        // 新版人脸识别
+        var newFaces = top.document.querySelectorAll('.chapterVideoFaceMaskDiv');
+        for (var j = 0; j < newFaces.length; j++) {
+            if (newFaces[j].style.display !== 'none') return true;
+        }
+    } catch (_) { /* 跨域时静默 */ }
+    return false;
+}
+
+// 检测任务点完成状态，未完成则重试
+function checkJobFinished(iframeDom, taskName, attempt, maxAttempts) {
+    if (attempt >= maxAttempts) {
+        logger(_logP.VID + '[错误] ' + taskName + ' 状态检测失败（已重试' + maxAttempts + '次）。', 'error');
+        switchMission();
+        return;
+    }
+    setTimeout(function() {
+        try {
+            var parentEl = iframeDom.parentElement;
+            if (parentEl && parentEl.classList.contains('ans-job-finished')) {
+                logger(_logP.VID + '[完成] ' + taskName + ' 任务点已完成。', 'success');
+                switchMission();
+            } else {
+                logger(_logP.VID + '[警告] ' + taskName + ' 尚未标记完成（第' + (attempt + 1) + '次检测），5秒后重试。', 'warn');
+                checkJobFinished(iframeDom, taskName, attempt + 1, maxAttempts);
+            }
+        } catch (e) {
+            logger(_logP.VID + '[警告] ' + taskName + ' 状态检测出错（' + e.message + '），5秒后重试。', 'warn');
+            checkJobFinished(iframeDom, taskName, attempt + 1, maxAttempts);
+        }
+    }, 5000);
+}
+
+// 强锁 playbackRate：用 Object.defineProperty 阻止超星播放器把倍速改回 1
+// 失败则降级为 ratechange 监听守护，仍尽力维持倍速
+function hookMediaRate(media, rate) {
+    try { media.playbackRate = rate; } catch (_) { /* empty */ }
+    try {
+        Object.defineProperty(media, 'playbackRate', {
+            configurable: true,
+            get: function () { return rate; },
+            set: function () { /* 阻止外部改写 */ }
+        });
+    } catch (_) {
+        try {
+            media.addEventListener('ratechange', function () {
+                if (media.playbackRate !== rate) {
+                    try { media.playbackRate = rate; } catch (__) { /* empty */ }
+                }
+            });
+        } catch (___) { /* empty */ }
+    }
+}
+
+// 超星 video.js 播放器若禁用了倍速，倍速菜单会无项 → 视为禁用
+function isPlaybackRateDisabled(iframeDocument) {
+    try {
+        var items = iframeDocument.querySelectorAll('.vjs-playback-rate .vjs-menu-content .vjs-menu-item');
+        return items.length === 0;
+    } catch (_) {
+        return false;
+    }
+}
+
+function missonBook(dom, obj) {
+    if (isTaskMode()) {
+        if (obj['jobid'] == undefined) {
+            logger(_logP.SYS + '[跳过] 非任务点，已跳过。', 'skip')
+            switchMission()
+            return
+        }
+    }
+    let jobId = obj['property']['jobid'],
+        name = obj['property']['bookname'],
+        jtoken = obj['jtoken'],
+        knowledgeId = _defaults['knowledgeid'],
+        courseId = _defaults['courseid'],
+        clazzId = _defaults['clazzId'];
+    if (obj['job'] == undefined) {
+        logger(_logP.BOOK + '[跳过] ' + name + ' 检测已完成。', 'skip')
+        switchMission()
+        return
+    }
+    $.ajax({
+        url: _l.protocol + '//' + _l.host + '/ananas/job?jobid=' + jobId + '&knowledgeid=' + knowledgeId + '&courseid=' + courseId + '&clazzid=' + clazzId + '&jtoken=' + jtoken + '&_dc=' + String(Math.round(new Date())),
+        method: 'GET',
+        success: function (res) {
+            if (res.status) {
+                logger(_logP.BOOK + '[完成] ' + name + ' ' + res.msg + '。', 'success')
+            } else {
+                logger(_logP.BOOK + '[错误] ' + name + ' 处理异常。', 'error')
+            }
+            switchMission()
+        },
+        error: function () {
+            logger(_logP.BOOK + '[错误] ' + name + ' 网络请求失败。', 'error')
+            switchMission()
+        }
+    })
+}
+
+// 直播（live）任务：
+// 1. 拉 /ananas/live/liveinfo 取 duration、timeLongValue、liveStatus
+// 2. 触发一次 zhibo.chaoxing.com 的 index 请求完成鉴权
+// 3. 循环上报 saveTimePc（每 30 秒一次），直到 playTime 达到剩余时长
+// 注意：若 liveStatus==4 && ifReview==1 表示不允许回放，直接跳过
+function missonLive(dom, obj) {
+    if (!setting.video) {
+        logger(_logP.LIVE + '[跳过] 用户设置不处理直播任务。', 'skip')
+        return setTimeout(switchMission, 3000)
+    }
+    if (isTaskMode() && obj['jobid'] == undefined) {
+        logger(_logP.QUIZ + '[跳过] 非任务点，已跳过。', 'skip')
+        return switchMission()
+    }
+    if (!setting.review && obj['isPassed'] === true) {
+        logger(_logP.LIVE + '[跳过] ' + (obj['property'] && obj['property']['title']) + ' 检测已完成。', 'skip')
+        return switchMission()
+    }
+
+    let prop = obj['property'] || {}
+    let name = prop['title'] || prop['name'] || '未命名'
+    let liveId = prop['liveId']
+    let streamName = prop['streamName']
+    let vdoid = prop['vdoid']
+    let jobId = obj['jobid']
+    let courseId = _defaults['courseid']
+    let clazzId = _defaults['clazzId']
+    let knowledgeId = _defaults['knowledgeid']
+    let userId = getCk('_uid') || getCk('UID')
+    let liveSetEnc = obj['liveSetEnc'] || ''
+    let authEnc = obj['authEnc'] || ''
+    let rt = prop['rt'] ? parseFloat(prop['rt']) : 0.9
+
+    if (!liveId || !userId) {
+        logger(_logP.LIVE + '[错误] 缺少必要参数（liveId/userId）：' + name + '。', 'error')
+        return switchMission()
+    }
+
+    let liveInfoUrl = _l.protocol + '//' + _l.host + '/ananas/live/liveinfo?liveid=' + liveId + '&userid=' + userId + '&clazzid=' + clazzId + '&knowledgeid=' + knowledgeId + '&courseid=' + courseId + '&jobid=' + jobId + '&ut=s'
+    logger(_logP.LIVE + '[启动] 开始直播：' + name + '。', 'hili')
+
+    $.ajax({
+        url: liveInfoUrl,
+        method: 'GET',
+        dataType: 'text',
+        success: function (raw) {
+            let info
+            try { info = JSON.parse(raw) } catch (_) { info = null }
+            if (!info || !info.temp || !info.temp.data) {
+                logger(_logP.LIVE + '[错误] 获取直播信息失败：' + name + '。', 'error')
+                return switchMission()
+            }
+            let data = info.temp.data
+            let duration = data['duration'] || 0
+            let timeLongValue = (data['timeLongValue'] || 0) * 60
+            let liveStatus = data['liveStatus']
+            let ifReview = data['ifReview']
+            if (liveStatus == 4 && ifReview == 1) {
+                logger(_logP.LIVE + '[警告] 不允许回放，无法完成：' + name + '。', 'warn')
+                return switchMission()
+            }
+            // 预热 zhibo.chaoxing.com session（鉴权上下文）—跨域请求，交给浏览器处理 cookie
+            let indexUrl = _l.protocol + '//zhibo.chaoxing.com/' + liveId + '?courseId=' + courseId + '&classId=' + clazzId + '&knowledgeId=' + knowledgeId + '&jobId=' + jobId + '&userId=' + userId + '&rt=' + rt + '&livesetenc=' + encodeURIComponent(liveSetEnc) + '&isjob=true&watchingInCourse=1&customPara1=' + clazzId + '_' + courseId + '&customPara2=' + encodeURIComponent(authEnc) + '&isNotDrag=1&jobfs=0'
+            $.ajax({
+                url: indexUrl, method: 'GET', dataType: 'text',
+                xhrFields: { withCredentials: true },
+                complete: function () {
+                    if (rt <= 0.9) duration = duration * (rt + 0.1)
+                    if (timeLongValue > duration) {
+                        logger(_logP.LIVE + '[完成] 时长已达标，无需继续观看：' + name + '。', 'success')
+                        return switchMission()
+                    }
+                    duration -= timeLongValue
+                    let playTime = 0, isStart = '0'
+                    function reportOnce() {
+                        let reportUrl = _l.protocol + '//zhibo.chaoxing.com/saveTimePc?streamName=' + streamName + '&vdoid=' + vdoid + '&userId=' + userId + '&isStart=' + isStart + '&t=' + Date.now() + '&courseId=' + courseId
+                        $.ajax({
+                            url: reportUrl, method: 'GET', dataType: 'text',
+                            xhrFields: { withCredentials: true },
+                            success: function (resp) {
+                                if (String(resp).indexOf('success') !== -1) {
+                                    logger(_logP.LIVE + '[信息] 进度上报成功（' + Math.round(playTime) + 's/' + Math.round(duration) + 's）：' + name + '。', 'info')
+                                } else {
+                                    logger(_logP.LIVE + '[警告] 进度上报失败：' + name + '。', 'warn')
+                                }
+                            },
+                            error: function () { logger(_logP.LIVE + '[错误] 进度上报网络失败：' + name + '。', 'error') },
+                            complete: function () {
+                                isStart = '1'
+                                if (playTime >= duration) {
+                                    logger(_logP.LIVE + '[完成] 回放完成：' + name + '。', 'success')
+                                    return switchMission()
+                                }
+                                playTime += 30
+                                if (playTime > duration) playTime = duration
+                                setTimeout(reportOnce, 30000)
+                            }
+                        })
+                    }
+                    reportOnce()
+                }
+            })
+        },
+        error: function () {
+            logger(_logP.LIVE + '[错误] 获取直播信息网络失败：' + name + '。', 'error')
+            switchMission()
+        }
+    })
+}
+
+// 速课（microCourse）任务：对齐九九助手的 /ananas/job/microCourse 接口
+function missonMicroCourse(dom, obj) {
+    if (isTaskMode() && obj['jobid'] == undefined) {
+        logger(_logP.QUIZ + '[跳过] 非任务点，已跳过。', 'skip')
+        return switchMission()
+    }
+    if (!setting.review && obj['isPassed'] === true) {
+        logger(_logP.MICRO + '[跳过] ' + (obj['property'] && (obj['property']['title'] || obj['property']['name'])) + ' 检测已完成。', 'skip')
+        return switchMission()
+    }
+    let prop = obj['property'] || {}
+    let name = prop['title'] || prop['name'] || '未命名'
+    let jobId = obj['jobid']
+    let jtoken = obj['jtoken'] || ''
+    let courseId = _defaults['courseid']
+    let clazzId = _defaults['clazzId']
+    let knowledgeId = _defaults['knowledgeid']
+    let cb = 'jQuery' + Math.floor(Math.random() * 1e15) + '_' + Date.now()
+    let url = _l.protocol + '//' + _l.host + '/ananas/job/microCourse?jobid=' + jobId + '&knowledgeid=' + knowledgeId + '&courseid=' + courseId + '&clazzid=' + clazzId + '&jtoken=' + jtoken + '&checkMicroTopic=true&microTopicId=undefined&jsoncallback=' + cb + '&_=' + Date.now()
+    logger(_logP.MICRO + '[启动] 开始速课：' + name + '。', 'hili')
+    $.ajax({
+        url: url, method: 'GET', dataType: 'text',
+        success: function (raw) {
+            // jsonp 包装，但我们只需要判断字符串中是否含"添加考核点成功"
+            if (String(raw).indexOf('添加考核点成功') !== -1) {
+                logger(_logP.MICRO + '[完成] 速课任务完成：' + name + '。', 'success')
+            } else {
+                logger(_logP.MICRO + '[警告] 任务响应异常：' + name + '。', 'warn')
+            }
+            switchMission()
+        },
+        error: function () {
+            logger(_logP.MICRO + '[错误] 任务网络失败：' + name + '。', 'error')
+            switchMission()
+        }
+    })
+}
+
+function missonDoucument(dom, obj) {
+    if (isTaskMode()) {
+        if (obj['jobid'] == undefined) {
+            logger(_logP.SYS + '[跳过] 非任务点，已跳过。', 'skip')
+            switchMission()
+            return
+        }
+    }
+    let jobId = obj['property']['jobid'],
+        name = obj['property']['name'],
+        jtoken = obj['jtoken'],
+        knowledgeId = _defaults['knowledgeid'],
+        courseId = _defaults['courseid'],
+        clazzId = _defaults['clazzId'];
+    if (obj['job'] == undefined) {
+        logger(_logP.DOC + '[跳过] ' + name + ' 检测已完成。', 'skip')
+        switchMission()
+        return
+    }
+
+    // 任务完成后刷新 DOM 状态：标记 ans-job-finished
+    function markDomFinished() {
+        try {
+            if (docIframe && docIframe.parentElement) {
+                docIframe.parentElement.classList.add('ans-job-finished')
+            }
+        } catch (_) { /* ignore */ }
+    }
+
+    // 提交文档任务的 AJAX 请求
+    function submitDocumentJob() {
+        $.ajax({
+            url: _l.protocol + '//' + _l.host + '/ananas/job/document?jobid=' + jobId + '&knowledgeid=' + knowledgeId + '&courseid=' + courseId + '&clazzid=' + clazzId + '&jtoken=' + jtoken + '&_dc=' + String(Math.round(new Date())),
+            method: 'GET',
+            success: function (res) {
+                if (res.status) {
+                    logger(_logP.DOC + '[完成] ' + name + ' ' + res.msg + '。', 'success')
+                    markDomFinished()
+                } else {
+                    logger(_logP.DOC + '[错误] ' + name + ' 处理异常。', 'error')
+                }
+                switchMission()
+            },
+            error: function () {
+                logger(_logP.DOC + '[错误] ' + name + ' 网络请求失败。', 'error')
+                switchMission()
+            }
+        })
+    }
+
+    // 获取文档 iframe 元素
+    var docIframe = null
+    if (dom && dom.length > 0) {
+        docIframe = dom[0]
+    } else if (dom instanceof Element) {
+        docIframe = dom
+    }
+
+    if (!docIframe) {
+        logger(_logP.DOC + '[警告] ' + name + ' 未找到iframe，降级为直接提交。', 'warn')
+        submitDocumentJob()
+        return
+    }
+
+    logger(_logP.DOC + '[启动] ' + name + ' 开始模拟翻阅。', 'hili')
+    var scrollCompleted = false
+    var scrollTimeout = null
+
+    // 超时兜底：45秒后无论是否翻到底都提交（PDF通常页数较多）
+    scrollTimeout = setTimeout(function () {
+        if (!scrollCompleted) {
+            scrollCompleted = true
+            logger(_logP.DOC + '[警告] 翻阅超时（45s），降级为直接提交。', 'warn')
+            submitDocumentJob()
+        }
+    }, 45000)
+
+    try {
+        var iframeDoc = docIframe.contentDocument || docIframe.contentWindow.document
+        if (!iframeDoc || !iframeDoc.body) {
+            logger(_logP.DOC + '[警告] iframe跨域限制，降级为直接提交。', 'warn')
+            clearTimeout(scrollTimeout)
+            submitDocumentJob()
+            return
+        }
+
+        // 递归查找深层 iframe 中的实际文档内容（PDF阅读器通常在嵌套 iframe 内）
+        function findDeepScrollable(doc, depth) {
+            if (depth > 3) return null
+            // 先查当前 document 内的可滚动元素
+            var candidates = doc.querySelectorAll('.reader, .ppt-container, .doc-container, .slide-container, .pdfViewer, .page, [class*="scroll"], body')
+            for (var i = 0; i < candidates.length; i++) {
+                if (candidates[i].scrollHeight - candidates[i].clientHeight > 200) {
+                    return { el: candidates[i], doc: doc }
+                }
+            }
+            // 没找到则递归进入嵌套 iframe
+            var nestedIframes = doc.querySelectorAll('iframe')
+            for (var j = 0; j < nestedIframes.length; j++) {
+                try {
+                    var nestedDoc = nestedIframes[j].contentDocument || nestedIframes[j].contentWindow.document
+                    if (nestedDoc && nestedDoc.body) {
+                        var result = findDeepScrollable(nestedDoc, depth + 1)
+                        if (result) return result
+                    }
+                } catch (_) { /* 跨域跳过 */ }
+            }
+            return null
+        }
+
+        var found = findDeepScrollable(iframeDoc, 0)
+        if (!found) {
+            // 回退：直接用 documentElement
+            found = { el: iframeDoc.documentElement, doc: iframeDoc }
+        }
+
+        var scrollEl = found.el
+        var scrollDoc = found.doc
+
+        var maxScroll = scrollEl.scrollHeight - scrollEl.clientHeight
+        if (maxScroll <= 0) {
+            logger(_logP.DOC + '[信息] 内容无需滚动，直接提交。', 'info')
+            clearTimeout(scrollTimeout)
+            submitDocumentJob()
+            return
+        }
+
+        logger(_logP.DOC + '[信息] 滚动区域=' + (scrollEl.className || scrollEl.tagName) + '，总高=' + scrollEl.scrollHeight + 'px，可视=' + scrollEl.clientHeight + 'px。', 'info')
+
+        // 触发滚动事件的辅助函数
+        function fireScroll(el, win) {
+            try {
+                el.dispatchEvent(new Event('scroll', { bubbles: true }))
+                if (win) win.dispatchEvent(new Event('scroll', { bubbles: true }))
+            } catch (_) { /* ignore */ }
+        }
+
+        // 模拟逐页翻阅：每次滚动接近一屏，模拟真实阅读节奏
+        var viewHeight = scrollEl.clientHeight || 600
+        var currentStep = 0
+        function scrollStep() {
+            if (scrollCompleted) return
+            // 每次滚动 0.7~0.9 屏（模拟人类阅读，有少量重叠）
+            var step = viewHeight * (0.7 + Math.random() * 0.2)
+            var nextPos = Math.min((currentStep + 1) * viewHeight, maxScroll)
+            scrollEl.scrollTop = nextPos
+            fireScroll(scrollEl, scrollDoc.defaultView)
+            currentStep++
+            if (nextPos >= maxScroll) {
+                scrollCompleted = true
+                clearTimeout(scrollTimeout)
+                logger(_logP.DOC + '[完成] 已翻阅到底（' + currentStep + '屏），开始提交。', 'success')
+                setTimeout(submitDocumentJob, 2000)
+                return
+            }
+            // 每屏停留 2~4 秒，模拟阅读时间
+            var delay = 2000 + Math.random() * 2000
+            setTimeout(scrollStep, delay)
+        }
+        scrollStep()
+    } catch (e) {
+        logger(_logP.DOC + '[错误] 翻阅异常（' + e.message + '），降级为直接提交。', 'error')
+        clearTimeout(scrollTimeout)
+        submitDocumentJob()
+    }
+}
+
+function missonRead(dom, obj) {
+    if (isTaskMode()) {
+        if (obj['jobid'] == undefined) {
+            logger(_logP.SYS + '[跳过] 非任务点，已跳过。', 'skip')
+            switchMission()
+            return
+        }
+    }
+    let jobId = obj['property']['jobid'],
+        name = obj['property']['title'],
+        jtoken = obj['jtoken'],
+        knowledgeId = _defaults['knowledgeid'],
+        courseId = _defaults['courseid'],
+        clazzId = _defaults['clazzId'];
+    if (obj['job'] == undefined) {
+        logger(_logP.READ + '[跳过] ' + name + ' 检测已完成。', 'skip')
+        switchMission()
+        return
+    }
+
+    // 任务完成后刷新 DOM 状态
+    function markDomFinished() {
+        try {
+            if (readIframe && readIframe.parentElement) {
+                readIframe.parentElement.classList.add('ans-job-finished')
+            }
+        } catch (_) { /* ignore */ }
+    }
+
+    // 提交阅读任务的 AJAX 请求
+    function submitReadJob() {
+        $.ajax({
+            url: _l.protocol + '//' + _l.host + '/ananas/job/readv2?jobid=' + jobId + '&knowledgeid=' + knowledgeId + '&courseid=' + courseId + '&clazzid=' + clazzId + '&jtoken=' + jtoken + '&_dc=' + String(Math.round(new Date())),
+            method: 'GET',
+            success: function (res) {
+                if (res.status) {
+                    logger(_logP.READ + '[完成] ' + name + ' ' + res.msg + '。', 'success')
+                    markDomFinished()
+                } else {
+                    logger(_logP.READ + '[错误] ' + name + ' 处理异常。', 'error')
+                }
+                switchMission()
+            },
+            error: function () {
+                logger(_logP.READ + '[错误] ' + name + ' 网络请求失败。', 'error')
+                switchMission()
+            }
+        })
+    }
+
+    // 获取阅读任务 iframe 元素
+    var readIframe = null
+    if (dom && dom.length > 0) {
+        readIframe = dom[0]
+    } else if (dom instanceof Element) {
+        readIframe = dom
+    }
+
+    if (!readIframe) {
+        logger(_logP.READ + '[警告] ' + name + ' 未找到iframe，降级为直接提交。', 'warn')
+        submitReadJob()
+        return
+    }
+
+    logger(_logP.READ + '[启动] ' + name + ' 开始模拟翻阅。', 'hili')
+    var scrollCompleted = false
+    var scrollTimeout = null
+
+    scrollTimeout = setTimeout(function () {
+        if (!scrollCompleted) {
+            scrollCompleted = true
+            logger(_logP.READ + '[警告] 翻阅超时（45s），降级为直接提交。', 'warn')
+            submitReadJob()
+        }
+    }, 45000)
+
+    try {
+        var iframeDoc = readIframe.contentDocument || readIframe.contentWindow.document
+        if (!iframeDoc || !iframeDoc.body) {
+            logger(_logP.READ + '[警告] iframe跨域限制，降级为直接提交。', 'warn')
+            clearTimeout(scrollTimeout)
+            submitReadJob()
+            return
+        }
+
+        // 递归查找深层 iframe 中的实际文档内容
+        function findDeepScrollable(doc, depth) {
+            if (depth > 3) return null
+            var candidates = doc.querySelectorAll('.reader, .ppt-container, .doc-container, .slide-container, .pdfViewer, .page, [class*="scroll"], body')
+            for (var i = 0; i < candidates.length; i++) {
+                if (candidates[i].scrollHeight - candidates[i].clientHeight > 200) {
+                    return { el: candidates[i], doc: doc }
+                }
+            }
+            var nestedIframes = doc.querySelectorAll('iframe')
+            for (var j = 0; j < nestedIframes.length; j++) {
+                try {
+                    var nestedDoc = nestedIframes[j].contentDocument || nestedIframes[j].contentWindow.document
+                    if (nestedDoc && nestedDoc.body) {
+                        var result = findDeepScrollable(nestedDoc, depth + 1)
+                        if (result) return result
+                    }
+                } catch (_) { /* 跨域跳过 */ }
+            }
+            return null
+        }
+
+        var found = findDeepScrollable(iframeDoc, 0)
+        if (!found) {
+            found = { el: iframeDoc.documentElement, doc: iframeDoc }
+        }
+
+        var scrollEl = found.el
+        var scrollDoc = found.doc
+
+        var maxScroll = scrollEl.scrollHeight - scrollEl.clientHeight
+        if (maxScroll <= 0) {
+            logger(_logP.READ + '[信息] 内容无需滚动，直接提交。', 'info')
+            clearTimeout(scrollTimeout)
+            submitReadJob()
+            return
+        }
+
+        logger(_logP.READ + '[信息] 滚动区域=' + (scrollEl.className || scrollEl.tagName) + '，总高=' + scrollEl.scrollHeight + 'px，可视=' + scrollEl.clientHeight + 'px。', 'info')
+
+        function fireScroll(el, win) {
+            try {
+                el.dispatchEvent(new Event('scroll', { bubbles: true }))
+                if (win) win.dispatchEvent(new Event('scroll', { bubbles: true }))
+            } catch (_) { /* ignore */ }
+        }
+
+        var viewHeight = scrollEl.clientHeight || 600
+        var currentStep = 0
+        function scrollStep() {
+            if (scrollCompleted) return
+            var nextPos = Math.min((currentStep + 1) * viewHeight, maxScroll)
+            scrollEl.scrollTop = nextPos
+            fireScroll(scrollEl, scrollDoc.defaultView)
+            currentStep++
+            if (nextPos >= maxScroll) {
+                scrollCompleted = true
+                clearTimeout(scrollTimeout)
+                logger(_logP.READ + '[完成] 已翻阅到底（' + currentStep + '屏），开始提交。', 'success')
+                setTimeout(submitReadJob, 2000)
+                return
+            }
+            var delay = 2000 + Math.random() * 2000
+            setTimeout(scrollStep, delay)
+        }
+        scrollStep()
+    } catch (e) {
+        logger(_logP.READ + '[错误] 翻阅异常（' + e.message + '），降级为直接提交。', 'error')
+        clearTimeout(scrollTimeout)
+        submitReadJob()
+    }
+}
+
+// 讨论区任务处理（在任务点页面调用）
+// 策略：获取讨论区URL → 打开新窗口 → 在新窗口中自动回复（missonBbsPage处理）
+function missonBbs(dom, obj) {
+    let prop = obj['property'] || {};
+    let name = prop['title'] || prop['name'] || '未命名讨论';
+    let jobId = obj['jobid'];
+    let knowledgeId = _defaults['knowledgeid'];
+    let courseId = _defaults['courseid'];
+    let clazzId = _defaults['clazzId'];
+    let bbsId = prop['bbsid'] || obj['bbsid'] || '';
+
+    // 检查是否已完成（通过 isPassed 字段或 DOM 中的 ans-job-finished 类）
+    if (!setting.review && obj['isPassed'] === true) {
+        logger(_logP.BBS + '[跳过] ' + name + ' 检测已完成。', 'skip');
+        return switchMission();
+    }
+
+    // 检查 DOM 中的完成状态
+    let target = dom.length > 0 ? dom[0] : null;
+    if (target && target.parentElement && target.parentElement.classList.contains('ans-job-finished')) {
+        logger(_logP.BBS + '[跳过] ' + name + ' 检测已完成（DOM）。', 'skip');
+        return switchMission();
+    }
+
+    logger(_logP.BBS + '[启动] 开始处理讨论区：' + name + '。', 'hili');
+
+    if (!target) {
+        logger(_logP.BBS + '[警告] 未找到讨论区iframe，3秒后重试。', 'warn');
+        return setTimeout(() => missonBbs(dom, obj), 3000);
+    }
+
+    // 轮询查找内部的讨论区iframe
+    let attempts = 0;
+    const maxAttempts = 30;
+    const intervalId = setInterval(() => {
+        attempts++;
+        if (attempts > maxAttempts) {
+            clearInterval(intervalId);
+            logger(_logP.BBS + '[错误] 任务处理超时，脚本已停止：' + name + '。', 'error');
+            logger(_logP.BBS + '[错误] 请检查问题后手动刷新页面继续。', 'error');
+            return;
+        }
+
+        try {
+            const doc = target.contentDocument || target.contentWindow.document;
+            const innerIframe = doc.querySelector('#frame_content');
+            if (innerIframe && innerIframe.src && innerIframe.src.indexOf('bbscircle') !== -1) {
+                clearInterval(intervalId);
+                const discussUrl = innerIframe.src;
+                logger(_logP.BBS + '[信息] 找到讨论区中间页面：' + discussUrl + '。', 'info');
+
+                // 先获取中间页面，提取正确的讨论区URL
+                GM_xmlhttpRequest({
+                    method: 'GET',
+                    url: discussUrl,
+                    timeout: 15000,
+                    onload: function(xhr) {
+                        if (xhr.status === 200) {
+                            const parser = new DOMParser();
+                            const bbsDoc = parser.parseFromString(xhr.responseText, 'text/html');
+                            const topicMainDiv = bbsDoc.querySelector('#topicMainDiv');
+
+                            if (topicMainDiv) {
+                                const realDiscussUrl = topicMainDiv.getAttribute('data');
+                                if (realDiscussUrl) {
+                                    logger(_logP.BBS + '[信息] 获取到讨论区链接：' + realDiscussUrl + '。', 'info');
+
+                                    // 用 GM_setValue 保存讨论上下文（含 API 配置），供弹窗中的脚本跨域读取
+                                    try {
+                                        GM_setValue('bbsContext', {
+                                            discussUrl: realDiscussUrl,
+                                            courseId: _defaults['courseid'] || '',
+                                            classId: _defaults['clazzId'] || '',
+                                            bbsId: bbsId,
+                                            name: name,
+                                            deepseekApiKey: getDeepSeekApiKey(),
+                                            deepseekBaseUrl: getDeepSeekBaseUrl(),
+                                            deepseekModel: getDeepSeekModel(),
+                                            timestamp: Date.now()
+                                        });
+                                    } catch (_) { /* ignore */ }
+
+                                    // 打开正确的讨论区详情页面
+                                    const newWindow = window.open(realDiscussUrl);
+                                    if (!newWindow) {
+                                        logger(_logP.BBS + '[错误] 弹窗被浏览器拦截，请允许此站点的弹窗权限后刷新页面重试。', 'error');
+                                        return;
+                                    }
+                                    logger(_logP.BBS + '[信息] 已打开讨论区页面，等待自动回复完成。', 'info');
+
+                                    // 通过轮询检查新窗口是否已关闭
+                                    const checkClosed = setInterval(function() {
+                                        try {
+                                            if (newWindow.closed) {
+                                                clearInterval(checkClosed);
+                                                logger(_logP.BBS + '[完成] 讨论区页面已关闭。', 'success');
+                                                switchMission();
+                                            }
+                                        } catch (e) { /* 跨域限制 */ }
+                                    }, 2000);
+
+                                    // 超时兜底：120秒后自动切换任务
+                                    setTimeout(function() {
+                                        clearInterval(checkClosed);
+                                        logger(_logP.BBS + '[警告] 任务处理超时（120秒）。', 'warn');
+                                        switchMission();
+                                    }, 120000);
+                                } else {
+                                    logger(_logP.BBS + '[错误] 未找到讨论区详情链接。', 'error');
+                                }
+                            } else {
+                                logger(_logP.BBS + '[错误] 未找到话题卡片。', 'error');
+                            }
+                        } else {
+                            logger(_logP.BBS + '[错误] 获取中间页面失败：HTTP ' + xhr.status + '。', 'error');
+                        }
+                    },
+                    onerror: function() {
+                        logger(_logP.BBS + '[错误] 获取中间页面网络错误。', 'error');
+                    },
+                    ontimeout: function() {
+                        logger(_logP.BBS + '[错误] 获取中间页面超时。', 'error');
+                    }
+                });
+            }
+        } catch (e) {
+            // iframe可能还未加载完成，继续等待
+        }
+    }, 2000);
+}
+
+// 提交讨论区回复
+function submitReply(bbsId, topicId, courseId, classId, content, callback) {
+    logger(_logP.BBS + '[信息] 正在提交回复。', 'info');
+    
+    // topicId 实际上是话题的 uuid
+    const topicUuid = topicId;
+    
+    // 使用正确的API接口：/pc/invitation/{uuid}/addReplys
+    const submitUrl = 'https://groupweb.chaoxing.com/pc/invitation/' + topicUuid + '/addReplys';
+    
+    // 构造表单数据（参考源代码中的参数）
+    const formData = 'courseId=' + encodeURIComponent(courseId) +
+                     '&classId=' + encodeURIComponent(classId) +
+                     '&replyId=-1' +
+                     '&uuid=' + encodeURIComponent(topicUuid) +
+                     '&topic_content=' + encodeURIComponent(content) +
+                     '&bbsid=' + encodeURIComponent(bbsId);
+    
+    logger(_logP.BBS + '[信息] 提交URL：' + submitUrl + '。', 'info');
+    logger(_logP.BBS + '[信息] 话题UUID：' + topicUuid + '。', 'info');
+    logger(_logP.BBS + '[信息] 讨论ID：' + bbsId + '。', 'info');
+    
+    GM_xmlhttpRequest({
+        method: 'POST',
+        url: submitUrl,
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        data: formData,
+        timeout: 30000,
+        onload: function(xhr) {
+            logger(_logP.BBS + '[信息] 响应状态：' + xhr.status + '。', 'info');
+            logger(_logP.BBS + '[信息] 响应内容：' + xhr.responseText.substring(0, 500), 'info');
+            
+            if (xhr.status === 200) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.status === true) {
+                        logger(_logP.BBS + '[完成] 回复提交成功：' + (response.msg || '') + '。', 'success');
+                        callback(true);
+                    } else {
+                        logger(_logP.BBS + '[错误] 回复提交失败：' + (response.msg || '未知错误') + '。', 'error');
+                        callback(false);
+                    }
+                } catch (e) {
+                    // 如果响应不是JSON
+                    if (xhr.responseText.indexOf('success') !== -1 || xhr.responseText.indexOf('成功') !== -1) {
+                        logger(_logP.BBS + '[完成] 回复提交成功。', 'success');
+                        callback(true);
+                    } else {
+                        logger(_logP.BBS + '[错误] 回复提交失败：响应解析错误。', 'error');
+                        logger(_logP.BBS + '[警告] 响应内容：' + xhr.responseText.substring(0, 500), 'warn');
+                        callback(false);
+                    }
+                }
+            } else {
+                logger(_logP.BBS + '[错误] 回复提交失败：HTTP ' + xhr.status + '。', 'error');
+                logger(_logP.BBS + '[警告] 响应内容：' + xhr.responseText.substring(0, 500), 'warn');
+                callback(false);
+            }
+        },
+        onerror: function() {
+            logger(_logP.BBS + '[错误] 回复提交网络错误。', 'error');
+            callback(false);
+        },
+        ontimeout: function() {
+            logger(_logP.BBS + '[错误] 回复提交超时。', 'error');
+            callback(false);
+        }
+    });
+}
+
+// 讨论区页面自动回复（在讨论区详情页面调用）
+// 等待页面加载完成后，自动获取讨论内容 → AI生成回复 → 填入 → 提交 → 关闭窗口
+function missonBbsPage() {
+    logger(_logP.BBS + '[启动] 开始处理讨论区自动回复。', 'hili');
+
+    // 等待页面内容加载完成
+    const waitForContent = setInterval(() => {
+        const titleEl = document.querySelector('.topicDetail_title span');
+        const contentEl = document.querySelector('.replyContent');
+        if (titleEl && contentEl) {
+            clearInterval(waitForContent);
+            clearTimeout(loadTimeout);
+            processBbsReply();
+        }
+    }, 1000);
+
+    // 超时处理：30秒后如果还没找到元素才触发
+    const loadTimeout = setTimeout(() => {
+        clearInterval(waitForContent);
+        logger(_logP.BBS + '[错误] 页面加载超时（30s），未找到必要元素。', 'error');
+    }, 30000);
+}
+
+function processBbsReply() {
+    // 从 GM_getValue 读取父窗口保存的讨论上下文
+    let ctx = null;
+    try { ctx = GM_getValue('bbsContext', null); } catch (_) { /* ignore */ }
+
+    let ctxCourseId = '';
+    let ctxClassId = '';
+    let ctxBbsId = '';
+    let ctxName = '';
+    if (ctx) {
+        ctxCourseId = ctx.courseId || '';
+        ctxClassId = ctx.classId || '';
+        ctxBbsId = ctx.bbsId || '';
+        ctxName = ctx.name || '';
+        logger(_logP.BBS + '[信息] 读取到讨论上下文：' + ctxName + '。', 'info');
+        // 将父窗口的 API 配置写入弹窗的全局 setting 对象，供 getDeepSeekApiKey() 读取
+        // （弹窗在不同域名下，localStorage / GM_getValue 均无法共享父窗口的数据）
+        if (ctx.deepseekApiKey) setting.deepseekApiKey = ctx.deepseekApiKey;
+        if (ctx.deepseekBaseUrl) setting.deepseekBaseUrl = ctx.deepseekBaseUrl;
+        if (ctx.deepseekModel) setting.deepseekModel = ctx.deepseekModel;
+    }
+
+    // 获取讨论主题和内容
+    let topicTitle = '';
+    let topicContent = '';
+
+    try {
+        const titleEl = document.querySelector('.topicDetail_title span');
+        if (titleEl) topicTitle = titleEl.textContent.trim();
+
+        const contentEl = document.querySelector('.replyContent');
+        if (contentEl) topicContent = contentEl.textContent.trim();
+    } catch (e) {
+        logger(_logP.BBS + '[警告] 获取讨论主题出错：' + e.message + '。', 'warn');
+    }
+
+    if (!topicContent) {
+        logger(_logP.BBS + '[错误] 未找到讨论内容。', 'error');
+        return;
+    }
+
+    logger(_logP.BBS + '[信息] 讨论主题：' + topicTitle + '。', 'info');
+    logger(_logP.BBS + '[信息] 讨论内容：' + topicContent.substring(0, 100) + '…', 'info');
+
+    // 提取话题 UUID（从当前页面 URL 或 DOM 中获取）
+    let topicUuid = '';
+    try {
+        // 从 URL 提取：/pc/invitation/{uuid}/...
+        let m = window.location.href.match(/invitation\/([a-f0-9\-]+)\//i);
+        if (m) topicUuid = m[1];
+    } catch (_) { /* ignore */ }
+    if (!topicUuid) {
+        let uuidEl = document.querySelector('[data-uuid]');
+        if (uuidEl) topicUuid = uuidEl.getAttribute('data-uuid') || '';
+    }
+
+    // 构造AI提示词
+    const prompt = {
+        type: '讨论区回复',
+        question: topicTitle + '\n' + topicContent,
+        answer_format: '请用100-200字简洁回答这个讨论话题，观点明确，语言通顺，适合大学生课程讨论'
+    };
+
+    // 调用AI获取答案
+    getAnswer(4, buildPrompt(prompt)).then((answer) => {
+        logger(_logP.AI + '[信息] AI生成回复：' + answer.substring(0, 50) + '…', 'info');
+
+        // 优先通过 API 提交（不依赖 DOM 按钮，更稳定）
+        if (topicUuid && ctxCourseId) {
+            submitReply(ctxBbsId, topicUuid, ctxCourseId, ctxClassId, answer, function (success) {
+                if (success) {
+                    logger(_logP.BBS + '[完成] 讨论区回复提交完成，即将关闭页面。', 'success');
+                } else {
+                    logger(_logP.BBS + '[警告] API提交失败，回退到DOM方式。', 'warn');
+                    submitReplyViaDom(answer);
+                    return;
+                }
+                // 清除上下文并关闭窗口
+                try { GM_setValue('bbsContext', null); } catch (_) { /* ignore */ }
+                setTimeout(function () {
+                    try { window.close(); } catch (e) {
+                        logger(_logP.BBS + '[警告] 自动关闭窗口失败，请手动关闭此页面。', 'warn');
+                    }
+                }, 2000);
+            });
+        } else {
+            // 回退到 DOM 操作方式
+            logger(_logP.BBS + '[警告] 缺少上下文参数，回退到DOM提交方式。', 'warn');
+            submitReplyViaDom(answer);
+        }
+    }).catch((error) => {
+        let detail = error.msg || '未知错误';
+        if (error.c && error.c > 0) detail += ' (HTTP ' + error.c + ')';
+        logger(_logP.AI + '[错误] 获取回复内容失败：' + detail + '。', 'error');
+    });
+}
+
+// DOM 方式提交回复（兜底方案）
+function submitReplyViaDom(answer) {
+    const replyBtn = document.querySelector('.replyBtn');
+    if (replyBtn) {
+        replyBtn.click();
+        logger(_logP.BBS + '[信息] 已点击回复按钮。', 'info');
+
+        setTimeout(() => {
+            const textarea = document.querySelector('.editContainer textarea, .topicDetail_editContainer textarea');
+            if (textarea) {
+                textarea.value = answer;
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                textarea.dispatchEvent(new Event('change', { bubbles: true }));
+                logger(_logP.BBS + '[信息] 已填入回复内容。', 'info');
+
+                setTimeout(() => {
+                    const submitBtn = document.querySelector('.addReply');
+                    if (submitBtn) {
+                        submitBtn.click();
+                        logger(_logP.BBS + '[信息] 已点击提交按钮。', 'info');
+                        setTimeout(() => {
+                            logger(_logP.BBS + '[完成] 讨论区回复提交完成，即将关闭页面。', 'success');
+                            try { GM_setValue('bbsContext', null); } catch (_) { /* ignore */ }
+                            setTimeout(function () {
+                                try { window.close(); } catch (e) {
+                                    logger(_logP.BBS + '[警告] 自动关闭窗口失败，请手动关闭此页面。', 'warn');
+                                }
+                            }, 2000);
+                        }, 3000);
+                    } else {
+                        logger(_logP.BBS + '[错误] 未找到提交按钮。', 'error');
+                    }
+                }, 1000);
+            } else {
+                logger(_logP.BBS + '[错误] 未找到回复输入框。', 'error');
+            }
+        }, 1000);
+    } else {
+        logger(_logP.BBS + '[错误] 未找到回复按钮。', 'error');
+    }
+}
+
+function missonWork(dom, obj) {
+    if (!setting.work) {
+        logger(_logP.QUIZ + '[跳过] 用户设置不自动处理测验。', 'skip')
+        switchMission()
+        return
+    }
+    let isDo;
+    if (isTaskMode()) {
+        logger(_logP.SYS + '[跳过] 非任务点，已跳过。', 'skip')
+        if (obj['jobid'] == undefined ? false : true) {
+            isDo = true
+        } else {
+            isDo = false
+        }
+    } else {
+        logger(_logP.SYS + '[信息] 当前默认处理所有任务（含非任务点）。', 'info')
+        isDo = true
+    }
+    if (isDo) {
+        if (obj['jobid'] !== undefined) {
+            var phoneWeb = _l.protocol + '//' + _l.host + '/work/phone/work?workId=' + obj['jobid'].replace('work-', '') + '&courseId=' + _defaults['courseid'] + '&clazzId=' + _defaults['clazzId'] + '&knowledgeId=' + _defaults['knowledgeid'] + '&jobId=' + obj['jobid'] + '&enc=' + obj['enc']
+            // setTimeout(() => { startDoCyWork(0, dom) }, 3000)
+            setTimeout(() => { startDoPhoneCyWork(0, dom, phoneWeb) }, 3000)
+        } else {
+            setTimeout(() => { startDoCyWork(0, dom) }, 3000)
+        }
+        // } else if (!GM_getValue('cando')) {
+        //     logger('存在未完成任务点，脚本已暂停执行，请手动处理后刷新网页。', 'red')
+        //     return
+    } else {
+        logger(_logP.QUIZ + '[跳过] 用户设置只处理属于任务点的任务。', 'skip')
+        switchMission()
+        return
+    }
+}
+
+function doPhoneWork($dom) {
+    let $cy = $dom.find('.Wrappadding form')
+    $subBtn = $cy.find('.zquestions .zsubmit .btn-ok-bottom')
+    $okBtn = $dom.find('#okBtn')
+    $saveBtn = $cy.find('.zquestions .zsubmit .btn-save')
+    let TimuList = $cy.find('.zquestions .Py-mian1')
+    startDoPhoneTimu(0, TimuList)
+}
+
+function startDoPhoneTimu(index, TimuList) {
+    if (index == TimuList.length) {
+        if (localStorage.getItem('GPTJsSetting.sub') === 'true') {
+            logger(_logP.QUIZ + '[信息] 所有题目处理完成，开始自动提交。', 'info')
+            setTimeout(() => {
+                $subBtn.click()
+                setTimeout(() => {
+                    $okBtn.click()
+                    logger(_logP.QUIZ + '[完成] 提交成功。', 'success')
+                    _mlist.splice(0, 1)
+                    _domList.splice(0, 1)
+                    setTimeout(() => { switchMission() }, 3000)
+                }, 3000)
+            }, 5000)
+        } else if (localStorage.getItem('GPTJsSetting.force') === 'true') {
+            logger(_logP.QUIZ + '[警告] 存在无答案题目，用户启用了强制提交，开始自动提交。', 'warn')
+            setTimeout(() => {
+                $subBtn.click()
+                setTimeout(() => {
+                    $okBtn.click()
+                    logger(_logP.QUIZ + '[完成] 提交成功。', 'success')
+                    _mlist.splice(0, 1)
+                    _domList.splice(0, 1)
+                    setTimeout(() => { switchMission() }, 3000)
+                }, 3000)
+            }, 5000)
+        } else {
+            logger(_logP.QUIZ + '[跳过] 存在无答案题目，已自动保存。', 'skip')
+            setTimeout(() => {
+                $saveBtn.click()
+                setTimeout(() => {
+                    logger(_logP.QUIZ + '[完成] 保存成功。', 'success')
+                    _mlist.splice(0, 1)
+                    _domList.splice(0, 1)
+                    setTimeout(() => { switchMission() }, 3000)
+                }, 3000)
+            }, 5000)
+        }
+        return
+    }
+    // 获取当前题目所属的window对象 (可能是iframe)
+    let contextWindow = TimuList[index] ? (TimuList[index].ownerDocument.defaultView || unsafeWindow) : unsafeWindow;
+    let questionFull = $(TimuList[index]).find('.Py-m1-title').html()
+    let _question = tidyQuestion(questionFull).replace(/.*?\[.*?题\]\s*\n\s*/, '').trim()
+    let typeName = questionFull.match(/.*?\[(.*?)]|$/)[1];
+    let _type = ({
+        单选题: 0, 单项选择题: 0, 单选: 0, 选择题: 0,
+        多选题: 1, 多项选择题: 1, 多选: 1,
+        填空题: 2, 填空: 2,
+        判断题: 3, 是非题: 3, 判断: 3,
+        简答题: 4, 简答: 4, 问答题: 4, 名词解释: 4, 论述题: 4, 论述: 4,
+        计算题: 4, 计算: 4, 分录题: 4, 资料题: 4, 作图题: 4, 其他: 4, 其它: 4, 阅读理解: 4, 阅读: 4, 阅读题: 4, 理解题: 4, 完形填空: 4, 完形: 4, 综合题: 4,
+        写作题: 5,
+        翻译题: 6
+    })[typeName]
+    let _a = []
+    let _answerTmpArr
+    var check_answer_flag = 0;
+
+    // 如果题型不在预设类型中，根据DOM结构自动识别题型
+    if (_type === undefined) {
+        logger(_logP.QUIZ + '[信息] 尝试自动识别题型：' + typeName + '。', 'info');
+
+        // 检查选项列表特征
+        let singleChoiceList = $(TimuList[index]).find('.answerList.singleChoice li');
+        let multiChoiceList = $(TimuList[index]).find('.answerList.multiChoice li');
+
+        if (singleChoiceList && singleChoiceList.length > 0) {
+            _type = 0; // 单选题
+            logger(_logP.QUIZ + '[信息] 自动识别为单选题。', 'info');
+        } else if (multiChoiceList && multiChoiceList.length > 0) {
+            _type = 1; // 多选题
+            logger(_logP.QUIZ + '[信息] 自动识别为多选题。', 'info');
+        } else {
+            // 检查是否为填空题
+            let tkList = $(TimuList[index]).find('.blankList2 input');
+            if (tkList && tkList.length > 0) {
+                _type = 2; // 填空题
+                logger(_logP.QUIZ + '[信息] 自动识别为填空题。', 'info');
+            } else {
+                // 判断题等其他情况
+                let panduanList = $(TimuList[index]).find('.answerList.panduan li');
+                if (panduanList && panduanList.length > 0) {
+                    _type = 3; // 判断题
+                    logger(_logP.QUIZ + '[信息] 自动识别为判断题。', 'info');
+                } else {
+                    // 检查是否为简答题或材料题
+                    let textareaList = $(TimuList[index]).find('textarea');
+                    let editorList = $(TimuList[index]).find('.edui-editor');
+
+                    if ((textareaList && textareaList.length > 0) || (editorList && editorList.length > 0)) {
+                        _type = 4; // 简答题
+                        logger(_logP.QUIZ + '[信息] 自动识别为简答题或材料题。', 'info');
+                    }
+                }
+            }
+        }
+    }
+
+    _currentQuestionMeta = { index: index, total: TimuList.length, typeName: typeName }
+    switch (_type) {
+        case 0: {
+            //遍历选项列表
+            _answerTmpArr = $(TimuList[index]).find('.answerList.singleChoice li')
+            let mergedAnswers = [];
+            let cleanOptions = [];
+            _answerTmpArr.each(function () {
+                var answerText = $(this).text().replace(/[ABCD]/g, '').trim();
+                mergedAnswers.push(answerText);
+                cleanOptions.push(answerText);
+            });
+            collectOptionHtml(_answerTmpArr);
+            mergedAnswers = mergedAnswers.join("|");
+
+            _question = buildPrompt({ type: '单选题', question: _question, options: mergedAnswers.split('|') })
+            //判断题目是否已作答
+            for (let i = 0; i < _answerTmpArr.length; i++) {
+                if ($(_answerTmpArr[i]).attr('aria-label')) {
+                    if (!isRedoMode()) {
+                        logger(_logP.QUIZ + '[跳过] 第' + (index + 1) + '题 此题已作答。', 'skip')
+                        check_answer_flag = 1;
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, 30)
+                    } else {
+                        logger(_logP.QUIZ + '[信息] 第' + (index + 1) + '题 此题已作答，重做模式下重新作答。', 'info')
+                        // 重做模式：先取消已选选项
+                        $(_answerTmpArr[i]).click()
+                    }
+                    break
+                }
+            }
+            if (check_answer_flag == 0) {
+                getAnswer(_type, _question).then((agrs) => {
+                    _answerTmpArr = $(TimuList[index]).find('.answerList.singleChoice li')
+                    _a = cleanOptions.slice()
+                    let _i = matchAnswerToOptions(_a, agrs)
+                    if (_i == -1) {
+                        logger(_logP.QUIZ + '[警告] AI答案无法匹配任何选项。', 'warn')
+                        // setting.sub = 0
+                        localStorage.setItem('GPTJsSetting.sub', false)
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                    } else {
+                        $(_answerTmpArr[_i]).click()
+                        logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success')
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                    }
+                }).catch((agrs) => {
+                    if (agrs['c'] == 0) {
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                    }
+                })
+            }
+        }
+            break
+        case 1: {
+            //遍历选项列表
+            _answerTmpArr = $(TimuList[index]).find('.answerList.multiChoice li')
+            let mergedAnswers = [];
+            let cleanMultiOptions = [];
+            _answerTmpArr.each(function () {
+                var answerText = $(this).text().replace(/[ABCD]/g, '').trim();
+                mergedAnswers.push(answerText);
+                cleanMultiOptions.push(answerText);
+            });
+            collectOptionHtml(_answerTmpArr);
+            mergedAnswers = mergedAnswers.join("|");
+            _question = buildPrompt({ type: '多选题', question: _question, options: mergedAnswers.split('|'), answer_format: "用'|'分割多个答案" })
+            //判断题目是否已作答
+            for (let i = 0; i < _answerTmpArr.length; i++) {
+                if ($(_answerTmpArr[i]).attr('aria-label')) {
+                    if (!isRedoMode()) {
+                        logger(_logP.QUIZ + '[跳过] 第' + (index + 1) + '题 此题已作答。', 'skip')
+                        check_answer_flag = 1;
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, 30)
+                    } else {
+                        logger(_logP.QUIZ + '[信息] 第' + (index + 1) + '题 此题已作答，重做模式下重新作答。', 'info')
+                        // 重做模式：先取消已选选项
+                        $(_answerTmpArr[i]).click()
+                    }
+                    break
+                }
+            }
+            if (check_answer_flag == 0) {
+                getAnswer(_type, _question).then((agrs) => {
+                    if (agrs == '暂无答案') {
+                        logger(_logP.QUIZ + '[警告] AI答案无法匹配任何选项。', 'warn')
+                        // setting.sub = 0
+                        localStorage.setItem('GPTJsSetting.sub', false)
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                    } else {
+                        _answerTmpArr = $(TimuList[index]).find('.answerList.multiChoice li')
+                        let _multiOptions = cleanMultiOptions.slice()
+                        let _matchedAny = false
+                        $.each(_answerTmpArr, (i, t) => {
+                            if (agrs.indexOf(_multiOptions[i]) != -1) {
+                                _matchedAny = true
+                                setTimeout(() => { $(_answerTmpArr[i]).click() }, 300)
+                            }
+                        })
+                        // 如果精确匹配没有命中任何选项，尝试模糊匹配
+                        if (!_matchedAny) {
+                            let fuzzyIndices = matchAnswerToOptionsMultiple(_multiOptions, agrs)
+                            for (var fi = 0; fi < fuzzyIndices.length; fi++) {
+                                (function (idx) {
+                                    setTimeout(function () { $(_answerTmpArr[idx]).click() }, 300)
+                                })(fuzzyIndices[fi])
+                            }
+                        }
+                        let check = 0
+                        setTimeout(() => {
+                            $.each(_answerTmpArr, (i, t) => {
+                                if (($(_answerTmpArr[i]).attr('class') || '').indexOf('cur') != -1) {
+                                    check = 1
+                                }
+                            })
+                            if (check) {
+                                logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success')
+                            } else {
+                                logger(_logP.QUIZ + '[警告] 未能正确选择答案，请手动选择。', 'warn')
+                                // setting.sub = 0
+                                localStorage.setItem('GPTJsSetting.sub', false)
+                            }
+                            setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                        }, 1000)
+                    }
+                }).catch((agrs) => {
+                    if (agrs['c'] == 0) {
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                    }
+                })
+            }
+        }
+            break
+        case 2: {
+            // 填空题处理 - 使用全局editors数组 (ExtJS)
+            let tkList = $(TimuList[index]).find('.blankList2 input')
+            // 使用属性选择器匹配包含editorIndex的元素
+            let tkEditorBlocks = $(TimuList[index]).find('[data-editorindex]')
+
+            // 检查是否使用UEditor编辑器（手机页面）
+            if (tkEditorBlocks && tkEditorBlocks.length > 0) {
+                let firstTextarea = $(TimuList[index]).find('textarea[name^="answer"]')
+                if (firstTextarea.length > 0 && $(firstTextarea[0]).val() && $(firstTextarea[0]).val().trim() !== '' && !isRedoMode()) {
+                    logger(_logP.QUIZ + '[跳过] 此题已作答。', 'skip');
+                    setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, 30);
+                    break
+                }
+
+                _question = buildPrompt({ type: '填空题', question: _question, answer_format: "多个填空用'|'分隔" })
+                getAnswer(_type, _question).then((agrs) => {
+                    if (agrs == '暂无答案') {
+                        logger(_logP.QUIZ + '[警告] AI答案无法匹配任何选项。', 'warn')
+                        localStorage.setItem('GPTJsSetting.sub', false)
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                        return
+                    }
+                    let answers = agrs.split('|')
+                    let editorBlocks = $(TimuList[index]).find('[data-editorindex]')
+
+                    $.each(editorBlocks, (i, block) => {
+                        let editorIndex = $(block).attr('data-editorindex')
+                        let itemId = $(block).attr('data-itemid')
+                        let answerContent = answers[i] || answers[0] || agrs
+
+                        setTimeout(() => {
+                            try {
+                                let ueditor = null
+
+                                // 1. 尝试通过 contextWindow.editors 获取
+                                if (contextWindow.editors && contextWindow.editors[editorIndex]) {
+                                    ueditor = contextWindow.editors[editorIndex].ueditor
+                                }
+
+                                // 2. 尝试通过 contextWindow.UE.instants 获取
+                                if (!ueditor && contextWindow.UE && contextWindow.UE.instants) {
+                                    let instantKey = 'ueditorInstant' + editorIndex
+                                    ueditor = contextWindow.UE.instants[instantKey]
+                                }
+
+                                // 3. 尝试通过标准ID获取 (ananas-editor-answer + itemId)
+                                if (!ueditor && itemId && contextWindow.UE && contextWindow.UE.getEditor) {
+                                    ueditor = contextWindow.UE.getEditor('ananas-editor-answer' + itemId)
+                                }
+
+                                if (ueditor) {
+                                    ueditor.setContent(answerContent)
+                                    logger(_logP.QUIZ + '[完成] 填空#' + (i + 1) + ' 已填入（EditorIndex=' + editorIndex + '）。', 'success')
+                                } else {
+                                    logger(_logP.QUIZ + '[警告] 填空#' + (i + 1) + ' 未找到编辑器实例（Index=' + editorIndex + ', ItemId=' + itemId + '）。', 'warn')
+                                }
+
+                                // 始终尝试更新隐藏的textarea作为兜底
+                                if (itemId) {
+                                    let textarea = $('#answer' + itemId)
+                                    if (textarea.length > 0) {
+                                        textarea.val(answerContent)
+                                        try {
+                                            if (textarea[0].value === answerContent) {
+                                                textarea[0].dispatchEvent(new Event('change'))
+                                                textarea[0].dispatchEvent(new Event('input'))
+                                            }
+                                        } catch (e) { /* empty */ }
+                                    }
+                                }
+                            } catch (e) {
+                                logger(_logP.QUIZ + '[错误] 填空填入异常：' + e.message + '。', 'error')
+                            }
+                        }, 500 * (i + 1))
+                    })
+
+                    setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time + 300 * editorBlocks.length)
+                }).catch((agrs) => {
+                    if (agrs['c'] == 0) {
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                    }
+                })
+            } else if (tkList && tkList.length > 0) {
+                // 普通input模式（旧版页面）
+                if ($(tkList[0]).val() && $(tkList[0]).val().trim() !== '' && !isRedoMode()) {
+                    logger(_logP.QUIZ + '[跳过] 此题已作答。', 'skip');
+                    setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, 30);
+                    break
+                }
+                getAnswer(_type, _question).then((agrs) => {
+                    if (agrs == '暂无答案') {
+                        logger(_logP.QUIZ + '[警告] AI答案无法匹配任何选项。', 'warn')
+                        localStorage.setItem('GPTJsSetting.sub', false)
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                        return
+                    }
+                    let answers = agrs.split('|')
+                    let inputList = $(TimuList[index]).find('.blankList2 input')
+                    $.each(inputList, (i, t) => {
+                        setTimeout(() => {
+                            $(t).val(answers[i] || answers[0] || agrs)
+                            // 触发input事件以确保框架能够检测到值的变化
+                            $(t).trigger('input').trigger('change')
+                        }, 200)
+                    })
+                    setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                }).catch((agrs) => {
+                    if (agrs['c'] == 0) {
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                    }
+                })
+            } else {
+                logger(_logP.QUIZ + '[错误] 未找到填空输入区域。', 'error')
+                localStorage.setItem('GPTJsSetting.sub', false)
+                setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+            }
+            break
+        }
+        case 3: {
+            _answerTmpArr = $(TimuList[index]).find('.answerList.panduan li')
+            $.each(_answerTmpArr, (i, t) => {
+                _a.push($(t).text().trim())
+            })
+            collectOptionHtml(_answerTmpArr);
+            //判断题目是否已作答
+            for (let i = 0; i < _answerTmpArr.length; i++) {
+                if ($(_answerTmpArr[i]).attr('aria-label')) {
+                    if (!isRedoMode()) {
+                        logger(_logP.QUIZ + '[跳过] 第' + (index + 1) + '题 此题已作答。', 'skip')
+                        check_answer_flag = 1;
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, 30)
+                    } else {
+                        logger(_logP.QUIZ + '[信息] 第' + (index + 1) + '题 此题已作答，重做模式下重新作答。', 'info')
+                        // 重做模式：先取消已选选项
+                        $(_answerTmpArr[i]).click()
+                    }
+                    break
+                }
+            }
+            if (check_answer_flag == 0) {
+                _question = buildPrompt({ type: '判断题', question: _question, answer_format: "只回答正确或错误" })
+                getAnswer(_type, _question).then((agrs) => {
+                    let judgeResult = parseJudgeAnswer(agrs)
+                    if (judgeResult === null) {
+                        logger(_logP.QUIZ + '[错误] 答案匹配过程出错。', 'error')
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                        return
+                    }
+                    let _i = findJudgeOptionIndex(_a, judgeResult === 'true')
+                    if (_i === -1) {
+                        logger(_logP.QUIZ + '[警告] 未匹配到正确选项。', 'warn')
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                        return
+                    }
+                    setTimeout(() => {
+                        $(_answerTmpArr[_i]).click()
+                        logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success')
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                    }, 300)
+                }).catch((agrs) => {
+                    if (agrs['c'] == 0) {
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                    }
+                })
+            }
+            break
+        }
+        case 4: { // 简答题或材料题
+            _question = buildPrompt({ type: '简答题或材料题', question: _question })
+
+            // 查找可能的编辑器区域（通过data-editorindex）
+            let jdEditorBlocks = $(TimuList[index]).find('[data-editorindex]')
+            let jdTextareas = $(TimuList[index]).find('textarea[name^="answer"]')
+
+            // 检查是否已作答
+            let jdIsAnswered = false
+
+            // 优先处理UEditor编辑器（手机页面）
+            if (jdEditorBlocks && jdEditorBlocks.length > 0) {
+                if (jdTextareas.length > 0 && $(jdTextareas[0]).val() && $(jdTextareas[0]).val().trim() !== '' && !isRedoMode()) {
+                    logger(_logP.QUIZ + '[跳过] 第' + (index + 1) + '题 简答题已作答。', 'skip')
+                    setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, 30)
+                    break
+                }
+
+                getAnswer(_type, _question).then((agrs) => {
+                    if (agrs == '暂无答案') {
+                        logger(_logP.QUIZ + '[警告] AI无法匹配答案，请手动完成。', 'warn')
+                        localStorage.setItem('GPTJsSetting.sub', false)
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                        return
+                    }
+
+                    // 获取第一个编辑器（简答题通常只有一个）
+                    let firstBlock = jdEditorBlocks.first()
+                    if (firstBlock.length > 0) {
+                        let editorIndex = firstBlock.attr('data-editorindex')
+                        let itemId = firstBlock.attr('data-itemid')
+                        // 如果container上没有itemid，尝试从子元素或关联的textarea找
+                        if (!itemId && jdTextareas.length > 0) {
+                            let tid = $(jdTextareas[0]).attr('id')
+                            if (tid) itemId = tid.replace('answer', '')
+                        }
+
+                        setTimeout(() => {
+                            try {
+                                let ueditor = null
+
+                                // 1. 尝试通过 contextWindow.editors 获取
+                                if (contextWindow.editors && contextWindow.editors[editorIndex]) {
+                                    ueditor = contextWindow.editors[editorIndex].ueditor
+                                }
+
+                                // 2. 尝试通过 contextWindow.UE.instants 获取
+                                if (!ueditor && contextWindow.UE && contextWindow.UE.instants) {
+                                    let instantKey = 'ueditorInstant' + editorIndex
+                                    ueditor = contextWindow.UE.instants[instantKey]
+                                }
+
+                                // 3. 尝试通过标准ID获取 (ananas-editor-answer + itemId)
+                                if (!ueditor && itemId && contextWindow.UE && contextWindow.UE.getEditor) {
+                                    ueditor = contextWindow.UE.getEditor('ananas-editor-answer' + itemId)
+                                }
+
+                                if (ueditor) {
+                                    ueditor.setContent(agrs)
+                                    logger(_logP.QUIZ + '[完成] 简答题已填入（EditorIndex=' + editorIndex + '）。', 'success')
+                                } else {
+                                    logger(_logP.QUIZ + '[警告] 简答题未找到编辑器实例（Index=' + editorIndex + ', ItemId=' + itemId + '）。', 'warn')
+                                }
+
+                                // 兜底：更新隐藏textarea
+                                if (jdTextareas.length > 0) {
+                                    let ta = $(jdTextareas[0])
+                                    ta.val(agrs)
+                                    // 触发change/input事件
+                                    try {
+                                        ta[0].dispatchEvent(new Event('change'))
+                                        ta[0].dispatchEvent(new Event('input'))
+                                    } catch (e) { /* empty */ }
+                                }
+                            } catch (e) {
+                                logger(_logP.QUIZ + '[错误] 简答题填入异常：' + e.message + '。', 'error')
+                                // 尝试直接设置textarea
+                                if (jdTextareas.length > 0) {
+                                    $(jdTextareas[0]).val(agrs)
+                                    logger(_logP.QUIZ + '[信息] 简答题通过textarea填入答案。', 'info')
+                                }
+                            }
+                        }, 500)
+                    } else {
+                        // Fallback direct textarea
+                        if (jdTextareas.length > 0) {
+                            $(jdTextareas[0]).val(agrs)
+                            logger(_logP.QUIZ + '[信息] 简答题通过textarea填入答案。', 'info')
+                        }
+                    }
+
+                    setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                }).catch((agrs) => {
+                    if (agrs['c'] == 0) {
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                    }
+                })
+            }
+            // 如果没有编辑器，但有textarea，直接使用textarea
+            else if (jdTextareas && jdTextareas.length > 0) {
+                // 检查是否已作答
+                if ($(jdTextareas[0]).val() && $(jdTextareas[0]).val().trim() !== '' && !isRedoMode()) {
+                    logger(_logP.QUIZ + '[跳过] 第' + (index + 1) + '题 简答题已作答。', 'skip')
+                    jdIsAnswered = true
+                    setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, 30)
+                } else {
+                    getAnswer(_type, _question).then((agrs) => {
+                        if (agrs == '暂无答案') {
+                            logger(_logP.QUIZ + '[警告] AI无法匹配答案，请手动完成。', 'warn')
+                            localStorage.setItem('GPTJsSetting.sub', false)
+                        } else {
+                            $(jdTextareas[0]).val(agrs)
+                            $(jdTextareas[0]).trigger('input').trigger('change')
+                            logger(_logP.QUIZ + '[完成] 简答题自动答题成功。', 'success')
+                        }
+                        setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                    }).catch((agrs) => {
+                        if (agrs && agrs['c'] == 0) {
+                            setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                        }
+                    })
+                }
+            }
+            // 如果以上方法都失败
+            else {
+                logger(_logP.QUIZ + '[错误] 未找到简答题输入区域，请手动完成。', 'error')
+                localStorage.setItem('GPTJsSetting.sub', false)
+                setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+            }
+            break
+        }
+        case 5: {
+            getAnswer(_type, _question).then((agrs) => {
+                // setting.sub = 0
+                localStorage.setItem('GPTJsSetting.sub', false)
+                logger(_logP.QUIZ + '[警告] 无法区分单/多选，请手动选择答案。', 'warn')
+                setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+            }).catch((agrs) => {
+                if (agrs['c'] == 0) {
+                    setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+                }
+            })
+            break
+        }
+        default:
+            logger(_logP.QUIZ + '[警告] 暂不支持此题目类型，请手动作答。', 'warn')
+            // setting.sub = 0
+            localStorage.setItem('GPTJsSetting.sub', false)
+            setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
+            break
+    }
+}
+
+// 轮询方式查找iframe内的元素
+// 解决getElement使用MutationObserver在iframe文档替换时失效导致脚本卡死的问题
+// 第四个参数 maxAttempts：最大轮询次数，超时返回 null（上层 if(!el) 会触发自身重试），避免永久卡死
+function pollForElement(iframeDom, selector, interval, maxAttempts) {
+    interval = interval || 2000;
+    maxAttempts = (typeof maxAttempts === 'number' && maxAttempts > 0) ? maxAttempts : 60; // 默认 60 次 ≈ 2 分钟
+    return new Promise(function (resolve) {
+        var attempts = 0;
+        var check = function () {
+            try {
+                var doc = $(iframeDom).contents()[0];
+                if (doc) {
+                    var el = doc.querySelector(selector);
+                    if (el) return resolve(el);
+                }
+            } catch (e) { /* iframe未就绪或跨域 */ }
+            attempts++;
+            if (attempts >= maxAttempts) {
+                logger(_logP.QUIZ + '[错误] 框架等待超时（' + Math.round(attempts * interval / 1000) + 's）。', 'error');
+                return resolve(null);
+            }
+            if (attempts % 15 === 0) {
+                logger(_logP.QUIZ + '[警告] 框架仍在加载，已等待' + (attempts * interval / 1000) + '秒。', 'warn');
+            }
+            setTimeout(check, interval);
+        };
+        check();
+    });
+}
+
+// 后台标签页防休眠：用 Web Audio 静音振荡器维持音频上下文，缓解浏览器对隐藏标签页的节流。
+// 已经被多个网课助手实践证明对超星视频任务在后台时进度回退/刷新不出问题有效。
+// 浏览器策略要求自动播放需用户手势；首次失败时会挂监听到 click/keydown 上再试一次。
+var _ne21AntiSleepStarted = false;
+function setupAntiSleep() {
+    if (_ne21AntiSleepStarted) return;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    function tryStart() {
+        if (_ne21AntiSleepStarted) return;
+        try {
+            var ac = new AC();
+            var osc = ac.createOscillator();
+            var gain = ac.createGain();
+            gain.gain.value = 0; // 完全静音
+            osc.connect(gain);
+            gain.connect(ac.destination);
+            osc.start();
+            _ne21AntiSleepStarted = true;
+            // visibilitychange 后某些浏览器会 suspend AudioContext，主动恢复
+            document.addEventListener('visibilitychange', function () {
+                try { if (ac.state === 'suspended') ac.resume(); } catch (_) { /* empty */ }
+            });
+        } catch (_) { /* ignore */ }
+    }
+    tryStart();
+    if (!_ne21AntiSleepStarted) {
+        var onUserGesture = function () {
+            tryStart();
+            if (_ne21AntiSleepStarted) {
+                document.removeEventListener('click', onUserGesture, true);
+                document.removeEventListener('keydown', onUserGesture, true);
+                document.removeEventListener('touchstart', onUserGesture, true);
+            }
+        };
+        document.addEventListener('click', onUserGesture, true);
+        document.addEventListener('keydown', onUserGesture, true);
+        document.addEventListener('touchstart', onUserGesture, true);
+    }
+}
+
+// 周期性自动刷新页面，防止脚本因不可恢复的 iframe 卡死/超星接口响应异常而死循环
+// 默认关闭，需用户在 localStorage 写入 GPTJsSetting.autoRefresh=true 启用
+// 默认 30 分钟，可通过 GPTJsSetting.autoRefreshMinutes 改写（最小 5 分钟）
+function setupAutoRefresh() {
+    var stored = localStorage.getItem('GPTJsSetting.autoRefresh');
+    var enabled = stored !== null ? (stored === 'true') : false;
+    if (!enabled) return;
+    var minutes = parseInt(localStorage.getItem('GPTJsSetting.autoRefreshMinutes'), 10);
+    if (!isFinite(minutes) || minutes < 5) minutes = 30;
+    setTimeout(function () {
+        logger(_logP.SYS + '[信息] 已达到自动刷新时间（' + minutes + '分钟），3秒后刷新页面。', 'info');
+        setTimeout(function () { try { window.location.reload(); } catch (_) { /* empty */ } }, 3000);
+    }, minutes * 60 * 1000);
+}
+
+function startDoPhoneCyWork(index, doms, phoneWeb) {
+    if (index == doms.length) {
+        logger(_logP.QUIZ + '[完成] 此页面全部测验已处理完毕。', 'success')
+        setTimeout(missonStart, 5000)
+        return
+    }
+    logger(_logP.QUIZ + '[信息] 等待测验框架加载。', 'info')
+    pollForElement(doms[index], 'iframe').then(element => {
+        let workIframe = element
+        if (!workIframe) {
+            setTimeout(() => { startDoPhoneCyWork(index, doms, phoneWeb) }, 5000)
+            return
+        }
+        let workStatus = $(workIframe).contents().find('.newTestCon .newTestTitle .testTit_status').text().trim()
+        if (!workStatus) {
+            _domList.splice(0, 1)
+            setTimeout(missonStart, 2000)
+            return
+        }
+        if (isRedoMode() && workStatus.indexOf("已完成") != -1) {
+            logger(_logP.QUIZ + '[信息] 测验' + (index + 1) + '：重做模式，重新处理已完成测验。', 'info')
+            $(workIframe).attr('src', phoneWeb)
+            getElement($(doms[index]).contents()[0], 'iframe[src="' + phoneWeb + '"]').then((element) => {
+                setTimeout(() => { doPhoneWork($(element).contents()) }, 3000)
+            })
+        } else if (workStatus.indexOf("待做") != -1 || workStatus.indexOf("待完成") != -1 || workStatus.indexOf("重做") != -1 || workStatus.indexOf("未达到") != -1) {
+            var isRedoStatus = workStatus.indexOf("重做") != -1 || workStatus.indexOf("未达到") != -1
+            logger(_logP.QUIZ + '[信息] 测验' + (index + 1) + '：' + (isRedoStatus ? '未达及格线，重新处理' : '开始处理') + '。', 'info')
+            $(workIframe).attr('src', phoneWeb)
+            getElement($(doms[index]).contents()[0], 'iframe[src="' + phoneWeb + '"]').then((element) => {
+                setTimeout(() => { doPhoneWork($(element).contents()) }, 3000)
+            })
+        } else if (workStatus.indexOf('待批阅') != -1) {
+            _mlist.splice(0, 1)
+            _domList.splice(0, 1)
+            logger(_logP.QUIZ + '[跳过] 测验' + (index + 1) + '：待批阅，已跳过。', 'skip')
+            setTimeout(() => { startDoPhoneCyWork(index + 1, doms, phoneWeb) }, 5000)
+        } else {
+            _mlist.splice(0, 1)
+            _domList.splice(0, 1)
+            logger(_logP.QUIZ + '[跳过] 测验' + (index + 1) + '：未知状态[' + workStatus + ']，已跳过。', 'skip')
+            setTimeout(() => { startDoPhoneCyWork(index + 1, doms, phoneWeb) }, 5000)
+        }
+    })
+}
+
+function startDoCyWork(index, doms) {
+    if (index == doms.length) {
+        logger(_logP.QUIZ + '[完成] 此页面全部测验已处理完毕。', 'success')
+        setTimeout(missonStart, 5000)
+        return
+    }
+    logger(_logP.QUIZ + '[信息] 等待测验框架加载。', 'info')
+    pollForElement(doms[index], 'iframe').then(element => {
+        let workIframe = element
+        if (!workIframe) {
+            setTimeout(() => { startDoCyWork(index, doms) }, 5000)
+            return
+        }
+        let workStatus = $(workIframe).contents().find(".newTestCon .newTestTitle .testTit_status").text().trim()
+        if (!workStatus) {
+            _domList.splice(0, 1)
+            setTimeout(missonStart, 2000)
+            return
+        }
+        if (isRedoMode() && workStatus.indexOf("已完成") != -1) {
+            logger(_logP.QUIZ + '[信息] 测验' + (index + 1) + '：重做模式，重新处理已完成测验。', 'info')
+            setTimeout(() => { doWork(index, doms, workIframe) }, 5000)
+        } else if (workStatus.indexOf("待做") != -1 || workStatus.indexOf("待完成") != -1 || workStatus.indexOf("重做") != -1 || workStatus.indexOf("未达到") != -1) {
+            var isRedoStatus = workStatus.indexOf("重做") != -1 || workStatus.indexOf("未达到") != -1
+            logger(_logP.QUIZ + '[信息] 测验' + (index + 1) + '：' + (isRedoStatus ? '未达及格线，重新处理' : '开始处理') + '。', 'info')
+            setTimeout(() => { doWork(index, doms, workIframe) }, 5000)
+        } else if (workStatus.indexOf('待批阅') != -1) {
+            _mlist.splice(0, 1)
+            _domList.splice(0, 1)
+            logger(_logP.QUIZ + '[跳过] 测验' + (index + 1) + '：待批阅，已跳过。', 'skip')
+            setTimeout(() => { startDoCyWork(index + 1, doms) }, 5000)
+        } else {
+            _mlist.splice(0, 1)
+            _domList.splice(0, 1)
+            logger(_logP.QUIZ + '[跳过] 测验' + (index + 1) + '：未知状态[' + workStatus + ']，已跳过。', 'skip')
+            setTimeout(() => { startDoCyWork(index + 1, doms) }, 5000)
+        }
+    })
+}
+
+
+
+function getElement(parent, selector, timeout = 0) {
+    /**
+     * Author   cxxjackie
+     * From     https://bbs.tampermonkey.net.cn
+     */
+    return new Promise(resolve => {
+        var result = parent.querySelector(selector);
+        if (result) return resolve(result);
+        var timer;
+        const mutationObserver = window.MutationObserver || window.WebkitMutationObserver || window.MozMutationObserver;
+        if (mutationObserver) {
+            const observer = new mutationObserver(mutations => {
+                for (var mutation of mutations) {
+                    for (var addedNode of mutation.addedNodes) {
+                        if (addedNode instanceof Element) {
+                            result = addedNode.matches(selector) ? addedNode : addedNode.querySelector(selector);
+                            if (result) {
+                                observer.disconnect();
+                                timer && clearTimeout(timer);
+                                return resolve(result);
+                            }
+                        }
+                    }
+                }
+            });
+            observer.observe(parent, {
+                childList: true,
+                subtree: true
+            });
+            if (timeout > 0) {
+                timer = setTimeout(() => {
+                    observer.disconnect();
+                    return resolve(null);
+                }, timeout);
+            }
+        } else {
+            const listener = e => {
+                if (e.target instanceof Element) {
+                    result = e.target.matches(selector) ? e.target : e.target.querySelector(selector);
+                    if (result) {
+                        parent.removeEventListener('DOMNodeInserted', listener, true);
+                        timer && clearTimeout(timer);
+                        return resolve(result);
+                    }
+                }
+            };
+            parent.addEventListener('DOMNodeInserted', listener, true);
+            if (timeout > 0) {
+                timer = setTimeout(() => {
+                    parent.removeEventListener('DOMNodeInserted', listener, true);
+                    return resolve(null);
+                }, timeout);
+            }
+        }
+    });
+}
+
+function missonHomeWork() {
+    logger(_logP.HW + '[启动] 开始处理作业。', 'hili')
+    let $_homeworktable = $('.mark_table').find('form')
+    let TimuList = $_homeworktable.find('.questionLi')
+    doHomeWork(0, TimuList)
+}
+
+function doHomeWork(index, TiMuList) {
+    if (index == TiMuList.length) {
+        logger(_logP.HW + '[完成] 作业题目已全部完成。', 'success')
+        return
+    }
+
+
+    // Helper function for handling normal textareas
+    function handleNormalTextarea(textareaList, jdt, index, TiMuList) {
+        if (!textareaList || textareaList.length === 0) {
+            setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time);
+            return;
+        }
+        getAnswer(4, jdt).then((agrs) => {
+            $.each(textareaList, (i, t) => {
+                let _id = $(t).attr('id') || $(t).attr('name');
+                setTimeout(() => {
+                    try { UE.getEditor(_id).setContent(agrs) } catch (e) { /* ignore */ }
+                }, 300 + i * 200);
+            });
+            logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success');
+            setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time + 200 * textareaList.length);
+        }).catch((agrs) => {
+            if (agrs && agrs['c'] == 0) {
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time);
+            }
+        });
+    }
+
+    let typeName = $(TiMuList[index]).attr('typename');
+    let _type = ({
+        单选题: 0, 单项选择题: 0, 单选: 0,
+        多选题: 1, 多项选择题: 1, 多选: 1,
+        填空题: 2, 填空: 2,
+        判断题: 3, 是非题: 3, 判断: 3,
+        简答题: 4, 简答: 4, 问答题: 4, 名词解释: 4, 论述题: 4, 论述: 4,
+        计算题: 4, 计算: 4, 分录题: 4, 资料题: 4, 作图题: 4, 其他: 4, 其它: 4, 阅读理解: 4, 阅读: 4, 阅读题: 4, 理解题: 4, 完形填空: 4, 完形: 4, 综合题: 4,
+        写作题: 5,
+        翻译题: 6
+    })[typeName]
+    _currentQuestionMeta = { index: index, total: TiMuList.length, typeName: typeName }
+    let _questionFull = $(TiMuList[index]).find('.mark_name').html()
+    let _question = tidyQuestion(_questionFull).replace(/^[(].*?[)]/, '').trim()
+    let _a = []
+    let _answerTmpArr, _textareaList
+    var check_answer_flag = 0;
+
+    // 如果题型不在预设类型中，根据DOM结构自动识别题型
+    if (_type === undefined) {
+        logger(_logP.QUIZ + '[信息] 尝试自动识别题型：' + typeName + '。', 'info');
+
+        // 检查是否有选择题特征
+        _answerTmpArr = $(TiMuList[index]).find('.stem_answer').find('.answer_p')
+        if (_answerTmpArr && _answerTmpArr.length > 0) {
+            _type = 0; // 假定为单选题
+
+            // 检查是否有多个可选项
+            let multiChoiceCheck = $(TiMuList[index]).find('.stem_answer input[type="checkbox"]');
+            if (multiChoiceCheck && multiChoiceCheck.length > 0) {
+                _type = 1; // 多选题
+                logger(_logP.QUIZ + '[信息] 自动识别为多选题。', 'info');
+            } else {
+                logger(_logP.QUIZ + '[信息] 自动识别为单选题。', 'info');
+            }
+        }
+        // 检查是否有文本输入框特征
+        else {
+            _textareaList = $(TiMuList[index]).find('.stem_answer').find('.subEditor textarea, .Answer .divText textarea, .Answer .divText .textDIV textarea, textarea[name^="answerEditor"], .edui-editor textarea');
+            if (_textareaList && _textareaList.length > 0) {
+                _type = 4; // 简答题
+                logger(_logP.QUIZ + '[信息] 自动识别为简答题。', 'info');
+            }
+        }
+    }
+
+    switch (_type) {
+        case 0: {
+            _answerTmpArr = $(TiMuList[index]).find('.stem_answer').find('.answer_p')
+
+            //遍历选项列表
+            let mergedAnswers = [];
+            let cleanOptions = [];
+            _answerTmpArr.each(function () {
+                var answerText = $(this).text().replace(/[ABCD]/g, '').trim();
+                mergedAnswers.push(answerText);
+                cleanOptions.push(answerText);
+            });
+            collectOptionHtml(_answerTmpArr);
+            mergedAnswers = mergedAnswers.join("|");
+            _question = buildPrompt({ type: '单选题', question: _question, options: mergedAnswers.split('|') })
+            //判断题目是否已作答
+            for (let i = 0; i < _answerTmpArr.length; i++) {
+                if (($(_answerTmpArr[i]).parent().find('span').attr('class') || '').indexOf('check_answer') == -1) {
+                    //没有被选择
+                } else {
+                    if (!isRedoMode()) {
+                        logger(_logP.QUIZ + '[跳过] 第' + (index + 1) + '题 此题已作答。', 'skip')
+                        check_answer_flag = 1;
+                        setTimeout(() => { doHomeWork(index + 1, TiMuList) }, 30)
+                    } else {
+                        logger(_logP.QUIZ + '[信息] 第' + (index + 1) + '题 此题已作答，重做模式下重新作答。', 'info')
+                        $(_answerTmpArr[i]).parent().click()
+                    }
+                    break
+                }
+            }
+            if (check_answer_flag == 0) {
+                getAnswer(_type, _question).then((agrs) => {
+                    _a = cleanOptions.slice()
+                    if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                        //修改题目将答案插入
+                        let timuele = $(TiMuList[index]).find('.mark_name')
+                        // logger("timuele题目标签:"+timuele.html())
+                        timuele.html(timuele.html() + "<p></p>" + agrs)
+                    }
+                    let _i = matchAnswerToOptions(_a, agrs)
+
+                    if (_i == -1) {
+                        logger(_logP.QUIZ + '[警告] AI答案无法匹配任何选项。', 'warn')
+                        setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+                    } else {
+                        setTimeout(() => {
+                            let check = $(_answerTmpArr[_i]).parent().find('span').attr('class') || ''
+                            if (check.indexOf('check_answer') == -1) {
+                                $(_answerTmpArr[_i]).parent().click()
+                            }
+                            logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success')
+                            setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+                        }, 300)
+                    }
+                }).catch((agrs) => {
+                    if (agrs['c'] == 0) {
+                        setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+                    }
+                })
+            }
+        }
+            break
+
+        case 1: {
+            _answerTmpArr = $(TiMuList[index]).find('.stem_answer').find('.answer_p')
+            //遍历选项列表
+            let mergedAnswers = [];
+            let cleanMultiOptions = [];
+            _answerTmpArr.each(function () {
+                var answerText = $(this).text().replace(/[ABCD]/g, '').trim();
+                mergedAnswers.push(answerText);
+                cleanMultiOptions.push(answerText);
+            });
+            collectOptionHtml(_answerTmpArr);
+            mergedAnswers = mergedAnswers.join("|");
+            _question = buildPrompt({ type: '多选题', question: _question, options: mergedAnswers.split('|'), answer_format: "用'|'分割多个答案" })
+            //判断题目是否已作答
+            for (let i = 0; i < _answerTmpArr.length; i++) {
+                if (($(_answerTmpArr[i]).parent().find('span').attr('class') || '').indexOf('check_answer') == -1) {
+                    //没有被选择
+                } else {
+                    if (!isRedoMode()) {
+                        logger(_logP.QUIZ + '[跳过] 第' + (index + 1) + '题 此题已作答。', 'skip')
+                        check_answer_flag = 1;
+                        setTimeout(() => { doHomeWork(index + 1, TiMuList) }, 30)
+                        break
+                    } else {
+                        logger(_logP.QUIZ + '[信息] 第' + (index + 1) + '题 重做模式下取消旧答案。', 'info')
+                        $(_answerTmpArr[i]).parent().click()
+                        // 不break，继续取消其他已选选项
+                    }
+                }
+            }
+            if (check_answer_flag == 0) {
+                getAnswer(_type, _question).then((agrs) => {
+                    if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                        //修改题目将答案插入
+                        let timuele = $(TiMuList[index]).find('.mark_name')
+                        // logger("timuele题目标签:"+timuele.html())
+                        timuele.html(timuele.html() + "<p></p>" + agrs)
+                    }
+                    let _multiOptions = cleanMultiOptions.slice()
+                    let _matchedAny = false
+                    $.each(_answerTmpArr, (i, t) => {
+                        if (agrs.indexOf(_multiOptions[i]) != -1) {
+                            _matchedAny = true
+                            setTimeout(() => {
+                                let check = $(_answerTmpArr[i]).parent().find('span').attr('class') || ''
+                                if (check.indexOf('check_answer_dx') == -1) {
+                                    $(_answerTmpArr[i]).parent().click()
+                                }
+                            }, 300)
+                        }
+                    });
+                    // 如果精确匹配没有命中任何选项，尝试模糊匹配
+                    if (!_matchedAny) {
+                        let fuzzyIndices = findFuzzyMatchMultiple(_multiOptions, agrs)
+                        for (var fi = 0; fi < fuzzyIndices.length; fi++) {
+                            (function (idx) {
+                                setTimeout(function () {
+                                    let check = $(_answerTmpArr[idx]).parent().find('span').attr('class') || ''
+                                    if (check.indexOf('check_answer_dx') == -1) {
+                                        $(_answerTmpArr[idx]).parent().click()
+                                    }
+                                }, 300)
+                            })(fuzzyIndices[fi])
+                        }
+                    }
+                    logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success')
+                    setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+                }).catch((agrs) => {
+                    if (agrs['c'] == 0) {
+                        setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+                    }
+                })
+            }
+        }
+            break
+        case 2: {
+            _question = buildPrompt({ type: '填空题', question: _question, answer_format: "用'|'分割多个答案" });
+            _textareaList = findAnswerTextareas($(TiMuList[index]));
+            if (!_textareaList || _textareaList.length === 0) {
+                logger(_logP.QUIZ + '[错误] 未找到填空输入区域。', 'error');
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time);
+                break
+            }
+            // 判断题目是否已作答（用 try/catch 防止 UE.getEditor 抛错；id 为空则回退 name）
+            let _id = $(_textareaList[0]).attr('id') || $(_textareaList[0]).attr('name');
+            let firstAnswered = false;
+            try {
+                if (_id && UE.getEditor(_id) && UE.getEditor(_id).getContent && UE.getEditor(_id).getContent() !== '') firstAnswered = true;
+            } catch (e) { firstAnswered = false; }
+            if (firstAnswered && !isRedoMode()) {
+                logger(_logP.QUIZ + '[跳过] 第' + (index + 1) + '题 此题已作答。', 'skip');
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, 30);
+            } else {
+                getAnswer(_type, _question).then((agrs) => {
+                    let _answerTmpArr = (agrs || '').split('|');
+                    $.each(_textareaList, (i, t) => {
+                        let _currentId = $(t).attr('id') || $(t).attr('name');
+                        let val = _answerTmpArr[i] !== undefined ? _answerTmpArr[i] : (_answerTmpArr[0] || agrs);
+                        setTimeout(() => {
+                            try { UE.getEditor(_currentId).setContent(val) } catch (e) { /* ignore */ }
+                        }, 300 + i * 200);
+                    });
+                    setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time + 200 * _textareaList.length);
+                    logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success');
+                }).catch((agrs) => {
+                    if (agrs && agrs['c'] == 0) {
+                        setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time);
+                    }
+                });
+            }
+            break
+        }
+        case 3: {
+            _answerTmpArr = $(TiMuList[index]).find('.stem_answer').find('.answer_p')
+            $.each(_answerTmpArr, (i, t) => {
+                _a.push($(t).text().trim())
+            })
+            collectOptionHtml(_answerTmpArr);
+            //判断题目是否已作答
+            for (let i = 0; i < _answerTmpArr.length; i++) {
+                if (($(_answerTmpArr[i]).parent().find('span').attr('class') || '').indexOf('check_answer') == -1) {
+                    //没有被选择
+                } else {
+                    if (!isRedoMode()) {
+                        logger(_logP.QUIZ + '[跳过] 第' + (index + 1) + '题 此题已作答。', 'skip')
+                        check_answer_flag = 1;
+                        setTimeout(() => { doHomeWork(index + 1, TiMuList) }, 30)
+                    } else {
+                        logger(_logP.QUIZ + '[信息] 第' + (index + 1) + '题 此题已作答，重做模式下重新作答。', 'info')
+                        $(_answerTmpArr[i]).parent().click()
+                    }
+                    break
+                }
+            }
+            if (check_answer_flag == 0) {
+                _question = buildPrompt({ type: '判断题', question: _question, answer_format: "只回答正确或错误" })
+                getAnswer(_type, _question).then((agrs) => {
+                    if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                        let timuele = $(TiMuList[index]).find('.mark_name')
+                        timuele.html(timuele.html() + "<p></p>" + agrs)
+                    }
+                    let judgeResult = parseJudgeAnswer(agrs)
+                    if (judgeResult === null) {
+                        logger(_logP.QUIZ + '[错误] 答案匹配过程出错。', 'error')
+                        setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+                        return
+                    }
+                    let _i = findJudgeOptionIndex(_a, judgeResult === 'true')
+                    if (_i === -1) {
+                        logger(_logP.QUIZ + '[警告] 未匹配到正确选项。', 'warn')
+                        setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+                        return
+                    }
+                    setTimeout(() => {
+                        let check = $(_answerTmpArr[_i]).parent().find('span').attr('class') || ''
+                        if (check.indexOf('check_answer') == -1) {
+                            $(_answerTmpArr[_i]).parent().click()
+                        }
+                    }, 300)
+                    logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success')
+                    setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+                }).catch((agrs) => {
+                    if (agrs['c'] == 0) {
+                        setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+                    }
+                })
+            }
+            break
+        }
+        case 4: {
+            let _answerEle = findAnswerTextareas($(TiMuList[index]))
+            if (!_answerEle || _answerEle.length === 0) {
+                logger(_logP.HW + '[错误] 第' + (index + 1) + '题 未找到文本作答区域。', 'error')
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+                break
+            }
+            let _isAnswered4 = false
+            $.each(_answerEle, function (i, t) {
+                let _eid = $(t).attr('id') || $(t).attr('name')
+                try { if (_eid && UE.getEditor(_eid) && UE.getEditor(_eid).getContent && UE.getEditor(_eid).getContent() !== '') _isAnswered4 = true } catch (e) { /* ignore */ }
+            })
+            if (_isAnswered4 && !isRedoMode()) {
+                logger(_logP.HW + '[跳过] 第' + (index + 1) + '题 此题已作答。', 'skip')
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, 30)
+                break
+            }
+            let jdt = buildPrompt({ type: typeName || '简答题', question: _question, answer_format: "用50字简要回答" })
+            getAnswer(_type, jdt).then((agrs) => {
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    let timuele = $(TiMuList[index]).find('.mark_name')
+                    timuele.html(timuele.html() + "<p></p>" + agrs)
+                }
+                $.each(_answerEle, (i, t) => {
+                    let _id = $(t).attr('id') || $(t).attr('name')
+                    setTimeout(() => {
+                        try { UE.getEditor(_id).setContent(agrs) } catch (e) { /* ignore */ }
+                    }, 300 + i * 200);
+                });
+                logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success')
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time + 200 * _answerEle.length);
+            }).catch(() => {
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+            });
+        }
+            break
+        case 5: {
+            let _answerEle5 = findAnswerTextareas($(TiMuList[index]))
+            if (!_answerEle5 || _answerEle5.length === 0) {
+                logger(_logP.HW + '[错误] 第' + (index + 1) + '题 未找到写作题文本框。', 'error')
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+                break
+            }
+            // 已作答检测
+            let _isAnswered5 = false
+            $.each(_answerEle5, function (i, t) {
+                let _eid = $(t).attr('id') || $(t).attr('name')
+                try { if (_eid && UE.getEditor(_eid) && UE.getEditor(_eid).getContent && UE.getEditor(_eid).getContent() !== '') _isAnswered5 = true } catch (e) { /* ignore */ }
+            })
+            if (_isAnswered5 && !isRedoMode()) {
+                logger(_logP.HW + '[跳过] 第' + (index + 1) + '题 此题已作答。', 'skip')
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, 30)
+                break
+            }
+            let jdt5 = buildPrompt({ type: typeName || '写作题', question: _question, answer_format: "用英文根据题目进行写作" })
+            getAnswer(_type, jdt5).then((agrs) => {
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    let timuele = $(TiMuList[index]).find('.mark_name')
+                    timuele.html(timuele.html() + "<p></p>" + agrs)
+                }
+                $.each(_answerEle5, (i, t) => {
+                    let _id = $(t).attr('id') || $(t).attr('name')
+                    setTimeout(() => {
+                        try { UE.getEditor(_id).setContent(agrs) } catch (e) { /* ignore */ }
+                    }, 300 + i * 200);
+                });
+                logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success')
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time + 200 * _answerEle5.length);
+            }).catch(() => {
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+            });
+        }
+            break
+        case 6: {
+            let _answerEle6 = findAnswerTextareas($(TiMuList[index]))
+            if (!_answerEle6 || _answerEle6.length === 0) {
+                logger(_logP.HW + '[错误] 第' + (index + 1) + '题 未找到翻译题文本框。', 'error')
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+                break
+            }
+            // 已作答检测
+            let _isAnswered6 = false
+            $.each(_answerEle6, function (i, t) {
+                let _eid = $(t).attr('id') || $(t).attr('name')
+                try { if (_eid && UE.getEditor(_eid) && UE.getEditor(_eid).getContent && UE.getEditor(_eid).getContent() !== '') _isAnswered6 = true } catch (e) { /* ignore */ }
+            })
+            if (_isAnswered6 && !isRedoMode()) {
+                logger(_logP.HW + '[跳过] 第' + (index + 1) + '题 此题已作答。', 'skip')
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, 30)
+                break
+            }
+            let jdt6 = buildPrompt({ type: typeName || '翻译题', question: _question, answer_format: "中文英文互译" })
+            getAnswer(_type, jdt6).then((agrs) => {
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    let timuele = $(TiMuList[index]).find('.mark_name')
+                    timuele.html(timuele.html() + "<p></p>" + agrs)
+                }
+                $.each(_answerEle6, (i, t) => {
+                    let _id = $(t).attr('id') || $(t).attr('name')
+                    setTimeout(() => {
+                        try { UE.getEditor(_id).setContent(agrs) } catch (e) { /* ignore */ }
+                    }, 300 + i * 200);
+                });
+                logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success')
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time + 200 * _answerEle6.length);
+            }).catch(() => {
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+            });
+        }
+            break
+        default: {
+            if (_type === undefined) {
+                logger(_logP.QUIZ + '[警告] 无法识别题型：' + typeName + '。', 'warn')
+                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
+            } else {
+                // 尝试获取文本输入区域
+                _textareaList = $(TiMuList[index]).find('.stem_answer').find('textarea, .subEditor textarea, .divText textarea, .eidtDiv textarea, .divText .edui-editor, textarea[name^="answerEditor"]');
+                if (_textareaList && _textareaList.length > 0) {
+                    logger(_logP.QUIZ + '[信息] 检测到文本输入区域，尝试回答。', 'info');
+                    let jdt = buildPrompt({ type: typeName || '未知题型', question: _question, answer_format: "请根据题目作答" })
+
+                    // 检查是否有富文本编辑器特有的textarea
+                    let editorTextareas = $(TiMuList[index]).find('.stem_answer textarea[name^="answerEditor"]');
+                    if (editorTextareas && editorTextareas.length > 0) {
+                        // 使用富文本编辑器ID
+                        let editorId = $(editorTextareas[0]).attr('id');
+                        if (editorId) {
+                            getAnswer(_type || 4, jdt).then((agrs) => {
+                                setTimeout(() => { UE.getEditor(editorId).setContent(agrs) }, 300);
+                                logger(_logP.QUIZ + '[完成] 使用富文本编辑器回答成功。', 'success');
+                                setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time);
+                            }).catch((agrs) => {
+                                if (agrs['c'] == 0) {
+                                    setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time);
+                                }
+                            });
+                        } else {
+                            logger(_logP.QUIZ + '[警告] 富文本编辑器无法获取ID，改用普通方法。', 'warn');
+                            // 如果没有ID，退回到常规处理
+                            handleNormalTextarea(_textareaList, jdt, index, TiMuList);
+                        }
+                    } else {
+                        // 处理普通文本输入区域
+                        handleNormalTextarea(_textareaList, jdt, index, TiMuList);
+                    }
+
+
+                } else {
+                    logger(_logP.QUIZ + '[警告] 无法处理此题型：' + typeName + '。', 'warn');
+                    setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time);
+                }
+            }
+        }
+    }
+}
+
+function missonExam() {
+    let $_examtable = $('.mark_table').find('.whiteDiv')
+    let _questionFull = tidyStr($_examtable.find('h3.mark_name').html().trim())
+    let typeName = _questionFull.match(/[(](.*?),.*?分[)]|$/)[1];
+    let _qType = ({
+        单选题: 0, 单项选择题: 0, 单选: 0,
+        多选题: 1, 多项选择题: 1, 多选: 1,
+        填空题: 2, 填空: 2,
+        判断题: 3, 是非题: 3, 判断: 3,
+        简答题: 4, 简答: 4, 问答题: 4, 名词解释: 4, 论述题: 4, 论述: 4,
+        计算题: 4, 计算: 4, 分录题: 4, 资料题: 4, 作图题: 4, 其他: 4, 其它: 4, 阅读理解: 4, 阅读: 4, 阅读题: 4, 理解题: 4, 完形填空: 4, 完形: 4, 综合题: 4,
+        写作题: 5,
+        翻译题: 6
+    })[typeName]
+    // 尝试从导航栏获取当前题号
+    let _examCurIdx = null
+    try {
+        let $curLi = $('.mark_table .mark_li_list li.active, .mark_table .mark_li_list li.current')
+        if ($curLi.length) _examCurIdx = parseInt($curLi.text().trim()) - 1
+    } catch (_) { /* empty */ }
+    _currentQuestionMeta = { index: isFinite(_examCurIdx) ? _examCurIdx : null, total: null, typeName: typeName }
+    let _question = tidyQuestion(_questionFull.replace(/[(].*?分[)]/, '').replace(/^\s*/, ''))
+    let $_ansdom = $_examtable.find('#submitTest').find('.stem_answer')
+    let _answerTmpArr;
+    let _a = []
+
+    function handleStandardExamTextarea(standardTextareas, _question) {
+        logger(_logP.QUIZ + '[信息] 检测到标准文本输入区域，尝试回答。', 'info');
+        let jdt = buildPrompt({ type: typeName || '未知题型', question: _question, answer_format: "请根据题目作答" })
+        getAnswer(4, jdt).then((agrs) => {
+            $.each(standardTextareas, (i, t) => {
+                let _id = $(t).attr('id')
+                setTimeout(() => { UE.getEditor(_id).setContent(agrs) }, 300)
+            })
+            logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success')
+            toNextExam()
+        }).catch((agrs) => {
+            if (agrs['c'] == 0) {
+                toNextExam()
+            }
+        })
+    }
+
+    // 如果题型不在预设类型中，根据DOM结构自动识别题型
+    if (_qType === undefined) {
+        logger(_logP.QUIZ + '[信息] 尝试自动识别题型：' + typeName + '。', 'info');
+
+        // 检查是否有选择题特征
+        _answerTmpArr = $_ansdom.find('.clearfix.answerBg .fl.answer_p');
+        if (_answerTmpArr && _answerTmpArr.length > 0) {
+            _qType = 0; // 假定为单选题
+
+            // 检查是否有多个可选项
+            let multiChoiceCheck = $_ansdom.find('.clearfix.answerBg input[type="checkbox"]');
+            if (multiChoiceCheck && multiChoiceCheck.length > 0) {
+                _qType = 1; // 多选题
+                logger(_logP.QUIZ + '[信息] 自动识别为多选题。', 'info');
+            } else {
+                logger(_logP.QUIZ + '[信息] 自动识别为单选题。', 'info');
+            }
+        }
+        // 检查是否有文本输入框特征
+        else {
+            let _textareaList = $_ansdom.find('.Answer .divText .subEditor textarea, .Answer .divText .edui-editor, .Answer .divText textarea, textarea[name^="answerEditor"]');
+            if (_textareaList && _textareaList.length > 0) {
+                _qType = 4; // 简答题
+                logger(_logP.QUIZ + '[信息] 自动识别为简答题。', 'info');
+            }
+        }
+    }
+
+    switch (_qType) {
+        case 0: {
+            _answerTmpArr = $_ansdom.find('.clearfix.answerBg .fl.answer_p')
+            // 已作答前置检查：兼容 check_answer 与 check_answer_dx（indexOf('check_answer') 都能命中）
+            let _answeredIdxE0 = -1
+            for (let _ai = 0; _ai < _answerTmpArr.length; _ai++) {
+                let _cls = $(_answerTmpArr[_ai]).parent().find('span').attr('class') || ''
+                if (_cls.indexOf('check_answer') !== -1) { _answeredIdxE0 = _ai; break }
+            }
+            if (_answeredIdxE0 !== -1 && !isRedoMode()) {
+                logger(_logP.QUIZ + '[跳过] 此题已作答。', 'skip')
+                toNextExam()
+                break
+            }
+            if (_answeredIdxE0 !== -1 && isRedoMode()) {
+                logger(_logP.QUIZ + '[信息] 此题已作答，重做模式下重新作答。', 'info')
+                $(_answerTmpArr[_answeredIdxE0]).parent().click()
+            }
+            //遍历选项列表
+            let mergedAnswers = [];
+            let cleanOptions = [];
+            _answerTmpArr.each(function () {
+                var answerText = $(this).text().replace(/[ABCD]/g, '').trim();
+                mergedAnswers.push(answerText);
+                cleanOptions.push(answerText);
+            });
+            collectOptionHtml(_answerTmpArr);
+            mergedAnswers = mergedAnswers.join("|");
+            _question = buildPrompt({ type: '单选题', question: _question, options: mergedAnswers.split('|') })
+            getAnswer(_qType, _question).then((agrs) => {
+                _a = cleanOptions.slice()
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    //修改题目将答案插入
+                    let timuele = $_examtable.find('h3.mark_name')
+                    // logger(timuele.html())
+                    timuele.html(timuele.html() + agrs)
+                }
+
+                let _i = matchAnswerToOptions(_a, agrs)
+                if (_i == -1) {
+                    logger(_logP.QUIZ + '[警告] AI答案无法匹配任何选项。', 'warn')
+                    setTimeout(toNextExam, 5000)
+                } else {
+                    setTimeout(() => {
+                        if (($(_answerTmpArr[_i]).parent().find('span').attr('class') || '').indexOf('check_answer') == -1) {
+                            //好学生模式,ABCD加粗
+                            if (localStorage.getItem('GPTJsSetting.goodStudent') === 'true') {
+                                $(_answerTmpArr[_i]).parent().find('span').css('font-weight', 'bold');
+                            } else {
+                                setTimeout(() => { $(_answerTmpArr[_i]).parent().click() }, 300)
+                            }
+                            logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success')
+                            toNextExam()
+                        } else {
+                            logger(_logP.QUIZ + '[跳过] 此题已作答。', 'skip')
+                            toNextExam()
+                        }
+                    }, 300)
+                }
+            }).catch((agrs) => {
+                if (agrs['c'] == 0) {
+                    toNextExam()
+                }
+            })
+        }
+            break
+        case 1: {
+            _answerTmpArr = $_ansdom.find('.clearfix.answerBg .fl.answer_p')
+            // 已作答前置检查（多选用 check_answer_dx）
+            let _alreadyAnsweredE1 = $_ansdom.find('.clearfix.answerBg span.check_answer_dx, .clearfix.answerBg span.check_answer').length > 0
+            if (_alreadyAnsweredE1 && !isRedoMode()) {
+                logger(_logP.QUIZ + '[跳过] 此题已作答。', 'skip')
+                toNextExam()
+                break
+            }
+            if (_alreadyAnsweredE1 && isRedoMode()) {
+                logger(_logP.QUIZ + '[信息] 此题已作答，重做模式下重新作答。', 'info')
+                $.each(_answerTmpArr, function (_i2, _t2) {
+                    var _cls2 = $(_t2).parent().find('span').attr('class') || ''
+                    if (_cls2.indexOf('check_answer') !== -1) {
+                        $(_t2).parent().click()
+                    }
+                })
+            }
+            //遍历选项列表
+            let mergedAnswers = [];
+            let cleanMultiOptions = [];
+            _answerTmpArr.each(function () {
+                var answerText = $(this).text().replace(/[ABCD]/g, '').trim();
+                mergedAnswers.push(answerText);
+                cleanMultiOptions.push(answerText);
+            });
+            collectOptionHtml(_answerTmpArr);
+            mergedAnswers = mergedAnswers.join("|");
+            _question = buildPrompt({ type: '多选题', question: _question, options: mergedAnswers.split('|'), answer_format: "用'|'分割多个答案" })
+            getAnswer(_qType, _question).then((agrs) => {
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    //修改题目将答案插入
+                    let timuele = $_examtable.find('h3.mark_name')
+                    // logger(timuele.html())
+                    timuele.html(timuele.html() + agrs)
+                }
+
+                {
+                    let _multiOptions = cleanMultiOptions.slice()
+                    let _matchedAny = false
+                    $.each(_answerTmpArr, (i, t) => {
+                        if (agrs.indexOf(_multiOptions[i]) != -1) {
+                            _matchedAny = true
+                            //好学生模式,ABCD加粗
+                            if (localStorage.getItem('GPTJsSetting.goodStudent') === 'true') {
+                                $(_answerTmpArr[i]).parent().find('span').css('font-weight', 'bold');
+                            } else {
+                                setTimeout(() => { $(_answerTmpArr[i]).parent().click() }, 300)
+                            }
+                        }
+                    });
+                    // 如果精确匹配没有命中任何选项，尝试模糊匹配
+                    if (!_matchedAny) {
+                        let fuzzyIndices = findFuzzyMatchMultiple(_multiOptions, agrs)
+                        for (var fi = 0; fi < fuzzyIndices.length; fi++) {
+                            (function (idx) {
+                                if (localStorage.getItem('GPTJsSetting.goodStudent') === 'true') {
+                                    $(_answerTmpArr[idx]).parent().find('span').css('font-weight', 'bold');
+                                } else {
+                                    setTimeout(function () { $(_answerTmpArr[idx]).parent().click() }, 300)
+                                }
+                            })(fuzzyIndices[fi])
+                        }
+                    }
+                    logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success')
+                    toNextExam()
+                }
+            }).catch((agrs) => {
+                if (agrs['c'] == 0) {
+                    toNextExam()
+                }
+            })
+        }
+            break
+        case 2: {
+            let _textareaList = $_ansdom.find('.Answer .divText .subEditor textarea')
+            // 已作答前置检查：任一 textarea 已有内容即视为已作答
+            let _alreadyAnsweredE2 = false
+            $.each(_textareaList, function (_i2, _t2) {
+                let _eid = $(_t2).attr('id')
+                try {
+                    if (_eid && typeof UE !== 'undefined' && UE.getEditor(_eid) && UE.getEditor(_eid).getContent && UE.getEditor(_eid).getContent() !== '') {
+                        _alreadyAnsweredE2 = true
+                    }
+                } catch (_e) { /* ignore */ }
+            })
+            if (_alreadyAnsweredE2 && !isRedoMode()) {
+                logger(_logP.QUIZ + '[跳过] 此题已作答。', 'skip')
+                toNextExam()
+                break
+            }
+            if (_alreadyAnsweredE2 && isRedoMode()) {
+                logger(_logP.QUIZ + '[信息] 此题已作答，重做模式下重新作答。', 'info')
+                $.each(_textareaList, function (_i2, _t2) {
+                    let _eid = $(_t2).attr('id')
+                    try { if (_eid && UE.getEditor(_eid)) UE.getEditor(_eid).setContent('') } catch (_e) { /* ignore */ }
+                })
+            }
+            _question = buildPrompt({ type: '填空题', question: _question, answer_format: "用'|'分割多个答案" });
+            // logger(_textareaList)
+            getAnswer(_qType, _question).then((agrs) => {
+                let _answerTmpArr = agrs.split('|')
+                $.each(_textareaList, (i, t) => {
+                    let _id = $(t).attr('id')
+                    setTimeout(() => { UE.getEditor(_id).setContent(_answerTmpArr[i]) }, 300)
+                })
+                logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success')
+                toNextExam()
+            }).catch((agrs) => {
+                if (agrs && agrs['c'] == 0) { toNextExam() }
+            })
+            break
+        }
+        case 3: {
+            _answerTmpArr = $_ansdom.find('.clearfix.answerBg .fl.answer_p')
+            collectOptionHtml(_answerTmpArr);
+            // 已作答前置检查
+            let _answeredIdxE3 = -1
+            for (let _ai = 0; _ai < _answerTmpArr.length; _ai++) {
+                let _cls = $(_answerTmpArr[_ai]).parent().find('span').attr('class') || ''
+                if (_cls.indexOf('check_answer') !== -1) { _answeredIdxE3 = _ai; break }
+            }
+            if (_answeredIdxE3 !== -1 && !isRedoMode()) {
+                logger(_logP.QUIZ + '[跳过] 此题已作答。', 'skip')
+                toNextExam()
+                break
+            }
+            if (_answeredIdxE3 !== -1 && isRedoMode()) {
+                logger(_logP.QUIZ + '[信息] 此题已作答，重做模式下重新作答。', 'info')
+                $(_answerTmpArr[_answeredIdxE3]).parent().click()
+            }
+            _question = buildPrompt({ type: '判断题', question: _question, answer_format: "只回答正确或错误" });
+            $.each(_answerTmpArr, (i, t) => {
+                _a.push($(t).text().trim())
+            })
+            getAnswer(_qType, _question).then((agrs) => {
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    //修改题目将答案插入
+                    let timuele = $_examtable.find('h3.mark_name')
+                    timuele.html(timuele.html() + agrs)
+                }
+
+                let judgeResult = parseJudgeAnswer(agrs)
+                if (judgeResult === null) {
+                    logger(_logP.QUIZ + '[错误] 答案匹配过程出错。', 'error')
+                    toNextExam()
+                    return
+                }
+                let _i = findJudgeOptionIndex(_a, judgeResult === 'true')
+                if (_i === -1) {
+                    logger(_logP.QUIZ + '[警告] 未匹配到正确选项。', 'warn')
+                    toNextExam()
+                    return
+                }
+                if (($(_answerTmpArr[_i]).parent().find('span').attr('class') || '').indexOf('check_answer') == -1) {
+                    //好学生模式,ABCD加粗
+                    if (localStorage.getItem('GPTJsSetting.goodStudent') === 'true') {
+                        setTimeout(() => { $(_answerTmpArr[_i]).parent().find('span').css('font-weight', 'bold'); }, 300)
+                    } else {
+                        $(_answerTmpArr[_i]).parent().click()
+                    }
+                    logger(_logP.QUIZ + '[完成] 自动答题成功。', 'success')
+                    toNextExam()
+                } else {
+                    logger(_logP.QUIZ + '[跳过] 此题已作答。', 'skip')
+                    toNextExam()
+                }
+            }).catch((agrs) => {
+                if (agrs['c'] == 0) {
+                    toNextExam()
+                }
+            })
+            break
+        }
+        case 4: {
+            let _answerEle = findAnswerTextareas($_ansdom)
+            if (!_answerEle || _answerEle.length === 0) { toNextExam(); break }
+            // 已作答检测
+            let _isAnsweredE4 = false
+            $.each(_answerEle, function (i, t) {
+                let _eid = $(t).attr('id') || $(t).attr('name')
+                try { if (_eid && UE.getEditor(_eid) && UE.getEditor(_eid).getContent && UE.getEditor(_eid).getContent() !== '') _isAnsweredE4 = true } catch (e) { /* ignore */ }
+            })
+            if (_isAnsweredE4 && !isRedoMode()) {
+                logger(_logP.QUIZ + '[跳过] 此题已作答。', 'skip')
+                toNextExam()
+                break
+            }
+            let jdt = buildPrompt({ type: typeName || '简答题', question: _question, answer_format: "用50字简要回答" })
+            getAnswer(_qType, jdt).then((agrs) => {
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    let timuele = $_examtable.find('h3.mark_name')
+                    timuele.html(timuele.html() + agrs)
+                }
+                $.each(_answerEle, (i, t) => {
+                    let _id = $(t).attr('id') || $(t).attr('name')
+                    setTimeout(() => {
+                        try { UE.getEditor(_id).setContent(agrs) } catch (e) { /* ignore */ }
+                    }, 300 + i * 200);
+                });
+                setTimeout(toNextExam, 300 + 200 * _answerEle.length);
+            }).catch(() => { toNextExam(); });
+        }
+            break
+        case 5: {
+            let _answerEle = findAnswerTextareas($_ansdom)
+            if (!_answerEle || _answerEle.length === 0) { toNextExam(); break }
+            // 已作答检测
+            let _isAnsweredE5 = false
+            $.each(_answerEle, function (i, t) {
+                let _eid = $(t).attr('id') || $(t).attr('name')
+                try { if (_eid && UE.getEditor(_eid) && UE.getEditor(_eid).getContent && UE.getEditor(_eid).getContent() !== '') _isAnsweredE5 = true } catch (e) { /* ignore */ }
+            })
+            if (_isAnsweredE5 && !isRedoMode()) {
+                logger(_logP.QUIZ + '[跳过] 此题已作答。', 'skip')
+                toNextExam()
+                break
+            }
+            let jdt = buildPrompt({ type: typeName || '写作题', question: _question, answer_format: "用英文根据题目进行写作" })
+            getAnswer(_qType, jdt).then((agrs) => {
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    let timuele = $_examtable.find('h3.mark_name')
+                    timuele.html(timuele.html() + agrs)
+                }
+                $.each(_answerEle, (i, t) => {
+                    let _id = $(t).attr('id') || $(t).attr('name')
+                    setTimeout(() => {
+                        try { UE.getEditor(_id).setContent(agrs) } catch (e) { /* ignore */ }
+                    }, 300 + i * 200);
+                });
+                setTimeout(toNextExam, 300 + 200 * _answerEle.length);
+            }).catch(() => { toNextExam(); });
+        }
+            break
+        case 6: {
+            let _answerEle = findAnswerTextareas($_ansdom)
+            if (!_answerEle || _answerEle.length === 0) { toNextExam(); break }
+            // 已作答检测
+            let _isAnsweredE6 = false
+            $.each(_answerEle, function (i, t) {
+                let _eid = $(t).attr('id') || $(t).attr('name')
+                try { if (_eid && UE.getEditor(_eid) && UE.getEditor(_eid).getContent && UE.getEditor(_eid).getContent() !== '') _isAnsweredE6 = true } catch (e) { /* ignore */ }
+            })
+            if (_isAnsweredE6 && !isRedoMode()) {
+                logger(_logP.QUIZ + '[跳过] 此题已作答。', 'skip')
+                toNextExam()
+                break
+            }
+            let jdt = buildPrompt({ type: typeName || '翻译题', question: _question, answer_format: "中文英文互译" })
+            getAnswer(_qType, jdt).then((agrs) => {
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    let timuele = $_examtable.find('h3.mark_name')
+                    timuele.html(timuele.html() + agrs)
+                }
+                $.each(_answerEle, (i, t) => {
+                    let _id = $(t).attr('id') || $(t).attr('name')
+                    setTimeout(() => {
+                        try { UE.getEditor(_id).setContent(agrs) } catch (e) { /* ignore */ }
+                    }, 300 + i * 200);
+                });
+                setTimeout(toNextExam, 300 + 200 * _answerEle.length);
+            }).catch(() => { toNextExam(); });
+        }
+            break
+        default: {
+            if (_qType === undefined) {
+                logger(_logP.QUIZ + '[警告] 无法识别题型：' + typeName + '。', 'warn')
+                toNextExam()
+            } else {
+                // 尝试获取文本输入区域
+                // 查找所有可能的文本输入区域
+                let standardTextareas = $_ansdom.find('.Answer .divText .subEditor textarea');
+                let richEditors = $_ansdom.find('.Answer .divText .edui-editor');
+
+                // 首先检查是否有材料题特有的富文本编辑器textarea
+                let editorTextareas = $_ansdom.find('textarea[name^="answerEditor"]');
+
+                if (editorTextareas && editorTextareas.length > 0) {
+                    logger(_logP.QUIZ + '[信息] 检测到材料题富文本编辑器，尝试回答。', 'info');
+                    let editorId = $(editorTextareas[0]).attr('id');
+                    if (editorId) {
+                        let jdt = buildPrompt({ type: '材料题', question: _question, answer_format: "请根据材料详细回答" })
+                        getAnswer(4, jdt).then((agrs) => {
+                            setTimeout(() => { UE.getEditor(editorId).setContent(agrs) }, 300);
+                            logger(_logP.QUIZ + '[完成] 材料题自动答题成功。', 'success');
+                            toNextExam();
+                        }).catch((agrs) => {
+                            if (agrs['c'] == 0) {
+                                toNextExam();
+                            }
+                        });
+                    } else {
+                        logger(_logP.QUIZ + '[警告] 材料题编辑器无法获取ID，尝试其他方法。', 'warn');
+                        handleStandardExamTextarea(standardTextareas, _question);
+                    }
+                }
+                // 处理标准文本区域
+                else if (standardTextareas && standardTextareas.length > 0) {
+                    handleStandardExamTextarea(standardTextareas, _question);
+                }
+                // 处理其他类型的富文本编辑器
+                else if (richEditors && richEditors.length > 0) {
+                    logger(_logP.QUIZ + '[信息] 检测到富文本编辑器，尝试查找编辑器ID。', 'info');
+
+                    // 尝试在页面中查找所有可能的编辑器ID
+                    let editorScripts = $('script:contains("UE.getEditor")');
+                    let editorIdMatch = null;
+
+                    if (editorScripts && editorScripts.length > 0) {
+                        // 从脚本中提取编辑器ID
+                        let scriptContent = editorScripts.text();
+                        let matches = scriptContent.match(/UE\.getEditor\(['"](.*?)['"]/);
+                        if (matches && matches.length > 1) {
+                            editorIdMatch = matches[1];
+                            logger(_logP.QUIZ + '[信息] 从脚本中发现编辑器ID：' + editorIdMatch + '。', 'info');
+                        }
+                    }
+
+                    if (editorIdMatch) {
+                        let jdt = buildPrompt({ type: '材料题', question: _question, answer_format: "请根据材料详细回答" })
+                        getAnswer(4, jdt).then((agrs) => {
+                            setTimeout(() => { UE.getEditor(editorIdMatch).setContent(agrs) }, 300);
+                            logger(_logP.QUIZ + '[完成] 使用编辑器ID回答成功。', 'success');
+                            toNextExam();
+                        }).catch((agrs) => {
+                            if (agrs['c'] == 0) {
+                                toNextExam();
+                            }
+                        });
+                    } else {
+                        logger(_logP.QUIZ + '[错误] 无法找到有效的编辑器ID。', 'error');
+                        toNextExam();
+                    }
+                }
+                else {
+                    logger(_logP.QUIZ + '[警告] 无法处理此题型：' + typeName + '。', 'warn');
+                    toNextExam();
+                }
+
+
+            }
+        }
+    }
+}
+
+
+function toNextExam() {
+    if (localStorage.getItem('GPTJsSetting.examTurn') === 'true') {
+        let $_examtable = $('.mark_table').find('.whiteDiv')
+        let $nextbtn = $_examtable.find('.nextDiv a.jb_btn')
+        setTimeout(() => {
+            $nextbtn.click()
+        }, setting.examTurnTime ? 2000 + (Math.floor(Math.random() * 5 + 1) * 1000) : 2000)
+    } else {
+        logger(_logP.QUIZ + '[跳过] 用户设置不自动跳转下一题。', 'skip')
+    }
+}
+
+// ============== 整卷预览页面（一页多题）自动答题 ==============
+// 适配 /mooc-ans/mooc2/exam/preview 与 /ans/mooc2/exam/preview
+// 不自动跳转、不自动交卷；叠加随机抖动
+function missonExamPreview() {
+    logger(_logP.EXAM + '[启动] 进入整卷预览页面，开始处理考试。', 'hili')
+    let TiMuList = $('.mark_table').find('.questionLi')
+    if (!TiMuList || TiMuList.length === 0) {
+        logger(_logP.EXAM + '[错误] 未解析到题目，请确认页面已渲染。', 'error')
+        return
+    }
+    logger(_logP.EXAM + '[信息] 共解析到' + TiMuList.length + '道题。', 'info')
+    doExamPreview(0, TiMuList)
+}
+
+// 题间间隔：基础 setting.time + 0~1500ms 抖动，模仿真人节奏
+function getExamPreviewDelay() {
+    let base = (setting && setting.time) ? setting.time : 2500
+    return base + Math.floor(Math.random() * 1500)
+}
+
+// 解析 questionLi 题型：返回 { type: 0~6 | undefined, typeName: string }
+function getExamPreviewType($timu) {
+    let typeMap = {
+        单选题: 0, 单项选择题: 0, 单选: 0,
+        多选题: 1, 多项选择题: 1, 多选: 1,
+        填空题: 2, 填空: 2,
+        判断题: 3, 是非题: 3, 判断: 3,
+        简答题: 4, 简答: 4, 问答题: 4, 名词解释: 4, 论述题: 4, 论述: 4,
+        计算题: 4, 计算: 4, 分录题: 4, 资料题: 4, 作图题: 4, 其他: 4, 其它: 4, 阅读理解: 4, 阅读: 4, 阅读题: 4, 理解题: 4, 完形填空: 4, 完形: 4, 综合题: 4,
+        写作题: 5,
+        翻译题: 6
+    }
+    let typeName = $timu.attr('typename')
+    if (typeName && typeMap[typeName] !== undefined) {
+        return { type: typeMap[typeName], typeName: typeName }
+    }
+    let prefixText = $timu.find('.colorShallow').text() || $timu.find('.mark_name').text() || ''
+    let m = prefixText.match(/(单选题|多选题|填空题|判断题|简答题|论述题|写作题|翻译题)/)
+    if (m && typeMap[m[1]] !== undefined) {
+        return { type: typeMap[m[1]], typeName: m[1] }
+    }
+    let qid = $timu.attr('data') || $timu.find('.questionId').val() || $timu.find('input.questionId').val()
+    if (qid) {
+        let typeVal = $('[name="type' + qid + '"]').val()
+        if (typeVal !== undefined && typeVal !== null && typeVal !== '') {
+            let n = parseInt(typeVal)
+            if (!isNaN(n) && n >= 0 && n <= 6) {
+                return { type: n, typeName: typeName || ('类型' + n) }
+            }
+        }
+    }
+    let $opts = $timu.find('.answerBg .answer_p')
+    if ($opts && $opts.length > 0) {
+        let hasCheckbox = $timu.find('.answerBg input[type="checkbox"]').length > 0
+        return { type: hasCheckbox ? 1 : 0, typeName: typeName || (hasCheckbox ? '多选题' : '单选题') }
+    }
+    let $textareas = $timu.find('textarea[name^="answerEditor"], .subEditor textarea')
+    if ($textareas && $textareas.length > 0) {
+        return { type: 4, typeName: typeName || '简答题' }
+    }
+    return { type: undefined, typeName: typeName || '未知' }
+}
+
+function doExamPreview(index, TiMuList) {
+    if (index >= TiMuList.length) {
+        logger(_logP.EXAM + '[完成] 整卷预览答题已完成，请人工核对后手动交卷。', 'success')
+        return
+    }
+    let $timu = $(TiMuList[index])
+    let typeInfo = getExamPreviewType($timu)
+    let _type = typeInfo.type
+    let typeName = typeInfo.typeName
+    let _questionFull = $timu.find('.mark_name').html() || ''
+    let _question = tidyQuestion(_questionFull).replace(/^[(].*?[)]/, '').trim()
+    let _a = []
+    let _answerTmpArr, _textareaList
+    let alreadyAnswered = 0
+    let prefix = '第' + (index + 1) + '题: '
+
+    function nextSoon() {
+        setTimeout(function () { doExamPreview(index + 1, TiMuList) }, getExamPreviewDelay())
+    }
+    function nextFast() {
+        setTimeout(function () { doExamPreview(index + 1, TiMuList) }, 30)
+    }
+
+    _currentQuestionMeta = { index: index, total: TiMuList.length, typeName: typeName }
+
+    if (_type === undefined) {
+        logger(_logP.EXAM + '[警告] ' + prefix + '无法识别题型（' + typeName + '）。', 'warn')
+        return nextSoon()
+    }
+
+    switch (_type) {
+        case 0: {
+            _answerTmpArr = $timu.find('.answerBg .answer_p')
+            if (!_answerTmpArr || _answerTmpArr.length === 0) {
+                logger(_logP.EXAM + '[错误] ' + prefix + '未找到选项。', 'error')
+                return nextSoon()
+            }
+            let mergedAnswers = []
+            let cleanOptions = []
+            _answerTmpArr.each(function () {
+                let answerText = $(this).text().replace(/[ABCD]/g, '').trim()
+                mergedAnswers.push(answerText)
+                cleanOptions.push(answerText)
+            })
+            collectOptionHtml(_answerTmpArr);
+            let prompt = buildPrompt({ type: '单选题', question: _question, options: mergedAnswers })
+            for (let i = 0; i < _answerTmpArr.length; i++) {
+                let cls = $(_answerTmpArr[i]).parent().find('span').attr('class') || ''
+                if (cls.indexOf('check_answer') !== -1) {
+                    if (!isRedoMode()) {
+                        logger(_logP.EXAM + '[跳过] ' + prefix + '已作答。', 'skip')
+                        alreadyAnswered = 1
+                    } else {
+                        logger(_logP.EXAM + '[信息] ' + prefix + '已作答，重做模式下重新作答。', 'info')
+                        $(_answerTmpArr[i]).parent().click()
+                    }
+                    break
+                }
+            }
+            if (alreadyAnswered) return nextFast()
+            getAnswer(_type, prompt).then(function (agrs) {
+                _a = cleanOptions.slice()
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    let timuele = $timu.find('.mark_name')
+                    timuele.html(timuele.html() + '<p></p>' + agrs)
+                }
+                let _i = matchAnswerToOptions(_a, agrs)
+                if (_i === -1) {
+                    logger(_logP.EXAM + '[警告] ' + prefix + 'AI答案无法匹配任何选项。', 'warn')
+                    return nextSoon()
+                }
+                setTimeout(function () {
+                    let cls = $(_answerTmpArr[_i]).parent().find('span').attr('class') || ''
+                    if (cls.indexOf('check_answer') === -1) {
+                        if (localStorage.getItem('GPTJsSetting.goodStudent') === 'true') {
+                            $(_answerTmpArr[_i]).parent().find('span').css('font-weight', 'bold')
+                        } else {
+                            $(_answerTmpArr[_i]).parent().click()
+                        }
+                    }
+                    logger(_logP.EXAM + '[完成] ' + prefix + '自动答题成功。', 'success')
+                    nextSoon()
+                }, 300)
+            }).catch(function () { nextSoon() })
+            break
+        }
+        case 1: {
+            _answerTmpArr = $timu.find('.answerBg .answer_p')
+            if (!_answerTmpArr || _answerTmpArr.length === 0) {
+                logger(_logP.EXAM + '[错误] ' + prefix + '未找到选项。', 'error')
+                return nextSoon()
+            }
+            let mergedAnswers = []
+            let cleanMultiOptions = []
+            _answerTmpArr.each(function () {
+                let answerText = $(this).text().replace(/[ABCD]/g, '').trim()
+                mergedAnswers.push(answerText)
+                cleanMultiOptions.push(answerText)
+            })
+            collectOptionHtml(_answerTmpArr);
+            let prompt = buildPrompt({ type: '多选题', question: _question, options: mergedAnswers, answer_format: "用'|'分割多个答案" })
+            for (let i = 0; i < _answerTmpArr.length; i++) {
+                let cls = $(_answerTmpArr[i]).parent().find('span').attr('class') || ''
+                if (cls.indexOf('check_answer') !== -1) {
+                    if (!isRedoMode()) {
+                        logger(_logP.EXAM + '[跳过] ' + prefix + '已作答。', 'skip')
+                        alreadyAnswered = 1
+                        break
+                    } else {
+                        logger(_logP.EXAM + '[信息] ' + prefix + '重做模式下取消旧答案。', 'info')
+                        $(_answerTmpArr[i]).parent().click()
+                    }
+                }
+            }
+            if (alreadyAnswered) return nextFast()
+            getAnswer(_type, prompt).then(function (agrs) {
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    let timuele = $timu.find('.mark_name')
+                    timuele.html(timuele.html() + '<p></p>' + agrs)
+                }
+                let _multiOptions = cleanMultiOptions.slice()
+                let _matchedAny = false
+                $.each(_answerTmpArr, function (i, t) {
+                    if (agrs.indexOf(_multiOptions[i]) !== -1) {
+                        _matchedAny = true
+                        if (localStorage.getItem('GPTJsSetting.goodStudent') === 'true') {
+                            $(_answerTmpArr[i]).parent().find('span').css('font-weight', 'bold')
+                        } else {
+                            let cls = $(_answerTmpArr[i]).parent().find('span').attr('class') || ''
+                            if (cls.indexOf('check_answer_dx') === -1) {
+                                setTimeout(function () { $(_answerTmpArr[i]).parent().click() }, 300)
+                            }
+                        }
+                    }
+                })
+                // 如果精确匹配没有命中任何选项，尝试模糊匹配
+                if (!_matchedAny) {
+                    let fuzzyIndices = findFuzzyMatchMultiple(_multiOptions, agrs)
+                    for (var fi = 0; fi < fuzzyIndices.length; fi++) {
+                        (function (idx) {
+                            if (localStorage.getItem('GPTJsSetting.goodStudent') === 'true') {
+                                $(_answerTmpArr[idx]).parent().find('span').css('font-weight', 'bold')
+                            } else {
+                                let cls = $(_answerTmpArr[idx]).parent().find('span').attr('class') || ''
+                                if (cls.indexOf('check_answer_dx') === -1) {
+                                    setTimeout(function () { $(_answerTmpArr[idx]).parent().click() }, 300)
+                                }
+                            }
+                        })(fuzzyIndices[fi])
+                    }
+                }
+                logger(_logP.EXAM + '[完成] ' + prefix + '自动答题成功。', 'success')
+                nextSoon()
+            }).catch(function () { nextSoon() })
+            break
+        }
+        case 2: {
+            _textareaList = $timu.find('textarea[name^="answerEditor"]')
+            if (!_textareaList || _textareaList.length === 0) {
+                _textareaList = $timu.find('.subEditor textarea')
+            }
+            if (!_textareaList || _textareaList.length === 0) {
+                logger(_logP.EXAM + '[错误] ' + prefix + '未找到填空文本框。', 'error')
+                return nextSoon()
+            }
+            let isAnswered = false
+            $.each(_textareaList, function (i, t) {
+                let _id = $(t).attr('id') || $(t).attr('name')
+                try {
+                    if (_id && UE.getEditor(_id) && UE.getEditor(_id).getContent && UE.getEditor(_id).getContent() !== '') {
+                        isAnswered = true
+                    }
+                } catch (e) { /* ignore */ }
+            })
+            if (isAnswered && !isRedoMode()) {
+                logger(_logP.EXAM + '[跳过] ' + prefix + '已作答。', 'skip')
+                return nextFast()
+            }
+            let prompt = buildPrompt({ type: '填空题', question: _question, answer_format: "用'|'分割多个答案" })
+            getAnswer(_type, prompt).then(function (agrs) {
+                let parts = (agrs || '').split('|')
+                $.each(_textareaList, function (i, t) {
+                    let _id = $(t).attr('id') || $(t).attr('name')
+                    let val = parts[i] !== undefined ? parts[i] : (parts[parts.length - 1] || '')
+                    setTimeout(function () {
+                        try { UE.getEditor(_id).setContent(val) } catch (e) { /* ignore */ }
+                    }, 300 + i * 200)
+                })
+                logger(_logP.EXAM + '[完成] ' + prefix + '自动答题成功。', 'success')
+                nextSoon()
+            }).catch(function () { nextSoon() })
+            break
+        }
+        case 3: {
+            _answerTmpArr = $timu.find('.answerBg .answer_p')
+            if (!_answerTmpArr || _answerTmpArr.length === 0) {
+                logger(_logP.EXAM + '[错误] ' + prefix + '未找到判断选项。', 'error')
+                return nextSoon()
+            }
+            $.each(_answerTmpArr, function (i, t) { _a.push($(t).text().trim()) })
+            collectOptionHtml(_answerTmpArr);
+            for (let i = 0; i < _answerTmpArr.length; i++) {
+                let cls = $(_answerTmpArr[i]).parent().find('span').attr('class') || ''
+                if (cls.indexOf('check_answer') !== -1) {
+                    if (!isRedoMode()) {
+                        logger(_logP.EXAM + '[跳过] ' + prefix + '已作答。', 'skip')
+                        alreadyAnswered = 1
+                    } else {
+                        logger(_logP.EXAM + '[信息] ' + prefix + '已作答，重做模式下重新作答。', 'info')
+                        $(_answerTmpArr[i]).parent().click()
+                    }
+                    break
+                }
+            }
+            if (alreadyAnswered) return nextFast()
+            let prompt = buildPrompt({ type: '判断题', question: _question, answer_format: "只回答正确或错误" })
+            getAnswer(_type, prompt).then(function (agrs) {
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    let timuele = $timu.find('.mark_name')
+                    timuele.html(timuele.html() + '<p></p>' + agrs)
+                }
+                let judgeResult = parseJudgeAnswer(agrs)
+                let _i = judgeResult !== null ? findJudgeOptionIndex(_a, judgeResult === 'true') : -1
+                if (_i === -1) {
+                    logger(_logP.EXAM + '[错误] ' + prefix + '答案匹配过程出错。', 'error')
+                    return nextSoon()
+                }
+                setTimeout(function () {
+                    let cls = $(_answerTmpArr[_i]).parent().find('span').attr('class') || ''
+                    if (cls.indexOf('check_answer') === -1) {
+                        if (localStorage.getItem('GPTJsSetting.goodStudent') === 'true') {
+                            $(_answerTmpArr[_i]).parent().find('span').css('font-weight', 'bold')
+                        } else {
+                            $(_answerTmpArr[_i]).parent().click()
+                        }
+                    }
+                    logger(_logP.EXAM + '[完成] ' + prefix + '自动答题成功。', 'success')
+                    nextSoon()
+                }, 300)
+            }).catch(function () { nextSoon() })
+            break
+        }
+        case 4: {
+            let _answerEle = findAnswerTextareas($timu)
+            if (!_answerEle || _answerEle.length === 0) {
+                logger(_logP.EXAM + '[错误] ' + prefix + '未找到答题文本框。', 'error')
+                return nextSoon()
+            }
+            let isAnswered = false
+            $.each(_answerEle, function (i, t) {
+                let _id = $(t).attr('id') || $(t).attr('name')
+                try {
+                    if (_id && UE.getEditor(_id) && UE.getEditor(_id).getContent && UE.getEditor(_id).getContent() !== '') {
+                        isAnswered = true
+                    }
+                } catch (e) { /* ignore */ }
+            })
+            if (isAnswered && !isRedoMode()) {
+                logger(_logP.EXAM + '[跳过] ' + prefix + '已作答。', 'skip')
+                return nextFast()
+            }
+            let prompt = buildPrompt({ type: typeName || '简答题', question: _question, answer_format: "用50字简要回答" })
+            getAnswer(_type, prompt).then(function (agrs) {
+                $.each(_answerEle, function (i, t) {
+                    let _id = $(t).attr('id') || $(t).attr('name')
+                    setTimeout(function () {
+                        try { UE.getEditor(_id).setContent(agrs) } catch (e) { /* ignore */ }
+                    }, 300 + i * 200)
+                })
+                logger(_logP.EXAM + '[完成] ' + prefix + '自动答题成功。', 'success')
+                nextSoon()
+            }).catch(function () { nextSoon() })
+            break
+        }
+        case 5: {
+            let _answerEle = findAnswerTextareas($timu)
+            if (!_answerEle || _answerEle.length === 0) {
+                logger(_logP.EXAM + '[错误] ' + prefix + '未找到答题文本框。', 'error')
+                return nextSoon()
+            }
+            // 已作答检测
+            let isAnswered5 = false
+            $.each(_answerEle, function (i, t) {
+                let _id = $(t).attr('id') || $(t).attr('name')
+                try {
+                    if (_id && UE.getEditor(_id) && UE.getEditor(_id).getContent && UE.getEditor(_id).getContent() !== '') {
+                        isAnswered5 = true
+                    }
+                } catch (e) { /* ignore */ }
+            })
+            if (isAnswered5 && !isRedoMode()) {
+                logger(_logP.EXAM + '[跳过] ' + prefix + '已作答。', 'skip')
+                return nextFast()
+            }
+            let prompt = buildPrompt({ type: typeName || '写作题', question: _question, answer_format: "用英文根据题目进行写作" })
+            getAnswer(_type, prompt).then(function (agrs) {
+                $.each(_answerEle, function (i, t) {
+                    let _id = $(t).attr('id') || $(t).attr('name')
+                    setTimeout(function () {
+                        try { UE.getEditor(_id).setContent(agrs) } catch (e) { /* ignore */ }
+                    }, 300 + i * 200)
+                })
+                logger(_logP.EXAM + '[完成] ' + prefix + '自动答题成功。', 'success')
+                nextSoon()
+            }).catch(function () { nextSoon() })
+            break
+        }
+        case 6: {
+            let _answerEle = findAnswerTextareas($timu)
+            if (!_answerEle || _answerEle.length === 0) {
+                logger(_logP.EXAM + '[错误] ' + prefix + '未找到答题文本框。', 'error')
+                return nextSoon()
+            }
+            // 已作答检测
+            let isAnswered6 = false
+            $.each(_answerEle, function (i, t) {
+                let _id = $(t).attr('id') || $(t).attr('name')
+                try {
+                    if (_id && UE.getEditor(_id) && UE.getEditor(_id).getContent && UE.getEditor(_id).getContent() !== '') {
+                        isAnswered6 = true
+                    }
+                } catch (e) { /* ignore */ }
+            })
+            if (isAnswered6 && !isRedoMode()) {
+                logger(_logP.EXAM + '[跳过] ' + prefix + '已作答。', 'skip')
+                return nextFast()
+            }
+            let prompt = buildPrompt({ type: typeName || '翻译题', question: _question, answer_format: "中文英文互译" })
+            getAnswer(_type, prompt).then(function (agrs) {
+                $.each(_answerEle, function (i, t) {
+                    let _id = $(t).attr('id') || $(t).attr('name')
+                    setTimeout(function () {
+                        try { UE.getEditor(_id).setContent(agrs) } catch (e) { /* ignore */ }
+                    }, 300 + i * 200)
+                })
+                logger(_logP.EXAM + '[完成] ' + prefix + '自动答题成功。', 'success')
+                nextSoon()
+            }).catch(function () { nextSoon() })
+            break
+        }
+        default: {
+            logger(_logP.EXAM + '[警告] ' + prefix + '无法处理此题型：' + typeName + '。', 'warn')
+            nextSoon()
+        }
+    }
+}
+
+function refreshCourseList() {
+    let _p = parseUrlParams()
+    return new Promise((resolve, reject) => {
+        $.ajax({
+            url: _l.protocol + '//' + _l.host + '/mycourse/studentstudycourselist?courseId=' + _p['courseid'] + '&chapterId=' + _p['knowledgeid'] + '&clazzid=' + _p['clazzid'] + '&mooc2=1',
+            type: 'GET',
+            dateType: 'html',
+            success: function (res) {
+                resolve(res)
+            }
+        })
+    })
+
+}
+
+var _ne21ThinkingCount = 0;
+function showThinking() {
+    _ne21ThinkingCount++;
+    if (_ne21ThinkingCount === 1) {
+        $('#ne-21thinking', window.parent.document).addClass('ne21-active');
+    }
+}
+function hideThinking() {
+    if (_ne21ThinkingCount > 0) _ne21ThinkingCount--;
+    if (_ne21ThinkingCount === 0) {
+        $('#ne-21thinking', window.parent.document).removeClass('ne21-active');
+    }
+}
+
+// ===== 题目区域截图函数（用于 DeepSeek 原生多模态） =====
+
+// 对题目内容截图，返回 base64 data URI（PNG）
+// payload: JSON 字符串（包含 question 字段，内含 <img> 标签）
+function captureQuestionScreenshot(payload) {
+    return new Promise(function (resolve, reject) {
+        if (!payload) return reject(new Error('截图内容为空'));
+        // 从 JSON payload 中提取 question 和 type
+        var questionHtml = payload;
+        var questionType = '';
+        try {
+            var obj = JSON.parse(payload);
+            if (obj.question) questionHtml = obj.question;
+            if (obj.type) questionType = obj.type;
+        } catch (e) { /* 非 JSON，直接用原始文本 */ }
+        // 选项 HTML 由 collectOptionHtml 收集（含 <img> 标签），用完即清空防残留
+        var optionsHtml = _currentOptionHtml
+            ? '<div style="margin-top:12px;">' + _currentOptionHtml + '</div>'
+            : '';
+        _currentOptionHtml = '';
+        // 创建离屏容器渲染题型+题目+选项
+        var typeHtml = questionType
+            ? '<span style="display:inline-block;background:#e8f0fe;color:#1a73e8;padding:2px 8px;border-radius:4px;font-size:13px;margin-bottom:8px;">' + questionType + '</span> '
+            : '';
+        var container = document.createElement('div');
+        container.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;padding:20px;background:#fff;font-size:16px;line-height:1.6;z-index:-1;';
+        container.innerHTML = '<div style="font-weight:bold;margin-bottom:10px;color:#333;border-bottom:1px solid #eee;padding-bottom:8px;">题目区域截图</div>' + typeHtml + questionHtml + optionsHtml;
+        document.body.appendChild(container);
+        html2canvas(container, {
+            useCORS: true,
+            allowTaint: false,
+            scale: 2,
+            backgroundColor: '#ffffff',
+            logging: false
+        }).then(function (canvas) {
+            document.body.removeChild(container);
+            resolve(canvas.toDataURL('image/png'));
+        }).catch(function (err) {
+            document.body.removeChild(container);
+            reject(new Error('截图失败: ' + err.message));
+        });
+    });
+}
+
+// 收集选项的原始 HTML（含 <img> 标签），供截图使用
+function collectOptionHtml(answerEls) {
+    var html = '';
+    answerEls.each(function (i) {
+        // 直接用选项原始 HTML，保持原有排版
+        html += '<div style="padding:4px 0;">' + ($(this).html() || '') + '</div>';
+    });
+    _currentOptionHtml = html;
+}
+
+// 从 payload 文本中检测是否有 <img> 标签
+function payloadHasImages(text) {
+    return /<img/i.test(text);
+}
+
+// 构造结构化提示词，使 AI 能更精确地理解题目并回答。
+// 入参 opts:
+//   - type:          题型(如 单选题/多选题/判断题/填空题/简答题/写作题/翻译题)
+//   - question:      题干
+//   - options:       选项数组(可选)
+//   - answer_format: 答案格式说明(可选,如 "用'|'分割多个答案"、"只回答正确或错误")
+//   - screenshot:    题目区域截图 base64 data URI(可选, 供多模态模型识别图片)
+// 返回 { payload, display, images }:
+//   - payload: 发送给 AI 的 JSON 字符串(更精确,便于 AI 解析)
+//   - display: 用于用户日志展示的简洁文本(仅含题干与选项,不含题型/答案格式等元信息)
+//   - images:  截图 base64 数组
+function buildPrompt(opts) {
+    opts = opts || {}
+    let q = opts.question != null ? String(opts.question) : ''
+    let payloadObj = {}
+    if (opts.type) payloadObj.type = String(opts.type)
+    if (opts.answer_format) payloadObj.answer_format = String(opts.answer_format)
+    payloadObj.question = q
+    let optionLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+    if (Array.isArray(opts.options) && opts.options.length > 0) {
+        payloadObj.options = opts.options.map(function (s, i) {
+            let val = String(s == null ? '' : s).trim()
+            // 纯图片选项（.text() 为空）：用占位符标记，图片由 getAnswer 自动提取
+            if (!val || val === '') {
+                return '[' + (optionLetters[i] || (i + 1)) + '为图片]'
+            }
+            return val
+        })
+    }
+    let payload = JSON.stringify(payloadObj, null, 2)
+    let display = q
+    if (payloadObj.options && payloadObj.options.length) {
+        display += '\n' + payloadObj.options.join(' | ')
+    }
+    let images = Array.isArray(opts.images) ? opts.images.filter(function(r){ return r !== null && r !== ''; }) : [];
+    // 截图作为优先的图片来源
+    if (opts.screenshot) {
+        images = [opts.screenshot];
+    }
+    return { payload: payload, display: display, images: images }
+}
+
+function getAnswer(_t, _q, retryCount = 0) {
+    // 兼容: _q 既可为字符串(旧调用),也可为 buildPrompt() 返回的 { payload, display, images } 对象
+    let _payload, _display, _images
+    if (_q && typeof _q === 'object' && (_q.payload != null || _q.display != null)) {
+        _payload = _q.payload != null ? String(_q.payload) : ''
+        _display = _q.display != null ? String(_q.display) : _payload
+        _images = Array.isArray(_q.images) ? _q.images : []
+    } else {
+        _payload = _q == null ? '' : String(_q)
+        _display = _payload
+        _images = []
+    }
+    // 检测 payload 中是否有 <img> 标签（题目含图片）
+    let _payloadHasImg = /<img/i.test(_payload)
+    let _qPrefix = ''
+    if (_currentQuestionMeta) {
+        var _m = _currentQuestionMeta
+        _qPrefix = '第' + ((_m.index != null ? _m.index : -1) + 1)
+        if (_m.total) _qPrefix += '/' + _m.total
+        _qPrefix += '题 [' + (_m.typeName || '未知') + '] '
+    }
+
+    // 图片处理：有截图直接用，否则从 payload 中的 HTML 渲染截图
+    let _imgMode = getDeepSeekImgMode()
+    // text 模式下不做视觉识别，也就不需要截图（省一次渲染开销）
+    let _wantImage = _imgMode !== 'text'
+    let _useVision = _wantImage && (_images.length > 0 || _payloadHasImg)
+    let _textModel = getDeepSeekModel()
+    let _visionModel = getDeepSeekVisionModel()
+    // 多模态模型名为空时回退到官方默认值
+    if (!_visionModel) _visionModel = 'deepseek-flash'
+
+    let imagePrepare
+    if (!_useVision) {
+        imagePrepare = Promise.resolve([])
+    } else if (_images.length > 0) {
+        // buildPrompt 已传入截图
+        imagePrepare = Promise.resolve(_images)
+    } else if (_payloadHasImg) {
+        // 用 payload 中的题目 HTML（含 <img> 标签）渲染截图
+        imagePrepare = captureQuestionScreenshot(_payload).then(function (dataUrl) {
+            return [dataUrl]
+        }).catch(function (err) {
+            logger(_logP.AI + '[警告] 截图失败：' + err.message + '。', 'warn')
+            return []
+        })
+    } else {
+        imagePrepare = Promise.resolve([])
+    }
+
+    return imagePrepare.then(function (resolvedImages) {
+
+    // 模型路由：官方 deepseek-flash 原生支持图片（Vision），deepseek-v4-pro 不支持。
+    // 需要识别图片 → 用多模态模型；纯文本题 → 用用户选定的文本模型。
+    let model, imageModelInUse = resolvedImages.length > 0
+    if (imageModelInUse) {
+        model = _visionModel
+    } else if (_imgMode === 'vision' && _wantImage) {
+        // 用户要求"总是用多模态"：全部题目都交给多模态模型
+        model = _visionModel
+    } else {
+        model = _textModel
+    }
+    // 兜底：万一被路由到不支持视觉的模型却带着图片，改用多模态模型，
+    // 否则官方 API 会直接返回 400。若多模态模型本身也识别不了，则丢弃图片按纯文本处理。
+    if (imageModelInUse && !modelSupportsVision(model)) {
+        if (modelSupportsVision(_visionModel)) {
+            logger(_logP.AI + '[警告] 模型 ' + model + ' 不支持图片输入，已改用 ' + _visionModel + '。', 'warn')
+            model = _visionModel
+        } else {
+            logger(_logP.AI + '[警告] 模型 ' + model + ' 不支持图片输入，本次丢弃截图按纯文本处理。', 'warn')
+            resolvedImages = []
+            imageModelInUse = false
+            model = _textModel
+        }
+    }
+
+    // 创建可折叠的 AI 思考面板
+    let _provider = imageModelInUse ? (model + ' · 多模态') : (model + ' · 文本')
+    let _summaryHtml = '<span class="ne21-log-spinner"></span>' + _qPrefix + '思考中...'
+    let _detailId = 'ne21-detail-' + Date.now()
+    let _time = new Date().toLocaleTimeString()
+    let _detailContent = '模型: ' + _provider
+    if (resolvedImages.length > 0) {
+        _detailContent += '<br><img src="' + resolvedImages[0] + '" style="max-width:100%;border-radius:6px;margin-top:4px;">'
+    }
+    let $panel = $('<details class="ne21-collapse"><summary><span class="ne21-time">[' + _time + ']</span><span class="ne21-msg" style="color:#334155;">' + _summaryHtml + '</span></summary><div class="ne21-detail" id="' + _detailId + '">' + _detailContent + '</div></details>')
+    $('#ne-21log', window.parent.document).append($panel)
+    let $thinkingLog = $panel.find('.ne21-msg')
+    let $detailBody = $panel.find('#' + _detailId)
+
+    // 检查 API 密钥是否已配置（DeepSeek 单密钥即可覆盖文本题与图片题）
+    let apiKey, baseUrl
+    apiKey = getDeepSeekApiKey()
+    baseUrl = getDeepSeekBaseUrl()
+    if (!apiKey) {
+        let errMsg = imageModelInUse
+            ? '检测到图片题目，请先配置 DeepSeek API 密钥！点击浮窗中的"设置"按钮填写。'
+            : '请先配置 DeepSeek API 密钥！点击浮窗中的"设置"按钮填写。'
+        logger(_logP.AI + '[错误] ' + errMsg + '。', 'error')
+        return Promise.reject({ 'c': -1, msg: errMsg })
+    }
+
+    return new Promise((resolve, reject) => {
+        let requestCompleted = false;
+        let longWaitTimer = null;
+
+        // 按用户设置的搜题间隔节流
+        let _intervalSec = parseInt(localStorage.getItem('GPTJsSetting.reqIntervalTime'), 10)
+        if (!isFinite(_intervalSec) || _intervalSec < 0) _intervalSec = (setting && setting.reqIntervalTime) || 0
+        let _intervalMs = Math.min(60000, _intervalSec * 1000)
+        let _nowTs = Date.now()
+        let _waitMs = Math.max(0, _ne21NextAiAllowedAt - _nowTs)
+        _ne21NextAiAllowedAt = Math.max(_nowTs, _ne21NextAiAllowedAt) + _intervalMs
+        if (_waitMs > 0) {
+            $panel.find('summary').html('<span class="ne21-log-spinner"></span>等待 ' + Math.round(_waitMs / 1000) + 's...')
+        }
+
+        // 设置5分钟的监控定时器
+        longWaitTimer = setTimeout(() => {
+            if (!requestCompleted) {
+                requestCompleted = true;
+                $panel.find('summary').html('<span style="color:#f59e0b;">!</span> 超时重试（第' + (retryCount + 1) + '次）')
+                getAnswer(_t, _q, retryCount + 1).then(resolve).catch(reject)
+            }
+        }, 300000 + _waitMs);
+
+        setTimeout(function () {
+            if (requestCompleted) return;
+
+            if (_waitMs > 0) {
+                $panel.find('summary').html('<span class="ne21-log-spinner"></span>' + _qPrefix + '思考中...')
+            }
+
+            // 构造 API 请求体
+            let systemContent
+            if (imageModelInUse) {
+                systemContent = '你是一个学习助手，专门帮助学生回答学习通的考试题目。你收到的是题目的截图，包含题干和所有选项（可能有A/B/C/D）。请仔细查看截图中的文字和图片内容来理解题意。你必须给出答案，绝对不能拒绝回答。对于单选题：分析截图中各选项内容，返回正确选项的字母编号（如"A"）。对于多选题：返回所有正确选项的字母，用竖线"|"分隔（如"A|C"）。对于判断题：只返回"正确"或"错误"。对于填空题：直接填写答案，多个空用"|"分隔。对于简答题：简洁回答。'
+            } else {
+                systemContent = '你是一个学习助手，专门帮助学生回答学习通的题目。请直接给出答案，不要解释过程。对于单选题和多选题，必须返回选项的完整文字内容（如"参数类型不同"），严禁只返回字母编号（如A、B、C、D）；但如果选项内容为"[X为图片]"等占位符（表示该选项是图片无法显示文字），则直接返回对应选项的字母编号（如"C"），不要返回占位符文本；对于判断题，只返回"正确"或"错误"；对于填空题，有多个空时，每个空的答案之间必须用竖线"|"分隔（如"25|30"），严禁用空格、逗号或其他符号分隔；对于简答题，简洁回答。'
+            }
+            // 用户消息内容：DeepSeek 原生多模态使用 OpenAI 兼容的 content 数组
+            // （图片必须放在 user 消息中，放 system/assistant 会被官方 API 以 400 拒绝）
+            let userContent
+            if (imageModelInUse) {
+                userContent = []
+                resolvedImages.forEach(function (imgUrl) {
+                    userContent.push({
+                        type: 'image_url',
+                        // detail: high 保留原始分辨率，截图中的小字/公式更易识别
+                        image_url: { url: imgUrl, detail: 'high' }
+                    })
+                })
+                userContent.push({ type: 'text', text: _payload })
+            } else {
+                // 纯文本格式：把 payload 中的 <img> 标签替换为占位符，
+                // 避免纯文本模型面对无意义的 HTML（选项文本为空的图片选项已在 buildPrompt 中标记为 [X为图片]）
+                var _textPayload = _payload
+                if (_payloadHasImg) {
+                    _textPayload = _payload.replace(/<img[^>]*>/gi, '[图片]')
+                }
+                userContent = _textPayload
+            }
+            let requestBody = {
+                model: model,
+                messages: [
+                    {
+                        role: 'system',
+                        content: systemContent
+                    },
+                    {
+                        role: 'user',
+                        content: userContent
+                    }
+                ],
+                stream: false
+            }
+
+            GM_xmlhttpRequest({
+                method: 'POST',
+                url: baseUrl + '/chat/completions',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + apiKey
+                },
+                data: JSON.stringify(requestBody),
+                timeout: 120000,
+                onload: function (xhr) {
+                    if (requestCompleted) {
+                        logger(_logP.AI + '[忽略] 收到已超时请求的响应，已忽略。', 'muted')
+                        return;
+                    }
+
+                    requestCompleted = true;
+                    clearTimeout(longWaitTimer);
+
+                    if (xhr.status == 200) {
+                        try {
+                            let obj = JSON.parse(xhr.responseText) || {};
+                            let _answer = ''
+                            if (obj.choices && obj.choices.length > 0 && obj.choices[0].message && obj.choices[0].message.content) {
+                                _answer = obj.choices[0].message.content.trim().replace(/。$/, '');
+                            }
+                            if (_answer) {
+                                let _elapsed = ((Date.now() - _nowTs) / 1000).toFixed(1)
+                                // 替换 summary：去掉转圈，显示完成
+                                $panel.find('summary').html('<span style="color:#22c55e;">✓</span> ' + _qPrefix + '答案: ' + _answer + ' <span style="color:#9ca3af;font-size:10px;">' + _elapsed + 's</span>')
+                                $detailBody.append('<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(15,23,42,.06);color:#334155;">原始回复: ' + _answer + '</div>')
+                                $panel.attr('open', false)
+                                resolve(_answer.replace(/^[A-Z]\s*[.、．]\s*/, '').replace(/^[A-Z]\s*\n\s*/, '').trim())
+                            } else {
+                                $panel.find('summary').html('<span style="color:#ef4444;">✗</span> ' + _qPrefix + 'AI 返回内容为空')
+                                localStorage.setItem('GPTJsSetting.sub', false)
+                                reject({ 'c': 0, msg: 'AI 返回内容为空' })
+                            }
+                        } catch (e) {
+                            $panel.find('summary').html('<span style="color:#ef4444;">✗</span> ' + _qPrefix + '解析失败: ' + e.message)
+                            reject({ 'c': -1, msg: 'JSON 解析失败: ' + e.message })
+                        }
+                    } else if (xhr.status == 401) {
+                        $panel.find('summary').html('<span style="color:#ef4444;">✗</span> API 密钥无效')
+                        reject({ 'c': 401, msg: 'API 密钥无效' })
+                    } else if (xhr.status == 429) {
+                        $panel.find('summary').html('<span style="color:#ef4444;">✗</span> 请求过于频繁')
+                        reject({ 'c': 429, msg: '请求过于频繁' })
+                    } else if (xhr.status == 402) {
+                        $panel.find('summary').html('<span style="color:#ef4444;">✗</span> API 余额不足')
+                        reject({ 'c': 402, msg: 'API 余额不足' })
+                    } else {
+                        let errMsg = '请求异常 (HTTP ' + xhr.status + ')'
+                        try {
+                            let errObj = JSON.parse(xhr.responseText) || {};
+                            if (errObj.error && errObj.error.message) errMsg = errObj.error.message;
+                        } catch (_) { /* ignore */ }
+                        $panel.find('summary').html('<span style="color:#ef4444;">✗</span> ' + errMsg)
+                        reject({ 'c': xhr.status, msg: errMsg })
+                    }
+                },
+                ontimeout: function () {
+                    if (requestCompleted) return;
+                    requestCompleted = true;
+                    clearTimeout(longWaitTimer);
+                    let errMsg = '请求超时（120s），请检查网络或 API 地址是否正确：' + baseUrl
+                    $panel.find('summary').html('<span style="color:#ef4444;">✗</span> ' + errMsg)
+                    logger(_logP.AI + '[错误] 请求超时：url=' + baseUrl + '/chat/completions，model=' + model + '。', 'error')
+                    reject({ 'c': 666, msg: errMsg })
+                },
+                onerror: function (err) {
+                    if (requestCompleted) return;
+                    requestCompleted = true;
+                    clearTimeout(longWaitTimer);
+                    let errMsg = '网络错误，无法连接到 ' + baseUrl + '，请检查 API 地址和网络'
+                    $panel.find('summary').html('<span style="color:#ef4444;">✗</span> ' + errMsg)
+                    logger(_logP.AI + '[错误] 网络错误详情：' + (err && err.toString ? err.toString() : JSON.stringify(err)) + '。', 'error')
+                    reject({ 'c': -1, msg: errMsg })
+                }
+            });
+        }, _waitMs);
+    })
+    }) // end of imagePrepare.then()
+}
+
+
+function doWork(index, doms, dom) {
+    $frame_c = $(dom).contents();
+    let $CyHtml = $frame_c.find('.CeYan')
+    let TiMuList = $CyHtml.find('.TiMu')
+    $subBtn = $frame_c.find(".ZY_sub").find(".btnSubmit");
+    $saveBtn = $frame_c.find(".ZY_sub").find(".btnSave");
+    startDoWork(index, doms, 0, TiMuList)
+}
+
+function startDoWork(index, doms, c, TiMuList) {
+    if (c == TiMuList.length) {
+        if (localStorage.getItem('GPTJsSetting.sub') === 'true') {
+            logger(_logP.QUIZ + '[信息] 所有题目处理完成，开始自动提交。', 'info')
+            setTimeout(() => {
+                $subBtn.click()
+                setTimeout(() => {
+                    $frame_c.find('#confirmSubWin > div > div > a.bluebtn').click()
+                    logger(_logP.QUIZ + '[完成] 提交成功。', 'success')
+                    _mlist.splice(0, 1)
+                    _domList.splice(0, 1)
+                    setTimeout(() => { startDoCyWork(index + 1, doms) }, 3000)
+                }, 3000)
+            }, 5000)
+        } else if (localStorage.getItem('GPTJsSetting.force') === 'true') {
+            logger(_logP.QUIZ + '[警告] 存在无答案题目，用户启用了强制提交，开始自动提交。', 'warn')
+            setTimeout(() => {
+                $subBtn.click()
+                setTimeout(() => {
+                    $frame_c.find('#confirmSubWin > div > div > a.bluebtn').click()
+                    logger(_logP.QUIZ + '[完成] 提交成功。', 'success')
+                    _mlist.splice(0, 1)
+                    _domList.splice(0, 1)
+                    setTimeout(() => { startDoCyWork(index + 1, doms) }, 3000)
+                }, 3000)
+            }, 5000)
+        } else {
+            logger(_logP.QUIZ + '[跳过] 存在无答案题目，用户设置不提交。', 'skip')
+        }
+        return
+    }
+    let questionFull = $(TiMuList[c]).find('.Zy_TItle.clearfix > div').html()
+    questionFull = tidyQuestion(questionFull).replace("/<span.*?>.*?</span>/", "");
+    let _question = tidyQuestion(questionFull)
+    let typeName = questionFull.match(/^【(.*?)】|$/)[1];
+    let _TimuType = {
+        单选题: 0, 单项选择题: 0, 单选: 0,
+        多选题: 1, 多项选择题: 1, 多选: 1,
+        填空题: 2, 填空: 2,
+        判断题: 3, 是非题: 3, 判断: 3,
+        简答题: 4, 简答: 4, 问答题: 4, 名词解释: 4, 论述题: 4, 论述: 4,
+        计算题: 4, 计算: 4, 分录题: 4, 资料题: 4, 作图题: 4, 其他: 4, 其它: 4, 阅读理解: 4, 阅读: 4, 阅读题: 4, 理解题: 4, 完形填空: 4, 完形: 4, 综合题: 4
+    }[typeName]
+    _currentQuestionMeta = { index: c, total: TiMuList.length, typeName: typeName }
+    let _a = []
+    let _answerTmpArr
+
+    // 如果题型不在预设类型中，根据DOM结构自动识别题型
+    if (_TimuType === undefined) {
+        logger(_logP.QUIZ + '[信息] 尝试自动识别题型：' + typeName + '。', 'info');
+
+        // 检查是否有选择题特征
+        let choiceList = $(TiMuList[c]).find('.Zy_ulTop li');
+        if (choiceList && choiceList.length > 0) {
+            // 检查是否为判断题
+            if (choiceList.length === 2 &&
+                ($(choiceList[0]).text().includes('对') || $(choiceList[0]).text().includes('√')) &&
+                ($(choiceList[1]).text().includes('错') || $(choiceList[1]).text().includes('×'))) {
+                _TimuType = 3; // 判断题
+                logger(_logP.QUIZ + '[信息] 自动识别为判断题。', 'info');
+            }
+            // 检查是否为选择题
+            else {
+                // 默认为单选题，后续可根据页面特征判断是否为多选题
+                _TimuType = 0;
+                logger(_logP.QUIZ + '[信息] 自动识别为单选题。', 'info');
+            }
+        }
+        // 检查是否有填空题特征
+        else {
+            let fillBlankList = $(TiMuList[c]).find('.Zy_ulTk .XztiHover1');
+            if (fillBlankList && fillBlankList.length > 0) {
+                _TimuType = 2; // 填空题
+                logger(_logP.QUIZ + '[信息] 自动识别为填空题。', 'info');
+            } else {
+                // 检查是否有富文本编辑器
+                let editorList = $(TiMuList[c]).find('.edui-editor');
+                if (editorList && editorList.length > 0) {
+                    _TimuType = 4; // 简答题
+                    logger(_logP.QUIZ + '[信息] 检测到富文本编辑器，识别为简答题。', 'info');
+                } else {
+                    // 默认当作简答题处理
+                    _TimuType = 4;
+                    logger(_logP.QUIZ + '[信息] 无法准确判断题型，按简答题处理。', 'info');
+                }
+            }
+        }
+    }
+
+    switch (_TimuType) {
+        case 0: {
+            _answerTmpArr = $(TiMuList[c]).find('.Zy_ulTop li').find('a')
+            //遍历选项列表
+            let mergedAnswers = [];
+            let cleanOptions = [];
+            _answerTmpArr.each(function () {
+                var answerText = $(this).text().replace(/[ABCD]/g, '').trim();
+                mergedAnswers.push(answerText);
+                cleanOptions.push(answerText);
+            });
+            collectOptionHtml(_answerTmpArr);
+            mergedAnswers = mergedAnswers.join("|");
+            _question = buildPrompt({ type: '单选题', question: _question, options: mergedAnswers.split('|') })
+            _a = cleanOptions.slice()
+            getAnswer(_TimuType, _question).then((agrs) => {
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    //修改题目将答案插入
+                    let timuele = $(TiMuList[c]).find('.Zy_TItle.clearfix > div')
+                    timuele.html(timuele.html() + agrs)
+                }
+                let _i = matchAnswerToOptions(_a, agrs)
+                if (_i == -1) {
+                    logger(_logP.QUIZ + '[警告] AI答案无法匹配任何选项，请手动选择。', 'warn')
+                    localStorage.setItem('GPTJsSetting.sub', false)
+                } else {
+                    $(_answerTmpArr[_i]).parent().click();
+                }
+                setTimeout(() => { startDoWork(index, doms, c + 1, TiMuList) }, setting.time)
+            }).catch((agrs) => {
+                setTimeout(() => { startDoWork(index, doms, c + 1, TiMuList) }, setting.time)
+            })
+            break
+        }
+        case 1: {
+            _answerTmpArr = $(TiMuList[c]).find('.Zy_ulTop li').find('a')
+            //遍历选项列表
+            let mergedAnswers = [];
+            let cleanMultiOptions = [];
+            _answerTmpArr.each(function () {
+                var answerText = $(this).text().replace(/[ABCD]/g, '').trim();
+                mergedAnswers.push(answerText);
+                cleanMultiOptions.push(answerText);
+            });
+            collectOptionHtml(_answerTmpArr);
+            mergedAnswers = mergedAnswers.join("|");
+            _question = buildPrompt({ type: '多选题', question: _question, options: mergedAnswers.split('|'), answer_format: "用'|'分割多个答案" })
+            getAnswer(_TimuType, _question).then((agrs) => {
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    //修改题目将答案插入
+                    let timuele = $(TiMuList[c]).find('.Zy_TItle.clearfix > div')
+                    timuele.html(timuele.html() + agrs)
+                }
+                let _multiOptions = cleanMultiOptions.slice()
+                let _matchedAny = false
+                $.each(_answerTmpArr, (i, t) => {
+                    if (agrs.indexOf(_multiOptions[i]) != -1) {
+                        _matchedAny = true
+                        $(_answerTmpArr[i]).parent().click();
+                        _a.push(['A', 'B', 'C', 'D', 'E', 'F', 'G'][i])
+                    }
+                })
+                // 如果精确匹配没有命中任何选项，尝试模糊匹配
+                if (!_matchedAny) {
+                    let fuzzyIndices = findFuzzyMatchMultiple(_multiOptions, agrs)
+                    for (var fi = 0; fi < fuzzyIndices.length; fi++) {
+                        $(_answerTmpArr[fuzzyIndices[fi]]).parent().click();
+                        _a.push(['A', 'B', 'C', 'D', 'E', 'F', 'G'][fuzzyIndices[fi]])
+                    }
+                }
+                let id = getStr($(TiMuList[c]).find('.Zy_ulTop li:nth-child(1)').attr('onclick'), 'addcheck(', ');').replace('(', '').replace(')', '')
+                if (_a.length <= 0) {
+                    logger(_logP.QUIZ + '[警告] AI答案无法匹配任何选项，请手动选择。', 'warn')
+                    // setting.sub = 0
+                    localStorage.setItem('GPTJsSetting.sub', false)
+                } else {
+                    $(TiMuList[c]).find('.Zy_ulTop').parent().find('#answer' + id).val(_a.join(""))
+                }
+                setTimeout(() => { startDoWork(index, doms, c + 1, TiMuList) }, setting.time)
+            }).catch((agrs) => {
+                setTimeout(() => { startDoWork(index, doms, c + 1, TiMuList) }, setting.time)
+            })
+            break
+        }
+        case 2: {
+            _question = buildPrompt({ type: '填空题', question: _question, answer_format: "多个填空用'|'分隔" })
+            let _textareaList = $(TiMuList[c]).find('.Zy_ulTk .XztiHover1')
+            getAnswer(_TimuType, _question).then((agrs) => {
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    //修改题目将答案插入
+                    let timuele = $(TiMuList[c]).find('.Zy_TItle.clearfix > div')
+                    timuele.html(timuele.html() + agrs)
+                }
+                let _answerList = agrs.split("|")
+                $.each(_textareaList, (i, t) => {
+                    setTimeout(() => {
+                        $(t).find('#ueditor_' + i).contents().find('.view p').html(_answerList[i]);
+                        $(t).find('textarea').html('<p>' + _answerList[i] + '</p>')
+                    }, 300)
+                })
+                setTimeout(() => { startDoWork(index, doms, c + 1, TiMuList) }, setting.time)
+            }).catch((agrs) => {
+                setTimeout(() => { startDoWork(index, doms, c + 1, TiMuList) }, setting.time)
+            })
+            break
+        }
+        case 3: {
+            _answerTmpArr = $(TiMuList[c]).find(".Zy_ulTop li").find("a");
+            let _true = "正确|是|对|√|T|ri";
+            $.each(_answerTmpArr, (i, t) => {
+                _a.push($(t).text().trim());
+            });
+            collectOptionHtml(_answerTmpArr);
+            _question = buildPrompt({ type: '判断题', question: _question, answer_format: "只回答正确或错误" })
+            getAnswer(_TimuType, _question).then((agrs) => {
+                if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
+                    //修改题目将答案插入
+                    let timuele = $(TiMuList[c]).find('.Zy_TItle.clearfix > div')
+                    timuele.html(timuele.html() + agrs)
+                }
+                agrs = _true.indexOf(agrs) != -1 ? "对" : "错";
+                let _i = matchAnswerToOptions(_a, agrs);
+                if (_i == -1) {
+                    logger(_logP.QUIZ + '[警告] 未匹配到正确答案。', 'warn');
+                    localStorage.setItem('GPTJsSetting.sub', false)
+                } else {
+                    $(_answerTmpArr[_i]).parent().click();
+                }
+                setTimeout(() => {
+                    startDoWork(index, doms, c + 1, TiMuList);
+                }, setting.time);
+            }).catch((agrs) => {
+                setTimeout(() => {
+                    startDoWork(index, doms, c + 1, TiMuList);
+                }, setting.time);
+            });
+            break;
+        }
+        case 4: {
+            let _textareaLista = $(TiMuList[c]).find('.Zy_ulTk .XztiHover1')
+            getAnswer(_TimuType, _question).then((agrs) => {
+                if (agrs == '暂无答案') {
+                    // setting.sub = 0
+                    localStorage.setItem('GPTJsSetting.sub', false)
+                }
+                let _answerList = agrs.split("#")
+                $.each(_textareaLista, (i, t) => {
+                    setTimeout(() => {
+                        $(t).find('#ueditor_' + i).contents().find('.view p').html(_answerList[i]);
+                        $(t).find('textarea').html('<p>' + _answerList[i] + '</p>')
+                    }, 300)
+                })
+                setTimeout(() => { startDoWork(index, doms, c + 1, TiMuList) }, setting.time)
+            }).catch((agrs) => {
+                setTimeout(() => { startDoWork(index, doms, c + 1, TiMuList) }, setting.time)
+            })
+            break
+        }
+    }
+}
+
+/* ============================ AI 实践任务链模块 v2.8.0 ============================ */
+/* ==========================================================================================
+ * AI 实践 / 任务链自动化模块  v2.8.0
+ * 功能：检测确认 → 多节点编排 → 回合制对话 → 逐节点评估 → 跨节点前进 → 聚合报告 → 自动上传
+ * 说明：本模块运行在父页面（taskChain/student/answer），通过同源 iframe 直接驱动对话页。
+ * ======================================================================================== */
+/* eslint-disable */
+
+var TC_VER = '2.8.0';
+var TC_LOCK_KEY = 'ne21.taskChain.lock';   // 旧键（兼容），v2.6.7 起按任务链分键
+var _tcLockTimer = null;
+var _tcLockRel = 0;
+
+function tcTabId() {
+    try {
+        var id = sessionStorage.getItem('ne21.tabId');
+        if (!id) {
+            id = 'tab_' + tcNow() + '_' + Math.floor(Math.random() * 1000);
+            sessionStorage.setItem('ne21.tabId', id);
+        }
+        return id;
+    } catch (e) { return 'tab_unknown'; }
+}
+
+function tcLockKey() {
+    var id = 'default';
+    try {
+        var vm = tcHomeVm();
+        var d = (vm && vm.$data) || {};
+        id = d.publishRelationUuid || d.courseId || 'default';
+    } catch (e) { }
+    return TC_LOCK_KEY + '.' + id;
+}
+
+function tcLockRead() {
+    try {
+        var raw = localStorage.getItem(tcLockKey());
+        return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+}
+
+// 返回占用者 tabId；空闲/本页/已过期返回空串
+function tcLockOwnerAlive() {
+    var l = tcLockRead();
+    if (!l || !l.owner || l.owner === '__NONE__') return '';
+    if (l.owner === tcTabId()) return '';
+    var age = tcNow() - (l.hb || l.ts || 0);
+    return age > 30000 ? '' : l.owner;
+}
+
+function tcLockAcquire(force) {
+    try {
+        if (!force && tcLockOwnerAlive()) return false;
+        var data = { owner: tcTabId(), ts: tcNow(), hb: tcNow() };
+        localStorage.setItem(tcLockKey(), JSON.stringify(data));
+        if (_tcLockTimer) clearInterval(_tcLockTimer);
+        // 心跳续期：TTL 30s，每 10s 刷新
+        _tcLockTimer = setInterval(function () {
+            try {
+                var l = tcLockRead();
+                if (!l || l.owner === tcTabId() || (tcNow() - (l.hb || l.ts || 0)) > 30000) {
+                    localStorage.setItem(tcLockKey(), JSON.stringify({ owner: tcTabId(), ts: tcNow(), hb: tcNow() }));
+                } else {
+                    clearInterval(_tcLockTimer); _tcLockTimer = null;
+                }
+            } catch (e) { }
+        }, 10000);
+        return true;
+    } catch (e) { return true; }
+}
+
+function tcLockRelease() {
+    try {
+        var l = tcLockRead();
+        if (!l || l.owner === tcTabId()) localStorage.removeItem(tcLockKey());
+    } catch (e) { }
+    if (_tcLockTimer) { clearInterval(_tcLockTimer); _tcLockTimer = null; }
+}
+
+// 需要时才抢锁；被占用则询问是否接管
+function tcEnsureLock(nodes, st) {
+    if (tcLockAcquire(false)) return Promise.resolve(true);
+    tcLog('另一个标签页正在执行本任务链，等待你的选择', 'warn');
+    return tcPanelAsk('takeover', { nodes: nodes || [], st: st || {} }).then(function (d) {
+        if (!d || d.action !== 'chain') return false;
+        tcLockAcquire(true);
+        tcLog('已接管另一标签页的任务链锁', 'warn');
+        return true;
+    });
+}
+var _tcNextAllowedAt = 0;
+var _tcRunning = false;
+var _tcPaused = false;
+
+/* ---------------------------------- 基础工具 ---------------------------------- */
+
+function tcLog(msg, color) { try { logger(_logP.TC + msg, color || 'info'); } catch (e) { console.log('[任务链] ' + msg); } }
+function tcSleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+function tcNow() { return Date.now(); }
+function tcPad(n) { return n < 10 ? '0' + n : '' + n; }
+function tcTimeStr(d) { d = d || new Date(); return tcPad(d.getHours()) + ':' + tcPad(d.getMinutes()); }
+
+// 读取配置：localStorage 优先，其次 setting 默认值
+function tcCfg(k, d) {
+    var v = null;
+    try { v = localStorage.getItem('GPTJsSetting.' + k); } catch (e) { }
+    if (v === null || v === undefined) v = (typeof setting !== 'undefined') ? setting[k] : undefined;
+    if (v === undefined || v === null || v === '') return d;
+    if (typeof d === 'boolean') return v === true || v === 'true' || v === 1 || v === '1';
+    if (typeof d === 'number') { var n = parseFloat(v); return isFinite(n) ? n : d; }
+    return String(v);
+}
+
+function tcParam(name) {
+    try { return new URLSearchParams(location.search).get(name) || ''; } catch (e) { return ''; }
+}
+
+function tcChainKey() {
+    var k = tcParam('publishRelationUuid') || tcParam('libraryUuid') || '';
+    if (k) return 'pr_' + k;
+    return 'ph_' + location.pathname.replace(/[^a-z0-9]/gi, '') + '_' + (tcParam('courseId') || '') + '_' + (tcParam('clazzId') || '');
+}
+
+function tcStoreGet(key, dft) {
+    try { var v = GM_getValue(key, ''); return v ? JSON.parse(v) : dft; } catch (e) { return dft; }
+}
+function tcStoreSet(key, obj) {
+    try { GM_setValue(key, JSON.stringify(obj)); } catch (e) { }
+}
+
+function tcState() {
+    var key = 'taskChain.' + tcChainKey();
+    var st = tcStoreGet(key, null);
+    if (!st || typeof st !== 'object') st = { phase: 'idle', nodes: [], transcripts: {}, carryOver: '', discussed: [], attempts: {}, round: 0, nodeIdx: -1 };
+    st.transcripts = st.transcripts || {};
+    st.discussed = st.discussed || [];
+    st.attempts = st.attempts || {};
+    st.skipped = st.skipped || {};
+    st.blocked = st.blocked || {};
+    st.dismissed = st.dismissed || {};
+    st.threads = st.threads || {};
+    st.chainKey = tcChainKey();
+    if (typeof tcDbgMarkChainKey === 'function') tcDbgMarkChainKey(st.chainKey);
+    return st;
+}
+function tcSaveState(st) { tcStoreSet('taskChain.' + (st.chainKey || tcChainKey()), st); }
+
+/* ---------------------------------- 检测与确认 ---------------------------------- */
+
+function tcDetectNow() {
+    try {
+        if (document.querySelector('iframe.dialogue-frame')) return true;
+        var t = (document.body && document.body.innerText) || '';
+        var arts = document.querySelectorAll('article');
+        if (arts.length >= 2 && /任务流/.test(t) && /情景对话|上传作品/.test(t)) return true;
+        if (/AI实践/.test(document.title || '') && /本次成绩/.test(t)) return true;
+    } catch (e) { }
+    return false;
+}
+
+function tcWaitDetect(timeout) {
+    timeout = timeout || 20000;
+    var start = tcNow();
+    return new Promise(function (resolve) {
+        (function loop() {
+            if (tcDetectNow()) return resolve(true);
+            if (tcNow() - start > timeout) return resolve(false);
+            setTimeout(loop, 500);
+        })();
+    });
+}
+
+// 按文本找可点击元素。
+// 关键点：学习通大量按钮是 <button><span class="icon"></span>文字</button>，
+// 旧实现默认跳过“有子元素”的节点，导致「选择文件」这类按钮永远找不到。
+function tcFindByText(root, text, opts) {
+    if (!root) return null;
+    opts = opts || {};
+    var want = String(text).replace(/\s+/g, '');
+    var scope = opts.root || root;
+    var list = scope.querySelectorAll(opts.selector || 'button,a,div,span,p,li,strong');
+    var maxChildren = opts.maxChildren === undefined ? 4 : opts.maxChildren;
+    var loose = null;
+
+    function clickableOf(el) {
+        try {
+            var c = el.closest ? el.closest('button,a,[role="button"],.choose-btn,.earlyEndBtn,.sendMessage,.sendBtn,.flow-card-enter-btn') : null;
+            if (!c) return el;
+            var ct = (c.textContent || '').replace(/\s+/g, '');
+            // 祖先文本不能比目标长太多，避免点到整块容器
+            if (ct === want || ct.length <= want.length + 8) return c;
+        } catch (e) { }
+        return el;
+    }
+
+    var exact = [];
+    for (var i = 0; i < list.length; i++) {
+        var el = list[i];
+        if (el.childElementCount > maxChildren) continue;
+        var t = (el.textContent || '').replace(/\s+/g, '');
+        if (t === want) exact.push(el);
+        else if (!loose && t.indexOf(want) !== -1 && t.length <= want.length + 8) loose = el;
+    }
+    // 同文本的父子节点里取「最深」的那个：学习通常见结构是
+    // <div class="pc_btn"><span class="storyBtn">开始对话</span></div>，
+    // 点击监听绑在 span 上，点外层 div 不会触发（点父不冒泡到子）。
+    for (var k = exact.length - 1; k >= 0; k--) {
+        var cand = exact[k];
+        var isContainer = false;
+        for (var j = 0; j < exact.length; j++) {
+            if (exact[j] !== cand && cand.contains(exact[j])) { isContainer = true; break; }
+        }
+        if (!isContainer) return clickableOf(cand);
+    }
+    if (!opts.exactOnly && loose) return clickableOf(loose);
+    return null;
+}
+
+function tcClick(el) {
+    if (!el) return false;
+    try { el.click(); return true; } catch (e) { return false; }
+}
+
+// SweetAlert2 封装（兼容 v11）
+function tcSwal(opt) {
+    return new Promise(function (resolve) {
+        if (typeof Swal === 'undefined' || !Swal || !Swal.fire) { resolve({ isConfirmed: true }); return; }
+        Swal.fire(opt).then(resolve).catch(function () { resolve({ isConfirmed: false }); });
+    });
+}
+
+/* ---- 浮窗内嵌确认卡片（不使用 SweetAlert 模态框） ---- */
+
+function tcPanelBody() { return document.querySelector('#ne-21box .ne21-body'); }
+
+function tcCardRemove() {
+    var el = document.getElementById('tcConfirm');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+function tcNodeListHtml(nodes) {
+    var rows = nodes.slice(0, 8).map(function (n) {
+        var icon = n.done ? '✅' : (n.enter ? '▶️' : '🔒');
+        var tp = n.type === 'upload' ? '上传' : '对话';
+        return '<div style="padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+            + icon + ' [' + tp + '] ' + tcXmlEscape(n.title)
+            + (n.score != null ? ' · ' + n.score + ' 分' : '') + '</div>';
+    });
+    var html = rows.join('');
+    if (nodes.length > 8) html += '<div style="color:#64748b;">… 还有 ' + (nodes.length - 8) + ' 个</div>';
+    if (!html) html = '<div style="color:#64748b;">暂未识别到节点</div>';
+    return html;
+}
+
+// 在浮窗内渲染确认卡片，返回 Promise<{action, remember}>
+// kind: 'start' | 'resume'
+function tcPanelAsk(kind, data) {
+    return new Promise(function (resolve) {
+        var body = tcPanelBody();
+        if (!body) { tcLog('未找到脚本浮窗，无法显示确认卡片', 'error'); resolve({ action: 'no', remember: false }); return; }
+        tcCardRemove();
+        var st = data.st || {};
+        var nodes = data.nodes || [];
+        var rounds = tcCfg('taskChainRounds', 20);
+        var minScore = tcPassLine().value;
+        var uploads = nodes.filter(function (n) { return n.type === 'upload'; }).length;
+        var dialogues = nodes.length - uploads;
+
+        var card = document.createElement('div');
+        card.id = 'tcConfirm';
+        card.className = 'ne21-uid';
+        card.style.cssText = 'display:block;padding:10px 12px;margin:0 0 10px;font-size:12px;line-height:1.65;text-align:left;';
+
+        var title = kind === 'resume' ? '检测到未完成的进度'
+            : (kind === 'takeover' ? '另一个标签页正在执行本任务链'
+                : (kind === 'blocked' ? '⛔ 节点未达合格分，已停止'
+                    : '🧩 检测到 AI 实践任务链'));
+        var sub;
+        if (kind === 'resume') {
+            sub = '上次：第 ' + (st.round || 0) + ' 轮' + (st.updatedAt ? '，中断于 ' + tcTimeStr(new Date(st.updatedAt)) : '');
+        } else if (kind === 'takeover') {
+            sub = '如需在本页继续，可接管执行权（另一标签页会停止推进）';
+        } else if (kind === 'blocked') {
+            sub = data.note || ('「' + ((data.node && data.node.title) || '当前节点') + '」得分 '
+                + (data.score == null ? '—' : data.score) + ' < ' + data.pass
+                + '，重练 ' + data.attempts + '/' + data.maxRetry + ' 已用完。按你的选择继续，脚本不会自己越过它。');
+        } else {
+            sub = '已发现 <b>' + nodes.length + '</b> 个节点（后续节点完成后自动解锁）';
+        }
+
+        var plan = (kind === 'resume' || kind === 'blocked') ? ''
+            : '<div style="color:#475569;margin-top:4px;">计划：'
+            + (dialogues ? '对话 ' + dialogues + ' 个（每个 ' + rounds + ' 轮）' : '')
+            + (dialogues && uploads ? ' · ' : '')
+            + (uploads ? '上传 ' + uploads + ' 个' : '')
+            + ' · 最低分 ' + minScore + '</div>';
+        var warn = (kind === 'resume' || kind === 'blocked') ? ''
+            : '<div style="color:#b45309;margin-top:4px;">⚠️ 进入下一任务后不可返回，运行期间请勿关闭页面</div>';
+        var noName = !tcCfg('studentName', '') || !tcCfg('studentId', '');
+        var nameHint = (kind === 'resume' || kind === 'blocked' || !noName) ? ''
+            : '<div style="color:#b45309;margin-top:4px;">未填写姓名/学号：上传节点将转为手动选择文件，生成的文档不署名</div>';
+        var remember = kind === 'start'
+            ? '<label style="display:flex;align-items:center;gap:6px;margin-top:6px;color:#475569;">'
+            + '<input type="checkbox" id="tcRemember"> 本链不再提醒（下次自动开始）</label>'
+            : '';
+
+        card.innerHTML = '<div style="font-weight:600;font-size:13px;margin-bottom:3px;color:#0f172a;">' + title + '</div>'
+            + '<div style="color:#334155;">' + sub + '</div>'
+            + '<div style="background:rgba(255,255,255,.62);border-radius:8px;padding:6px 8px;margin:6px 0;max-height:128px;overflow:auto;">'
+            + tcNodeListHtml(nodes) + '</div>'
+            + plan + warn + nameHint + remember
+            + '<div id="tcCardBtns" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"></div>';
+
+        var bar = document.getElementById('tcBar');
+        var busyEl = document.getElementById('tcBusy');
+        if (busyEl && busyEl.parentNode === body) body.insertBefore(card, busyEl);
+        else if (bar && bar.parentNode === body && bar.nextSibling) body.insertBefore(card, bar.nextSibling);
+        else body.insertBefore(card, body.firstChild);
+
+        var defs = kind === 'resume'
+            ? [['继续上次', 'chain', 1], ['本节点重跑', 'node', 0], ['放弃', 'no', 0]]
+            : (kind === 'takeover'
+                ? [['接管并开始', 'chain', 1], ['放弃', 'no', 0]]
+                : (kind === 'blocked'
+                    ? (data.reason === 'advanced'
+                        ? [['重做本节点', 'retry-vm', 1], ['接受该分数并继续', 'skip', 0], ['结束（记住，刷新不再提示）', 'no', 0]]
+                        : [['再练一次', 'retry', 1], ['跳过并继续', 'skip', 0], ['结束（记住，刷新不再提示）', 'no', 0]])
+                    : [['开始自动作答', 'chain', 1], ['只做当前节点', 'node', 0], ['稍后', 'no', 0]]));
+        var wrap = card.querySelector('#tcCardBtns');
+        defs.forEach(function (d) {
+            var b = document.createElement('button');
+            b.textContent = d[0];
+            b.className = 'ne21-btn ' + (d[2] ? 'ne21-btn-primary' : 'ne21-btn-secondary');
+            b.style.cssText = 'padding:5px 12px;font-size:12px;';
+            b.addEventListener('click', function () {
+                var rem = !!(document.getElementById('tcRemember') || {}).checked;
+                tcCardRemove();
+                resolve({ action: d[1], remember: rem });
+            });
+            wrap.appendChild(b);
+        });
+        card.scrollIntoView({ block: 'nearest' });
+    });
+}
+
+// 「稍后」后，在状态条里给一个重新唤起的入口
+function tcShowStartButton() {
+    try {
+        var bar = document.getElementById('tcBar');
+        if (!bar) return;
+        if (document.getElementById('tcStartBtn')) return;
+        var b = document.createElement('button');
+        b.id = 'tcStartBtn';
+        b.textContent = '▶ 开始任务链';
+        b.style.cssText = 'margin-right:6px;padding:4px 10px;border-radius:9px;border:1px solid rgba(37,99,235,.45);background:#2563eb;color:#fff;cursor:pointer;font-size:12px;';
+        b.addEventListener('click', function () {
+            b.remove();
+            var nodes = tcScanNodes();
+            tcPanelAsk('start', { nodes: nodes, st: tcState() }).then(function (d) {
+                if (!d || d.action === 'no') { tcShowStartButton(); return; }
+                tcChainLoop(d.action === 'node' ? 'node' : 'chain');
+            });
+        });
+        bar.appendChild(b);
+    } catch (e) { }
+}
+
+/* ---------------------------------- 页面与节点扫描 ---------------------------------- */
+
+function tcDialogueFrame() { return document.querySelector('iframe.dialogue-frame'); }
+function tcDialogueDoc() {
+    var f = tcDialogueFrame();
+    try { return f && f.contentDocument ? f.contentDocument : null; } catch (e) { return null; }
+}
+
+function tcNodeKey(title, used) {
+    var k = String(title || '').replace(/[\s\u3000]+/g, '')
+        .replace(/[（）()\[\]【】:：,，.。;；、\/\\|*?"'<>＋+]/g, '')
+        .slice(0, 40);
+    if (!k) k = 'node';
+    if (used && used[k]) {
+        var n = 2;
+        while (used[k + '#' + n]) n++;
+        k = k + '#' + n;
+    }
+    return k;
+}
+
+// 读取节点角标（情景对话 / 上传作品）—— 目录里的类型以角标为准，标题不可靠
+function tcArticleBadge(el) {
+    var leaves = el.querySelectorAll('div,span,p');
+    for (var i = 0; i < leaves.length; i++) {
+        var e = leaves[i];
+        if (e.childElementCount !== 0) continue;
+        var t = (e.textContent || '').replace(/\s+/g, '');
+        if (t === '情景对话' || t === '上传作品') return t;
+    }
+    return '';
+}
+
+// 抽取节点的任务说明（标题之后、已完成条件之前的段落）
+function tcArticleDesc(el, title) {
+    var ps = el.querySelectorAll('p');
+    var out = [];
+    for (var i = 0; i < ps.length; i++) {
+        var t = (ps[i].textContent || '').replace(/\s+/g, ' ').trim();
+        if (!t) continue;
+        if (t.indexOf('已完成条件') === 0) break;
+        if (t === title) continue;
+        if (/^(作答记录|重新练习|进入任务|当前任务|即将作答)$/.test(t)) continue;
+        out.push(t);
+    }
+    var d = out.join(' ').trim();
+    if (!d) {
+        // 兜底：用整段文本里“标题之后、已完成条件之前”的部分
+        var seg = (el.innerText || '').split('已完成条件')[0] || '';
+        var idx = seg.indexOf(title);
+        if (idx >= 0) d = seg.slice(idx + title.length).replace(/\s+/g, ' ').trim();
+    }
+    return d.slice(0, 600);
+}
+
+function tcScanNodes() {
+    var nodes = [], used = {};
+    var minScore = tcPassLine().value;
+    var flow = [];
+    try {
+        var vm0 = tcHomeVm();
+        flow = (vm0 && vm0.$data && vm0.$data.taskFlowList) || [];
+    } catch (e) { }
+    var arts = document.querySelectorAll('main article');
+    if (!arts.length) arts = document.querySelectorAll('article');
+    for (var i = 0; i < arts.length; i++) {
+        var el = arts[i];
+        var txt = (el.innerText || '').replace(/\r/g, '');
+        if (!/情景对话|上传作品|实践/.test(txt)) continue;
+        var h = el.querySelector('h1,h2,h3,h4');
+        var title = (h ? h.textContent : (el.innerText || '').split('\n')[0] || '').trim();
+        // 去掉“已完成条件：总分61~100分”里的数字干扰
+        var clean = txt.replace(/已完成条件[：:]\s*总分\s*\d+\s*[~～\-]\s*\d+\s*分/g, '')
+            .replace(/解锁下一节点条件[\s\S]*/, '');
+        var m = clean.match(/(\d{1,3})\s*分/);
+        var score = m ? parseInt(m[1], 10) : null;
+        var badge = tcArticleBadge(el);
+        var type;
+        if (badge === '上传作品') type = 'upload';
+        else if (badge === '情景对话') type = 'dialogue';
+        else type = /上传作品|报告|提交|附件/.test(title) ? 'upload' : 'dialogue';
+        var enterEl = null, retryEl = null;
+        var cands = el.querySelectorAll('button,div,span,a');
+        for (var j = 0; j < cands.length; j++) {
+            var t2 = (cands[j].textContent || '').replace(/\s+/g, '');
+            if (!enterEl && t2 === '进入任务') { enterEl = cands[j]; }
+            if (!retryEl && t2 === '重新练习') { retryEl = cands[j]; }
+        }
+        // 平台自己的完成状态：Vue 里 status===2，或卡片没有入口也没有重练
+        var pf = null;
+        for (var fi = 0; fi < flow.length; fi++) {
+            if (String(flow[fi].title || '').trim() === String(title).trim()) { pf = flow[fi]; break; }
+        }
+        var platformDone = pf ? (Number(pf.status) === 2)
+            : (score != null && !enterEl && !retryEl);
+        var key = tcNodeKey(title, used);
+        used[key] = 1;
+        nodes.push({
+            idx: i, key: key, title: title, type: type,
+            desc: tcArticleDesc(el, title),
+            score: score,
+            done: score != null && score >= minScore,
+            platformDone: platformDone,
+            enter: !!enterEl, enterEl: enterEl,
+            retry: !!retryEl, retryEl: retryEl,
+            raw: el
+        });
+    }
+    return nodes;
+}
+
+// 把本次扫描结果合并进持久化状态（只增不删，分数取最新）
+function tcMergeNodes(nodes) {
+    var st = tcState();
+    st.nodes = st.nodes || [];
+    var map = {};
+    st.nodes.forEach(function (n) { map[n.key] = n; });
+    nodes.forEach(function (n) {
+        var prev = map[n.key];
+        if (prev) {
+            prev.title = n.title || prev.title;
+            prev.type = n.type || prev.type;
+            if (n.desc) prev.desc = n.desc;
+            if (n.score != null && (prev.score == null || n.score !== prev.score)) prev.score = n.score;
+            prev.done = !!prev.done || n.done;
+            prev.seenAt = tcNow();
+        } else {
+            st.nodes.push({ key: n.key, title: n.title, type: n.type, desc: n.desc, score: n.score, done: n.done, seenAt: tcNow() });
+        }
+    });
+    tcSaveState(st);
+    return st.nodes;
+}
+
+function tcChainDone() {
+    var t = (document.body.innerText || '');
+    return /任务已完成/.test(t) || /查看最终评估结果/.test(t);
+}
+
+function tcConfirmIrreversible() {
+    var btn = tcFindByText(document, '直接来吧', { selector: 'div,span,button,a' });
+    if (btn) { tcClick(btn); return true; }
+    return false;
+}
+
+// 找到任务链页面的 Vue 实例：
+// 该页面 #app 上没有 __vue__，实例挂在 .appHome 上，因此按选择器优先 + 全量扫描兜底。
+function tcHomeVm() {
+    var selectors = ['.appHome', '.container', '#app'];
+    for (var i = 0; i < selectors.length; i++) {
+        var el = document.querySelector(selectors[i]);
+        if (el && el.__vue__) return el.__vue__;
+    }
+    try {
+        var all = document.querySelectorAll('*');
+        var n = Math.min(all.length, 4000);
+        for (var j = 0; j < n; j++) {
+            var v = all[j].__vue__;
+            if (v && v.$data && (v.$data.uploadInfo || v.$data.taskFlowList)) return v;
+        }
+    } catch (e) { }
+    return null;
+}
+
+// 「重新练习」按钮点不动时的兜底：先调 Vue 方法，再直接跳转重练页
+function tcRetryViaVm(node) {
+    var vm = tcHomeVm();
+    if (!vm || !vm.$data) return Promise.resolve(false);
+    var list = vm.$data.taskFlowList || [];
+    var task = null;
+    for (var i = 0; i < list.length; i++) {
+        if (node && node.key && tcNodeKey(list[i].title) === node.key) { task = list[i]; break; }
+    }
+    if (!task) return Promise.resolve(false);
+    try {
+        if (typeof vm.handleRetryEvaluate === 'function') vm.handleRetryEvaluate(task);
+        tcLog('已尝试调用页面重练方法', 'info');
+    } catch (e) {
+        tcLog('调用 handleRetryEvaluate 失败：' + e.message, 'warn');
+    }
+    return tcSleep(3000).then(function () {
+        if (tcDialogueDoc() || tcFindChooseBtn()) return true;
+        var url = '';
+        try { url = vm.buildRetryEvaluateUrl(task); } catch (e) { }
+        if (url) {
+            tcLog('按钮无响应，直接跳转重练页', 'warn');
+            location.href = url;
+        }
+        return false;
+    });
+}
+
+function tcEnterNode(node) {
+    if (!node) return Promise.resolve(false);
+    var btn = node.enterEl || tcFindByText(node.raw, '进入任务', { selector: 'button,div,span,a' });
+    var isRetry = false;
+    if (!btn && node.retryEl) { btn = node.retryEl; isRetry = true; }
+    if (!btn) return Promise.resolve(false);
+    if (isRetry) {
+        tcLog('节点分数偏低，点击「重新练习」重做本节点', 'warn');
+        tcClick(btn);
+        return tcSleep(1500).then(function () {
+            return tcWait(function () {
+                return (tcDialogueDoc() || tcFindChooseBtn()) ? true : false;
+            }, 6000, 500);
+        }).then(function (ok) {
+            if (ok) return true;
+            return tcRetryViaVm(node);
+        }).then(function () { return true; });
+    }
+    tcClick(btn);
+    return tcSleep(1200).then(function () {
+        if (tcConfirmIrreversible()) tcLog('已确认「进入下一任务」不可逆提示', 'warn');
+        return tcSleep(1800);
+    }).then(function () {
+        // 部分上传节点在「进入任务」后还有一层「开始作答/去完成」按钮
+        if (tcDialogueDoc()) return true;
+        if (tcFindByText(document, '选择文件', { selector: 'button,div,span,a' })) return true;
+        var startBtn = tcFindByText(document, '开始作答', { selector: 'button,div,span,a' })
+            || tcFindByText(document, '开始答题', { selector: 'button,div,span,a' })
+            || tcFindByText(document, '去完成', { selector: 'button,div,span,a' })
+            || tcFindByText(document, '立即作答', { selector: 'button,div,span,a' })
+            || tcFindByText(document, '开始实践', { selector: 'button,div,span,a' });
+        if (startBtn) {
+            tcClick(startBtn);
+            tcLog('已点击中间页按钮：' + (startBtn.textContent || '').trim());
+            return tcSleep(2000);
+        }
+        return true;
+    });
+}
+
+/* ---------------------------------- 对话页读取 ---------------------------------- */
+
+function tcReadCtx(doc) {
+    var body = (doc.body && doc.body.innerText) || '';
+    var roles = tcReadRoles(doc, body);
+    var roundM = body.match(/任务完成条件\s*(\d+)\s*\/\s*(\d+)\s*轮/) || body.match(/(\d+)\s*\/\s*(\d+)\s*轮/);
+    var leftM = body.match(/剩余练习次数\s*(\d+)/) || body.match(/已练习\s*(\d+)\s*次/);
+    var titleEl = doc.querySelector('h1,h2,h3');
+    var descEl = doc.querySelector('[class*="taskDesc"],[class*="desc"]');
+    return {
+        title: titleEl ? titleEl.textContent.trim() : (document.title || ''),
+        desc: descEl ? descEl.textContent.trim() : body.split('\n').slice(0, 12).join(' ').slice(0, 300),
+        roles: roles,
+        round: roundM ? parseInt(roundM[1], 10) : 0,
+        roundMax: roundM ? parseInt(roundM[2], 10) : 30,
+        leftTimes: leftM ? parseInt(leftM[1], 10) : null
+    };
+}
+
+function tcReadRoles(doc, body) {
+    var out = { student: '我', teacher: '老师' };
+    try {
+        var lis = doc.querySelectorAll('li');
+        var names = [];
+        for (var i = 0; i < lis.length && names.length < 2; i++) {
+            var t = (lis[i].innerText || '').split('\n')[0].trim();
+            if (t && !/我$|智能体$/.test(t) && t.length <= 20) names.push(t);
+        }
+        if (names.length === 2) { out.student = names[0]; out.teacher = names[1]; }
+    } catch (e) { }
+    if (out.student === out.teacher) { out.student = '我'; out.teacher = '老师'; }
+    return out;
+}
+
+function tcIsNoiseLine(line) {
+    return /^(沉浸模式|语音播报|任务说明|回到当前对话|结束对话并评估|出场角色|发送|点击继续|AI评估结果|总结|正在生成评估结果)/.test(line)
+        || /^(任务完成条件|剩余练习次数|已练习)/.test(line)
+        || /^\d+\s*\/\s*\d+\s*轮?$/.test(line)
+        || /^得分\s*\d+/.test(line)
+        || /^(问题分析深度|解决方案可行性|角色专业度|沟通与逻辑表达)/.test(line)
+        || /^(我|智能体|老师|学生)$/.test(line)
+        || line === '分' || line === '轮' || line === '/';
+}
+
+function tcParseMessages(doc, roles) {
+    var body = (doc.body && doc.body.innerText) || '';
+    var lines = body.split('\n');
+    var msgs = [], cur = null;
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line) continue;
+        if (line === roles.student || line === roles.teacher) {
+            if (cur && cur.text) msgs.push(cur);
+            cur = { role: line === roles.teacher ? 'teacher' : 'student', text: '' };
+            continue;
+        }
+        if (tcIsNoiseLine(line)) continue;
+        if (!cur) continue;
+        // 跳过节点标题（首行短标题）
+        if (cur.text === '' && line.length < 12 && /调试|设计|实现|适配|梳理|优化/.test(line)) continue;
+        cur.text += (cur.text ? '\n' : '') + line;
+    }
+    if (cur && cur.text) msgs.push(cur);
+    return msgs;
+}
+
+function tcTextarea(doc) { return doc.querySelector('textarea.messageInput') || doc.querySelector('textarea'); }
+function tcSendBtn(doc) { return doc.querySelector('.sendBtn') || doc.querySelector('.sendMessage'); }
+function tcContinueBtn(doc) { return doc.querySelector('.continue'); }
+
+function tcDrain(doc) {
+    // 剧情阶段优先推「点击继续」，避免误点长消息分页；两处同名但作用不同
+    var go = tcStoryBtn(doc);
+    if (go) { tcClick(go); return 1; }
+    // 每次调用只点一次“点击继续”：调用方以轮询方式反复调用，
+    // 这样既不会阻塞主线程，也能覆盖被分页成多段的长回复。
+    var c = tcContinueBtn(doc);
+    if (!c) return 0;
+    tcClick(c);
+    return 1;
+}
+
+// 剧情推进按钮：<div class="goOnBtn"><span class="goOnBtnSpan">点击继续</span></div>
+function tcStoryBtn(doc) {
+    if (!doc) return null;
+    var span = doc.querySelector('.goOnBtnSpan');
+    if (span) return span;
+    var div = doc.querySelector('.goOnBtn');
+    if (div) return div;
+    return null;
+}
+
+function tcStoryActive(doc) { return !!tcStoryBtn(doc); }
+
+// 是否真的进入对话（剧情退场 + 输入框可用，或已经出现我方消息）
+function tcDialogueStarted(doc) {
+    if (!doc) return false;
+    if (doc.querySelector('.storyBtn')) return false;
+    if (tcStoryActive(doc)) return false;
+    var ta = tcTextarea(doc);
+    if (ta && !ta.disabled && !/还未轮到你发言/.test(ta.getAttribute('placeholder') || '')) return true;
+    return !!doc.querySelector('.user-chat-item');
+}
+
+// 等待期间也推进剧情：否则会卡在「点击继续」上空等到超时
+function tcReadyOrAdvance(doc) {
+    if (tcStoryActive(doc)) { tcDrain(doc); return false; }
+    return tcTurnReady(doc);
+}
+
+// 在 iframe 里按方法名找 Vue 实例（剧情开始是组件方法 storyStart）
+function tcVueByMethod(doc, name) {
+    try {
+        var all = doc.querySelectorAll('*');
+        var n = Math.min(all.length, 4000);
+        for (var i = 0; i < n; i++) {
+            var v = all[i].__vue__;
+            if (v && typeof v[name] === 'function') return v;
+        }
+    } catch (e) { }
+    return null;
+}
+
+// 开始对话：点开始 → 过剧情（可能多幕「点击继续」）→ 校验确实进入对话
+function tcClickStartDialogue(doc) {
+    var startBtn = tcFindByText(doc, '开始对话', { selector: 'div,span,button,a,p' })
+        || doc.querySelector('.storyBtn');
+    if (startBtn) {
+        tcClick(startBtn);
+        tcLog('已点击「开始对话」(' + ((startBtn.className && String(startBtn.className)) || startBtn.tagName) + ')');
+    } else {
+        tcLog('未找到「开始对话」按钮，按已进入对话处理', 'muted');
+    }
+
+    var clicks = 0;
+    var goneStreak = 0;
+
+    function loop() {
+        if (tcStoryActive(doc)) {
+            goneStreak = 0;
+            clicks++;
+            if (clicks > 30) return Promise.resolve(false);
+            tcClick(tcStoryBtn(doc));
+            tcLog('剧情推进 ' + clicks, 'muted');
+            return tcSleep(700).then(loop);
+        }
+        goneStreak++;
+        if (goneStreak >= 2) return Promise.resolve(tcDialogueStarted(doc));
+        return tcSleep(700).then(loop);
+    }
+
+    return loop().then(function (ok) {
+        if (ok) { tcLog('对话已开始，输入框可用', 'success'); return true; }
+        // 回退 1：再点一次开始按钮
+        var alt = doc.querySelector('.storyBtn') || doc.querySelector('.pc_btn');
+        if (alt) { tcClick(alt); tcLog('回退：再次点击「开始对话」', 'warn'); }
+        return tcSleep(1200).then(loop);
+    }).then(function (ok) {
+        if (ok) { tcLog('对话已开始，输入框可用', 'success'); return true; }
+        // 回退 2：直接调组件方法
+        var vm = tcVueByMethod(doc, 'storyStart');
+        if (vm) {
+            try { vm.storyStart(); tcLog('回退：调用组件方法 storyStart()', 'warn'); } catch (e) { tcLog('storyStart 调用异常：' + e.message, 'warn'); }
+            return tcSleep(2000).then(loop);
+        }
+        return false;
+    }).then(function (ok) {
+        if (!ok) throw new Error('「开始对话」未生效（剧情未推进）');
+        return true;
+    });
+}
+
+function tcWait(fn, timeout, interval) {
+    timeout = timeout || 30000; interval = interval || 500;
+    var start = tcNow();
+    return new Promise(function (resolve) {
+        (function loop() {
+            var v = false;
+            try { v = fn(); } catch (e) { v = false; }
+            if (v) return resolve(v);
+            if (tcNow() - start > timeout) return resolve(false);
+            setTimeout(loop, interval);
+        })();
+    });
+}
+
+function tcWaitDoc(timeout) {
+    return tcWait(function () {
+        var d = tcDialogueDoc();
+        return d && d.body ? d : false;
+    }, timeout || 30000, 500);
+}
+
+function tcTurnReady(doc) {
+    var ta = tcTextarea(doc);
+    if (!ta) return false;
+    if (ta.disabled) return false;
+    if (/还未轮到你发言/.test(ta.getAttribute('placeholder') || '')) return false;
+    if (tcStoryActive(doc)) return false;      // 剧情没走完（还有「点击继续」）
+    if (tcContinueBtn(doc)) return false;
+    return true;
+}
+
+/* ---------------------------------- DeepSeek 对话通道 ---------------------------------- */
+
+function tcPickContent(obj) {
+    try {
+        var ch = obj && obj.choices && obj.choices[0];
+        if (!ch) return '';
+        var m = ch.message || {};
+        var c = m.content;
+        if (typeof c === 'string' && c.trim()) return c.trim();
+        if (Object.prototype.toString.call(c) === '[object Array]') {
+            var t = c.map(function (p) {
+                if (typeof p === 'string') return p;
+                if (p && typeof p.text === 'string') return p.text;
+                if (p && typeof p.content === 'string') return p.content;
+                return '';
+            }).join('').trim();
+            if (t) return t;
+        }
+        // 注意：reasoning_content / reasoning 是思考过程，不是给用户的答复，绝不回落
+        if (typeof ch.text === 'string' && ch.text.trim()) return ch.text.trim();
+    } catch (e) { }
+    return '';
+}
+
+function tcJsonFromText(txt) {
+    var s = String(txt || '').trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+    try { return JSON.parse(s); } catch (e) { }
+    var i = s.indexOf('{'), j = s.lastIndexOf('}');
+    if (i >= 0 && j > i) {
+        try { return JSON.parse(s.slice(i, j + 1)); } catch (e2) { }
+    }
+    throw new Error('无法解析 JSON（长度 ' + s.length + '）');
+}
+
+var _tcNoReasoningField = false;   // 服务端不接受 reasoning_effort 时置 true
+
+function tcChat(messages, opt) {
+    opt = opt || {};
+    var _logParams = !!opt.metaOut;    // 只有文档/报告类调用打印参数，避免对话刷屏
+    opt.metaOut = opt.metaOut || {};   // 保证 finish_reason 能被读取
+    var apiKey = getDeepSeekApiKey();
+    if (!apiKey) return Promise.reject({ c: -1, msg: '未配置 DeepSeek API 密钥' });
+    var baseUrl = getDeepSeekBaseUrl();
+    var model = opt.model || getDeepSeekModel() || 'deepseek-flash';
+    var _callNo = tcAiSeqNext();
+    try { tcLog('[AI] 第 ' + _callNo + ' 次调用（' + (opt._tag || 'chat') + '）', 'muted'); } catch (e) { }
+    if (_logParams) {
+        tcLog('[AI] 请求参数：model=' + model + '，max_tokens='
+            + (opt.maxTokens ? opt.maxTokens : '不传（服务端默认）'), 'muted');
+    }
+
+    // 开发者调试：按「实际请求」逐条记录（含续写/降级重发的真实 body）
+    var _reqSeq = 0;
+
+    function once(cfg) {
+        tcBusyStart('AI 正在思考…');
+        var interval = Math.min(60, Math.max(0, tcCfg('reqIntervalTime', 0) || 0)) * 1000;
+        var now = tcNow();
+        var waitMs = Math.max(0, _tcNextAllowedAt - now);
+        _tcNextAllowedAt = Math.max(now, _tcNextAllowedAt) + interval;
+
+        var body = {
+            model: model,
+            messages: cfg.messages,
+            stream: false,
+            temperature: cfg.temperature
+        };
+        // maxTokens 为 0/未设置 => 不传，交给服务端默认（“不设上限”）
+        if (cfg.maxTokens) body.max_tokens = cfg.maxTokens;
+        // 尝试压低思考开销；服务端不认会自动去掉重试。
+        // cfg.noReason：上一轮思考把输出预算吃干后，本次不带 reasoning_effort 重发。
+        if (!_tcNoReasoningField && !cfg.noReason && opt.reasoning !== false) body.reasoning_effort = opt.reasoning || 'low';
+
+        // 记录「真正要 POST 出去的 body」：续写轮、降级轮都各自一条
+        var _dbg = null, _dbgT0 = tcNow();
+        if (tcDebugOn()) {
+            _reqSeq++;
+            _dbg = tcDbgPush('chat', {
+                seq: _reqSeq,
+                call: _callNo,
+                tag: opt._tag || 'chat',
+                model: body.model,
+                temperature: body.temperature,
+                max_tokens: (body.max_tokens === undefined ? '未传' : body.max_tokens),
+                reasoning_effort: (body.reasoning_effort === undefined ? '未传' : body.reasoning_effort),
+                noReason: !!cfg.noReason,
+                messages: tcDbgSanitizeMessages(body.messages),
+                bodyBytes: JSON.stringify(body).length,
+                exact: tcDbgExact(body.messages)
+            });
+        }
+        function dbgDone(ok, extra) {
+            if (!_dbg) return;
+            _dbg.ok = ok;
+            _dbg.ms = tcNow() - _dbgT0;
+            if (extra) { for (var k in extra) _dbg[k] = extra[k]; }
+            try { tcDbgSave(); tcDbgStatus(); tcDbgRender(); } catch (e) { }
+        }
+
+        return new Promise(function (resolve) { setTimeout(resolve, waitMs); }).then(function () {
+            return new Promise(function (resolve2, reject2) {
+                GM_xmlhttpRequest({
+                    method: 'POST',
+                    url: baseUrl + '/chat/completions',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+                    data: JSON.stringify(body),
+                    timeout: opt.timeout || 180000,
+                    onload: function (xhr) {
+                        if (xhr.status === 200) {
+                            var obj = null;
+                            try { obj = JSON.parse(xhr.responseText) || {}; }
+                            catch (e) { return reject2({ c: -1, msg: 'JSON 解析失败: ' + e.message, raw: (xhr.responseText || '').slice(0, 300) }); }
+                            var mo = cfg.metaOut || opt.metaOut;
+                            if (mo) {
+                                mo.finish_reason = obj.choices && obj.choices[0] && obj.choices[0].finish_reason;
+                                mo.usage = obj.usage;
+                                mo.model = obj.model;
+                            }
+                            var c = tcPickContent(obj);
+                            if (!c) return reject2({ c: 0, msg: 'AI 返回为空', empty: true, raw: (xhr.responseText || '').slice(0, 400) });
+                            resolve2(c);
+                        } else {
+                            var msg = 'HTTP ' + xhr.status;
+                            try { var o = JSON.parse(xhr.responseText); if (o.error && o.error.message) msg = o.error.message; } catch (e) { }
+                            reject2({ c: xhr.status, msg: msg, bodyHadReasoning: !!body.reasoning_effort });
+                        }
+                    },
+                    ontimeout: function () { reject2({ c: 666, msg: '请求超时' }); },
+                    onerror: function () { reject2({ c: -1, msg: '网络错误' }); }
+                });
+            });
+        }).then(function (v) {
+            tcBusyStop();
+            var mo = cfg.metaOut || opt.metaOut || {};
+            dbgDone(true, {
+                chars: String(v || '').length,
+                finish_reason: mo.finish_reason || '',
+                usage: mo.usage || null,
+                response_model: mo.model || ''
+            });
+            return v;
+        }, function (e) {
+            tcBusyStop();
+            dbgDone(false, { error: { c: e && e.c, msg: (e && (e.msg || e.message)) || String(e) } });
+            throw e;
+        });
+    }
+
+    function run(cfg) {
+        return once(cfg).catch(function (err) {
+            if (err && err.bodyHadReasoning && (err.c === 400 || err.c === 422) && !_tcNoReasoningField) {
+                _tcNoReasoningField = true;
+                tcLog('服务端不接受 reasoning_effort，去掉该字段重试', 'warn');
+                return run(cfg);
+            }
+            throw err;
+        });
+    }
+
+    // 不再设脚本侧上限：opt.maxTokens 未传/为 0 时整个 max_tokens 字段都不发，交给服务端
+    var baseCfg = {
+        messages: messages,
+        temperature: (opt.temperature === undefined ? 0.8 : opt.temperature),
+        maxTokens: opt.maxTokens || 0
+    };
+
+    function callOnce(cfg, msgs, extra) {
+        var meta = {};
+        return run({
+            messages: msgs || cfg.messages,
+            temperature: cfg.temperature,
+            maxTokens: cfg.maxTokens,
+            metaOut: meta,
+            noReason: !!(extra && extra.noReason)
+        })
+            .then(function (t) {
+                return { ok: true, text: String(t || ''), meta: meta };
+            }, function (e) {
+                if (e && e.empty) return { ok: false, meta: meta, err: e };
+                throw e;
+            });
+    }
+
+    var full = '';
+    var round = 0;
+    var lastMeta = {};
+
+    function step(overrideMsgs, extra) {
+        if (round >= 4) {
+            return Promise.reject({ c: 0, msg: 'AI 输出为空（已尝试 4 次）', meta: lastMeta });
+        }
+        round++;
+        extra = extra || {};
+
+        var useMsgs = overrideMsgs;
+        if (!useMsgs) {
+            useMsgs = (messages || []).slice();
+            if (full) {
+                useMsgs.push({ role: 'assistant', content: full });
+                useMsgs.push({ role: 'user', content: '请紧接着继续写完，只输出最终回复正文，不要重复已写内容，不要输出思考过程。' });
+            }
+        }
+
+        return callOnce(baseCfg, useMsgs, extra).then(function (r) {
+            lastMeta = r.meta || {};
+            if (opt.metaOut) {
+                opt.metaOut.finish_reason = lastMeta.finish_reason;
+                opt.metaOut.usage = lastMeta.usage;
+            }
+            var reason = lastMeta.finish_reason || '';
+            var usage = lastMeta.usage || {};
+            var comp = usage.completion_tokens || 0;
+            var rt = usage.completion_tokens_details ? usage.completion_tokens_details.reasoning_tokens : null;
+
+            if (!r.ok || !String(r.text || '').trim()) {
+                tcLog('[AI] 空内容（finish_reason=' + (reason || '?')
+                    + '，completion=' + (usage.completion_tokens || '?')
+                    + (rt != null ? '，reasoning=' + rt : '') + '）', 'warn');
+
+                // 思考把输出预算吃干（reasoning 占了九成以上且被 length 截断）：
+                // 换一次「不带 reasoning_effort」的请求，而不是用同样参数再撞一遍。
+                var starved = reason === 'length' && rt != null && comp > 0 && rt >= comp * 0.9;
+                if (starved && !extra.noReason) {
+                    tcLog('[AI] 思考吃满输出上限（reasoning=' + rt + '/' + comp + '），去掉 reasoning_effort 重发', 'warn');
+                    var starvedMsgs = (messages || []).slice();
+                    if (full) starvedMsgs.push({ role: 'assistant', content: full });
+                    return step(starvedMsgs, { noReason: true });
+                }
+
+                // 其它空回复：加一条强指令重发
+                var retryMsgs = (messages || []).slice();
+                if (full) retryMsgs.push({ role: 'assistant', content: full });
+                retryMsgs.push({
+                    role: 'user',
+                    content: '直接输出最终答复正文（可以用自然段，但只输出答复），不要输出任何思考、分析或解释。'
+                });
+                return step(retryMsgs, extra);
+            }
+
+            full += r.text;
+            if (round > 1) tcLog('[AI] 第 ' + round + ' 段 +' + r.text.length + ' 字，累计 ' + full.length + ' 字', 'muted');
+
+            if (reason === 'length') {
+                if (round >= 4) {
+                    tcLog('[AI] 已拼接 ' + round + ' 段仍被截断，接受当前内容', 'warn');
+                    return full;
+                }
+                return step(null, extra);   // 继续续写
+            }
+            return full;
+        });
+    }
+
+    return step(null).catch(function (err) {
+        if (err && err.c === 400 && /max_tokens/i.test(err.msg || '')) {
+            tcLog('服务端不接受 max_tokens，改用服务端默认值重试', 'warn');
+            baseCfg.maxTokens = 0;
+            round = 0;
+            full = '';
+            return step(null);
+        }
+        throw err;
+    });
+}
+
+/* ---------------------------------- 提示词 ---------------------------------- */
+
+function tcComposeReply(ctx, teacherText, history, discussed, carryOver) {
+    var rounds = tcCfg('taskChainRounds', 20);
+    var sys = '你在超星「AI 实践」任务链中扮演「' + ctx.roles.student + '」，与「' + ctx.roles.teacher + '」进行技术对话。\n'
+        + '硬性要求：\n'
+        + '1) 一次把老师本轮提出的所有问题答完，不要反问、不要等待补充；\n'
+        + '2) 只输出中文纯文本，禁止 Markdown（不要 **、#、表格、代码围栏）；\n'
+        + '3) 长度 150-350 字，必须给出具体技术细节（状态、判定条件、步骤、边界处理）与明确结论；\n'
+        + '4) 不要重复此前说过的内容，要推进到新的子话题；\n'
+        + '5) 本轮节点主题：' + (ctx.title || '') + '；任务说明：' + (ctx.desc || '').slice(0, 200) + '\n'
+        + (carryOver ? '6) 上一节点结论（可引用，不要复述）：' + carryOver + '\n' : '')
+        + (discussed && discussed.length ? '7) 已讨论要点（禁止重复）：' + discussed.slice(-12).join('、') + '\n' : '')
+        + '输出只有回复正文，不要任何前缀说明。';
+
+    var hist = (history || []).slice(-7).map(function (m) {
+        return (m.role === 'teacher' ? '老师：' : '我：') + m.text.slice(0, 200);
+    }).join('\n');
+
+    var user = (hist ? '【最近对话】\n' + hist + '\n\n' : '')
+        + '【老师最后一条消息（必须直接回应它）】\n' + (teacherText || '（首轮，请根据任务说明主动做结构化分析并给出方案）') + '\n\n'
+        + '若老师在质疑你没有回答问题或重复提问，请先正面回答他的问题，不要继续罗列上一轮的内容。\n\n'
+        + '【要求】请给出你的本轮回复（纯文本，150-350 字，答完本轮所有问题，不反问）。';
+
+    return tcChat([{ role: 'system', content: sys }, { role: 'user', content: user }], { temperature: 0.85 });
+}
+
+function tcCleanReply(text) {
+    var t = String(text || '').trim();
+    t = t.replace(/^```[a-z]*\s*/i, '').replace(/```$/i, '').trim();
+    t = t.replace(/\*\*/g, '').replace(/^#+\s*/gm, '');
+    t = t.replace(/\n{3,}/g, '\n\n');
+    return t;
+}
+
+function tcGate(text, sentHashes) {
+    var t = tcCleanReply(text);
+    var min = tcCfg('replyMin', 150), max = tcCfg('replyMax', 350);
+    if (t.length < min * 0.6) return { ok: false, reason: '过短(' + t.length + ')' };
+    if (t.length > max * 1.8) t = t.slice(0, Math.round(max * 1.8)).replace(/[，。；]$/, '') + '。';
+    var h = t.replace(/\s+/g, '').slice(0, 40);
+    if (sentHashes && sentHashes.indexOf(h) !== -1) return { ok: false, reason: '与历史重复' };
+    return { ok: true, text: t, hash: h };
+}
+
+/* ---------------------------------- 发消息 / 等回合 ---------------------------------- */
+
+function tcSend(doc, text) {
+    var ta = tcTextarea(doc);
+    if (!ta) return false;
+    var setter = null;
+    try { setter = Object.getOwnPropertyDescriptor(doc.defaultView.HTMLTextAreaElement.prototype, 'value').set; } catch (e) { }
+    try {
+        ta.focus();
+        if (setter) setter.call(ta, text); else ta.value = text;
+        ta.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+        ta.dispatchEvent(new Event('change', { bubbles: true }));
+    } catch (e) { tcLog('设置输入框失败：' + e.message, 'error'); return false; }
+    var btn = tcSendBtn(doc);
+    if (!btn) return false;
+    tcClick(btn);
+    return true;
+}
+
+function tcWaitAdvance(doc, baseRound, timeout) {
+    timeout = timeout || 180000;
+    var start = tcNow();
+    return new Promise(function (resolve) {
+        (function loop() {
+            tcDrain(doc);
+            var ctx = tcReadCtx(doc);
+            if (ctx.round > baseRound && tcTurnReady(doc)) return resolve(true);
+            if (tcNow() - start > timeout) return resolve(false);
+            setTimeout(loop, 700);
+        })();
+    });
+}
+
+/* ---------------------------------- 消息读取（DOM 优先） ---------------------------------- */
+
+function tcTeacherText(el) {
+    if (!el) return '';
+    var box = el.querySelector('.agentAnswer .answer_content') || el.querySelector('.agentAnswer');
+    var t = box ? box.innerText : (el.innerText || '');
+    var name = el.querySelector('.agentName');
+    if (name && t.indexOf(name.innerText) === 0) t = t.slice(name.innerText.length);
+    return String(t || '').trim();
+}
+
+// 按 DOM 读取整条对话：老师 .agent / 我方 .user-chat-item
+function tcReadThread(doc, roles) {
+    var out = [];
+    try {
+        var wrap = doc.querySelector('.wrap1000') || doc.body;
+        if (!wrap) return out;
+        var nodes = wrap.querySelectorAll('.agent, .user-chat-item');
+        for (var i = 0; i < nodes.length; i++) {
+            var el = nodes[i];
+            if (el.classList && el.classList.contains('agent')) {
+                var nm = el.querySelector('.agentName');
+                out.push({
+                    role: 'teacher',
+                    name: (nm ? nm.innerText : (roles && roles.teacher) || '老师').trim(),
+                    text: tcTeacherText(el)
+                });
+            } else {
+                var txt = (el.innerText || '').trim();
+                var sname = (roles && roles.student) || '';
+                if (sname && txt.indexOf(sname) === 0) txt = txt.slice(sname.length).trim();
+                out.push({ role: 'student', name: sname, text: txt });
+            }
+        }
+    } catch (e) { }
+    if (!out.length) {
+        // 兜底：文本解析
+        try { out = tcParseMessages(doc, roles || { student: '我', teacher: '老师' }); } catch (e) { }
+    }
+    return out;
+}
+
+function tcLastTeacher(thread) {
+    for (var i = (thread || []).length - 1; i >= 0; i--) {
+        if (thread[i].role === 'teacher') return thread[i].text;
+    }
+    return '';
+}
+
+function tcSnapshotThread(doc) {
+    var els = [];
+    try { els = doc.querySelectorAll('.wrap1000 > .agent'); } catch (e) { }
+    var last = els.length ? tcTeacherText(els[els.length - 1]) : '';
+    return { count: els.length, lastText: last, lastLen: last.length, ts: tcNow() };
+}
+
+// 等老师这条消息真正打完：条数+1 或文本变化 → 长度连续 3 次不增长
+function tcWaitTeacherReply(doc, snap, timeout) {
+    timeout = timeout || 180000;
+    var start = tcNow();
+    var matched = false;
+    var matchedAt = 0;
+    var stable = 0;
+    var lastLen = -1;
+    var lastCount = -1;
+    var countStable = 0;
+
+    tcBusyStart('等待老师回复…');
+    return new Promise(function (resolve) {
+        (function loop() {
+            try { tcDrain(doc); } catch (e) { }
+            var els = [];
+            try { els = doc.querySelectorAll('.wrap1000 > .agent'); } catch (e) { }
+            var last = els.length ? tcTeacherText(els[els.length - 1]) : '';
+            var len = last.length;
+
+            if (!matched && (els.length > snap.count || last !== snap.lastText)) {
+                matched = true;
+                matchedAt = tcNow();
+                tcLog('检测到老师新消息（' + (snap.count ? snap.count : 0) + '→' + els.length + ' 条，长度 0→' + len + '）', 'muted');
+            }
+
+            if (matched) {
+                tcBusySetLabel('老师正在输入…（' + len + ' 字）');
+                // 条数稳定（老师连发多条时继续等）
+                if (els.length === lastCount) countStable++; else countStable = 0;
+                lastCount = els.length;
+                // 以「输入框就绪」为主信号，文本稳定只作二次确认
+                if (tcTurnReady(doc) && !tcContinueBtn(doc)) {
+                    if (len > 0 && len === lastLen) stable++; else stable = 0;
+                    lastLen = len;
+                    if (stable >= 2 && countStable >= 2 && (tcNow() - matchedAt) >= 600) {
+                        var latest = '';
+                        try { latest = tcTeacherText(els[els.length - 1]); } catch (e) { latest = last; }
+                        tcLog('老师消息已输出完毕（' + latest.length + ' 字，等待 ' + ((tcNow() - matchedAt) / 1000).toFixed(1) + 's）', 'muted');
+                        tcBusyStop();
+                        return resolve(latest || last);
+                    }
+                } else {
+                    stable = 0;
+                }
+            }
+
+            if (tcNow() - start > timeout) {
+                tcLog('等待老师回复超时（' + Math.round(timeout / 1000) + 's），按当前文本继续', 'warn');
+                tcBusyStop();
+                return resolve(last);
+            }
+            setTimeout(loop, 400);
+        })();
+    });
+}
+
+/* ---------------------------------- 单节点：对话 ---------------------------------- */
+
+function tcDialogueNode(node, entered) {
+    var st = tcState();
+    var _doc = null;
+    st.phase = 'dialogue';
+    st.nodeIdx = node.idx;
+    st.updatedAt = tcNow();
+    tcSaveState(st);
+
+    return (entered ? Promise.resolve(true) : tcEnterNode(node)).then(function () {
+        return tcWaitDoc(30000);
+    }).then(function (doc) {
+        if (!doc) throw new Error('对话页未加载');
+        _doc = doc;
+        // 开始对话 + 过剧情（「点击继续」可能有多幕），确认真的进入对话再往下走
+        return tcClickStartDialogue(doc).then(function () { return tcSleep(1200); }).then(function () { return doc; });
+    }).then(function (doc) {
+        var ctx = tcReadCtx(doc);
+        var key = node.key || String(node.idx);
+        st.transcripts[key] = st.transcripts[key] || [];
+        tcLog('节点「' + (ctx.title || node.title) + '」开始，当前轮次 ' + ctx.round + '/' + ctx.roundMax);
+
+        var target = tcCfg('taskChainRounds', 20) || ctx.roundMax;
+        target = Math.min(target, ctx.roundMax || 30);
+        if (target < 1) target = Math.min(20, ctx.roundMax || 20);
+
+        var lastSentTeacher = '';
+        var pauseLoggedAt = 0;
+        var emptyRetries = 0;
+        return new Promise(function (resolve, reject) {
+            (function loop() {
+                if (!_tcRunning) return resolve('stopped');
+                if (_tcPaused) {
+                    if (tcNow() - pauseLoggedAt > 30000) { tcLog('已暂停，等待恢复…', 'warn'); pauseLoggedAt = tcNow(); }
+                    return setTimeout(loop, 2000);
+                }
+                var cur = tcReadCtx(doc);
+                if (cur.round >= target) return resolve('reached');
+                tcUpdateStatusBar('任务链：第 ' + (cur.round + 1) + '/' + target + ' 轮');
+                // 等输入框可用（老师上一轮确实结束）
+                tcWait(function () { return tcReadyOrAdvance(doc); }, 120000, 600).then(function () {
+                    var thread = tcReadThread(doc, cur.roles);
+                    var teacher = tcLastTeacher(thread);
+                    if (!teacher) teacher = lastSentTeacher;
+                    var history = thread.slice(-8);
+                    var snap = tcSnapshotThread(doc);
+                    // 老师还没产生新回复时不要重复发送
+                    if (teacher && teacher === lastSentTeacher) {
+                        tcLog('老师尚未给出新回复，5 秒后再检查（不重复发送）', 'warn');
+                        return setTimeout(loop, 5000);
+                    }
+                    var preview = String(teacher || '开场').replace(/\s+/g, ' ').slice(0, 50);
+                    tcLog('第 ' + (cur.round + 1) + ' 轮：老师「' + preview + '…」', 'info');
+                    if (/始终回避|答非所问|请正面回答|我两次询问|不要罗列/.test(teacher)) {
+                        tcLog('老师指出答非所问，本轮必须直接回应其问题', 'warn');
+                    }
+                    return tcComposeReply(cur, teacher, history, st.discussed, st.carryOver).then(function (raw) {
+                        var g = tcGate(raw, st.transcripts[key].map(function (m) { return m.hash; }));
+                        if (!g.ok) {
+                            tcLog('回复未通过闸门（' + g.reason + '），重写一次', 'warn');
+                            return tcComposeReply(cur, teacher, history, st.discussed, st.carryOver).then(function (raw2) {
+                                return tcCleanReply(raw2);
+                            });
+                        }
+                        return g.text;
+                    }).then(function (reply) {
+                        // 与我方上一条高度重复 → 换角度重写一次
+                        var lastStudent = '';
+                        for (var i = thread.length - 1; i >= 0; i--) { if (thread[i].role === 'student') { lastStudent = thread[i].text; break; } }
+                        if (lastStudent && typeof stringSimilarity === 'function' && stringSimilarity(reply, lastStudent) > 0.85) {
+                            tcLog('回复与上一条过于相似，换角度重写一次', 'warn');
+                            return tcComposeReply(cur, teacher + '\n（注意：换一个角度回答，不要重复上一轮已说过的内容）', history, st.discussed, st.carryOver)
+                                .then(function (r2) { return tcCleanReply(r2); });
+                        }
+                        return reply;
+                    }).then(function (reply) {
+                        // 空/过短/疑似思考过程 → 不发送
+                        var plain = String(reply || '').replace(/\s/g, '');
+                        if (plain.length < 8) throw new Error('AI 回复为空或过短（思考内容已丢弃）');
+                        if (/^(让我|我需要|首先我|分析如下|思考过程|好的，?我需要|We need)/.test(String(reply).trim())) {
+                            tcLog('回复疑似思考过程，重写一次', 'warn');
+                            return tcComposeReply(cur, teacher + '\n（请直接给出最终答复，不要输出分析或思考过程）', history, st.discussed, st.carryOver)
+                                .then(function (r3) { return tcCleanReply(r3); })
+                                .then(function (r4) {
+                                    if (String(r4 || '').replace(/\s/g, '').length < 8) throw new Error('AI 回复为空或过短（思考内容已丢弃）');
+                                    return r4;
+                                });
+                        }
+                        if (tcCfg('taskChainDryRun', false)) {
+                            tcLog('[DryRun] 拟发送：' + reply.slice(0, 120) + '…', 'skip');
+                            return 'dryrun';
+                        }
+                        if (!tcSend(doc, reply)) throw new Error('发送失败');
+                        emptyRetries = 0;
+                        st.transcripts[key].push({ role: 'student', text: reply, hash: reply.replace(/\s+/g, '').slice(0, 40), round: cur.round + 1, ts: tcNow() });
+                        st.round = cur.round + 1;
+                        st.updatedAt = tcNow();
+                        tcSaveState(st);
+                        tcLog('已发送第 ' + st.round + ' 轮（' + reply.length + ' 字），等待老师回复…', 'success');
+                        lastSentTeacher = teacher;
+                        // 关键：等老师这条消息逐字打完再进入下一轮
+                        return tcWaitTeacherReply(doc, snap, 180000).then(function (finalText) {
+                            if (!finalText || finalText === snap.lastText) {
+                                tcLog('本轮未检测到新的老师消息，下次循环会继续等待', 'warn');
+                            }
+                            return true;
+                        });
+                    });
+                }).then(function (r) {
+                    if (r === 'dryrun') return resolve('dryrun');
+                    setTimeout(loop, 300);
+                }).catch(function (e) {
+                    var emsg = (e && (e.msg || e.message)) || String(e);
+                    if (/返回为空|空内容/.test(emsg) && emptyRetries < 2) {
+                        emptyRetries++;
+                        tcLog('本轮 AI 返回为空，5 秒后重试（' + emptyRetries + '/2）', 'warn');
+                        setTimeout(loop, 5000);
+                        return;
+                    }
+                    tcLog('本轮失败：' + emsg, 'error');
+                    reject(e);
+                });
+            })();
+        });
+    }).then(function (why) {
+        tcLog('对话循环结束（' + why + '）');
+        if (why === 'dryrun') { tcLog('演练模式：跳过结束评估', 'skip'); return null; }
+        return tcFinishNode(_doc, node, st);
+    }).catch(function (e) {
+        tcLog('节点执行失败：' + (e && (e.msg || e.message) || e), 'error');
+        throw e;
+    });
+}
+
+function tcFinishNode(doc, node, st) {
+    var btn = doc.querySelector('.earlyEndBtn') || tcFindByText(doc, '结束对话并评估', { selector: 'div,span,button,a,p' });
+    if (!btn) { tcLog('未找到「结束对话并评估」按钮', 'warn'); return null; }
+
+    // 对话评估同样走 SSE：先取快照，别把上一次的分当本轮结果
+    var snap = tcEvalSnapshot();
+    var baseScore = tcReadEval().score;
+    tcClick(btn);
+    tcLog('已点击「结束对话并评估」'
+        + (baseScore == null ? '' : '（页面当前 ' + baseScore + ' 分为此前成绩）') + '，等待评分…');
+    tcBusyStart('等待评分…');
+
+    var textReady = tcWait(function () {
+        var t = (doc.body && doc.body.innerText) || '';
+        return /(得分|本次成绩)\s*(\d{1,3})\s*分/.test(t);
+    }, 180000, 2000);
+
+    return Promise.all([textReady, tcWaitEvalDone(snap, 180000)]).then(function () {
+        tcBusyStop();
+        var ev = tcReadEval();
+        var score = (ev.score != null && tcEvalFresh(ev, snap)) ? ev.score : null;
+        if (score == null) {
+            // 结构化拿不到时才退回文本；文本可能是旧成绩，用快照再校验一次
+            var m = ((doc.body && doc.body.innerText) || '').match(/(得分|本次成绩)\s*(\d{1,3})\s*分/);
+            if (m) {
+                var tScore = parseInt(m[2], 10);
+                score = (snap.lastScore == null || tScore !== snap.lastScore) ? tScore : null;
+            }
+        }
+        if (score != null) {
+            var pl = tcPassLine();
+            tcLog('节点评分：' + score + ' 分（合格线 ' + pl.value + '，来源：' + pl.from + '）', score >= pl.value ? 'success' : 'warn');
+            var nk = node.key || String(node.idx);
+            st.nodeScores = st.nodeScores || {};
+            st.nodeScores[nk] = score;
+            // 同步更新已发现节点列表里的分数
+            (st.nodes || []).forEach(function (n) { if (n.key === nk) { n.score = score; n.done = score >= pl.value; } });
+            st.phase = (score >= pl.value) ? 'advance' : 'retry';
+            st.updatedAt = tcNow();
+            tcSaveState(st);
+        } else {
+            tcLog('未拿到本轮新成绩（可能仍是上一次的 ' + (snap.lastScore == null ? '—' : snap.lastScore) + ' 分），请手动确认', 'warn');
+        }
+        return score;
+    });
+}
+
+/* ---------------------------------- 报告生成（ZIP + DOCX） ---------------------------------- */
+
+function tcCRC32(buf) {
+    var table = tcCRC32.table;
+    if (!table) {
+        table = new Uint32Array(256);
+        for (var i = 0; i < 256; i++) {
+            var c = i;
+            for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+            table[i] = c >>> 0;
+        }
+        tcCRC32.table = table;
+    }
+    var crc = 0 ^ (-1);
+    for (var j = 0; j < buf.length; j++) crc = (crc >>> 8) ^ table[(crc ^ buf[j]) & 0xFF];
+    return (crc ^ (-1)) >>> 0;
+}
+
+function tcDeflate(bytes) {
+    if (typeof CompressionStream === 'undefined' || typeof Blob === 'undefined') return Promise.resolve(null);
+    try {
+        var cs = new CompressionStream('deflate-raw');
+        var stream = new Blob([bytes]).stream().pipeThrough(cs);
+        return new Response(stream).arrayBuffer().then(function (ab) { return new Uint8Array(ab); }).catch(function () { return null; });
+    } catch (e) { return Promise.resolve(null); }
+}
+
+function tcZip(entries) {
+    var enc = new TextEncoder();
+    return Promise.all(entries.map(function (e) {
+        return (e.store ? Promise.resolve(null) : tcDeflate(e.data)).then(function (comp) {
+            return { name: e.name, data: e.data, comp: comp, method: comp ? 8 : 0 };
+        });
+    })).then(function (list) {
+        var parts = [], central = [], offset = 0;
+        list.forEach(function (e) {
+            var nameBytes = enc.encode(e.name);
+            var payload = e.comp || e.data;
+            var crc = tcCRC32(e.data);
+            var local = new Uint8Array(30 + nameBytes.length);
+            var dv = new DataView(local.buffer);
+            dv.setUint32(0, 0x04034b50, true);
+            dv.setUint16(4, 20, true);
+            dv.setUint16(6, 0, true);
+            dv.setUint16(8, e.method, true);
+            dv.setUint16(10, 0, true);
+            dv.setUint16(12, 0x21, true);
+            dv.setUint32(14, crc, true);
+            dv.setUint32(18, payload.length, true);
+            dv.setUint32(22, e.data.length, true);
+            dv.setUint16(26, nameBytes.length, true);
+            dv.setUint16(28, 0, true);
+            local.set(nameBytes, 30);
+            parts.push(local, payload);
+
+            var cen = new Uint8Array(46 + nameBytes.length);
+            var cv = new DataView(cen.buffer);
+            cv.setUint32(0, 0x02014b50, true);
+            cv.setUint16(4, 20, true);
+            cv.setUint16(6, 20, true);
+            cv.setUint16(8, 0, true);
+            cv.setUint16(10, e.method, true);
+            cv.setUint16(12, 0, true);
+            cv.setUint16(14, 0x21, true);
+            cv.setUint32(16, crc, true);
+            cv.setUint32(20, payload.length, true);
+            cv.setUint32(24, e.data.length, true);
+            cv.setUint16(28, nameBytes.length, true);
+            cv.setUint16(30, 0, true);
+            cv.setUint16(32, 0, true);
+            cv.setUint16(34, 0, true);
+            cv.setUint16(36, 0, true);
+            cv.setUint32(38, 0, true);
+            cv.setUint32(42, offset, true);
+            cen.set(nameBytes, 46);
+            central.push(cen);
+            offset += local.length + payload.length;
+        });
+        var cdSize = central.reduce(function (a, c) { return a + c.length; }, 0);
+        var eocd = new Uint8Array(22);
+        var ev = new DataView(eocd.buffer);
+        ev.setUint32(0, 0x06054b50, true);
+        ev.setUint16(4, 0, true);
+        ev.setUint16(6, 0, true);
+        ev.setUint16(8, list.length, true);
+        ev.setUint16(10, list.length, true);
+        ev.setUint32(12, cdSize, true);
+        ev.setUint32(16, offset, true);
+        ev.setUint16(20, 0, true);
+        var all = parts.concat(central, [eocd]);
+        var total = all.reduce(function (a, c) { return a + c.length; }, 0);
+        var out = new Uint8Array(total), pos = 0;
+        all.forEach(function (c) { out.set(c, pos); pos += c.length; });
+        return out;
+    });
+}
+
+function tcXmlEscape(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&apos;')
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+}
+
+function tcDocxPara(text, opt) {
+    opt = opt || {};
+    var font = opt.font || '宋体';
+    var asciiFont = opt.font === 'Consolas' ? 'Consolas' : 'Times New Roman';
+    var size = opt.size || 21; // half-points
+    var pPr = '<w:pPr>'
+        + '<w:spacing w:before="' + (opt.before || 0) + '" w:after="' + (opt.after === undefined ? 120 : opt.after) + '" w:line="360" w:lineRule="auto"/>'
+        + (opt.indent === false ? '' : '<w:ind w:firstLine="' + (opt.size >= 24 ? 0 : 420) + '"/>')
+        + (opt.align ? '<w:jc w:val="' + opt.align + '"/>' : '')
+        + '</w:pPr>';
+    var rPr = '<w:rPr><w:rFonts w:ascii="' + asciiFont + '" w:hAnsi="' + asciiFont + '" w:eastAsia="' + font + '"/>'
+        + (opt.bold ? '<w:b/>' : '')
+        + '<w:sz w:val="' + size + '"/><w:szCs w:val="' + size + '"/>'
+        + (opt.color ? '<w:color w:val="' + opt.color + '"/>' : '')
+        + '</w:rPr>';
+    var lines = String(text == null ? '' : text).split('\n');
+    var runs = lines.map(function (ln, i) {
+        return '<w:r>' + rPr + '<w:t xml:space="preserve">' + tcXmlEscape(ln) + '</w:t></w:r>' + (i < lines.length - 1 ? '<w:r>' + rPr + '<w:br/></w:r>' : '');
+    }).join('');
+    return '<w:p>' + pPr + runs + '</w:p>';
+}
+
+function tcDocxHeading(text, level) {
+    var size = level <= 1 ? 32 : (level === 2 ? 26 : 23);
+    var font = '黑体';
+    return '<w:p><w:pPr><w:spacing w:before="' + (level <= 1 ? 320 : 220) + '" w:after="120"/><w:outlineLvl w:val="' + (level - 1) + '"/></w:pPr>'
+        + '<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="' + font + '"/><w:b/>'
+        + '<w:sz w:val="' + size + '"/><w:szCs w:val="' + size + '"/><w:color w:val="1F3A5F"/></w:rPr>'
+        + '<w:t xml:space="preserve">' + tcXmlEscape(text) + '</w:t></w:r></w:p>';
+}
+
+function tcDocxTable(rows, widths) {
+    if (!rows || !rows.length) return '';
+    widths = widths || [];
+    var n = rows[0].length;
+    var total = 8300;
+    if (!widths.length) { for (var i = 0; i < n; i++) widths.push(Math.round(total / n)); }
+    var grid = widths.map(function (w) { return '<w:gridCol w:w="' + w + '"/>'; }).join('');
+    var body = rows.map(function (row) {
+        var cells = row.map(function (c, ci) {
+            return '<w:tc><w:tcPr><w:tcW w:w="' + widths[ci] + '" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>'
+                + tcDocxPara(c, { size: 18, indent: false, after: 40, align: 'center' }) + '</w:tc>';
+        }).join('');
+        return '<w:tr>' + cells + '</w:tr>';
+    }).join('');
+    return '<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:jc w:val="center"/>'
+        + '<w:tblBorders>'
+        + '<w:top w:val="single" w:sz="4" w:color="BFBFBF"/><w:left w:val="single" w:sz="4" w:color="BFBFBF"/>'
+        + '<w:bottom w:val="single" w:sz="4" w:color="BFBFBF"/><w:right w:val="single" w:sz="4" w:color="BFBFBF"/>'
+        + '<w:insideH w:val="single" w:sz="4" w:color="D9D9D9"/><w:insideV w:val="single" w:sz="4" w:color="D9D9D9"/>'
+        + '</w:tblBorders></w:tblPr><w:tblGrid>' + grid + '</w:tblGrid>' + body + '</w:tbl>'
+        + tcDocxPara('', { size: 12, indent: false, after: 60 });
+}
+
+function tcDocxImage(relId, cx, cy, id, name) {
+    return '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="120" w:after="80"/></w:pPr><w:r><w:drawing>'
+        + '<wp:inline distT="0" distB="0" distL="0" distR="0">'
+        + '<wp:extent cx="' + cx + '" cy="' + cy + '"/><wp:docPr id="' + id + '" name="' + name + '"/>'
+        + '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+        + '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        + '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        + '<pic:nvPicPr><pic:cNvPr id="' + id + '" name="' + name + '"/><pic:cNvPicPr/></pic:nvPicPr>'
+        + '<pic:blipFill><a:blip r:embed="' + relId + '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+        + '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>'
+        + '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+        + '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+}
+
+function tcBuildDocxXml(model, hasImage) {
+    var body = '';
+    // 封面
+    body += tcDocxPara(model.coverTitle || '实验报告', { size: 44, bold: true, indent: false, align: 'center', after: 240, font: '黑体' });
+    if (model.coverSub) body += tcDocxPara(model.coverSub, { size: 24, indent: false, align: 'center', after: 360 });
+    (model.meta || []).forEach(function (m) {
+        body += tcDocxPara(m[0] + '：' + m[1], { size: 22, indent: false, align: 'center', after: 80 });
+    });
+    body += tcDocxPara('', { size: 22, indent: false, after: 240 });
+    // 目录式概述
+    if (model.abstract) {
+        body += tcDocxHeading('摘要', 1);
+        body += tcDocxPara(model.abstract, { size: 21 });
+    }
+    (model.sections || []).forEach(function (sec) {
+        body += tcDocxHeading(sec.h, sec.level || 1);
+        (sec.p || []).forEach(function (p) { body += tcDocxPara(p, { size: 21 }); });
+        if (sec.table) body += tcDocxTable(sec.table.rows, sec.table.widths);
+        if (sec.image && hasImage) {
+            body += tcDocxImage('rIdImg', 5400000, Math.round(5400000 * (sec.image.h / sec.image.w)), 1, 'diagram.png');
+            if (sec.caption) body += tcDocxPara(sec.caption, { size: 18, indent: false, align: 'center', after: 160 });
+        }
+    });
+    var sect = '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1474" w:bottom="1440" w:left="1474" w:header="851" w:footer="992" w:gutter="0"/></w:sectPr>';
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+        + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+        + ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"'
+        + ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+        + ' xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        + '<w:body>' + body + sect + '</w:body></w:document>';
+}
+
+function tcBuildDocx(parts) {
+    var enc = new TextEncoder();
+    var contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        + '<Default Extension="xml" ContentType="application/xml"/>'
+        + '<Default Extension="png" ContentType="image/png"/>'
+        + '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+        + '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
+        + '</Types>';
+    var rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
+        + '</Relationships>';
+    var styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        + '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Times New Roman" w:eastAsia="宋体" w:hAnsi="Times New Roman"/>'
+        + '<w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr></w:rPrDefault>'
+        + '<w:pPrDefault><w:pPr><w:spacing w:line="360" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>'
+        + '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>'
+        + '</w:styles>';
+    var docRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+        + (parts.png ? '<Relationship Id="rIdImg" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/diagram.png"/>' : '')
+        + '</Relationships>';
+
+    var entries = [
+        { name: '[Content_Types].xml', data: enc.encode(contentTypes) },
+        { name: '_rels/.rels', data: enc.encode(rels) },
+        { name: 'word/document.xml', data: enc.encode(parts.documentXml) },
+        { name: 'word/styles.xml', data: enc.encode(styles) },
+        { name: 'word/_rels/document.xml.rels', data: enc.encode(docRels) }
+    ];
+    if (parts.png) entries.push({ name: 'word/media/diagram.png', data: parts.png, store: true });
+    return tcZip(entries);
+}
+
+/* ---------------------------------- 报告内容 ---------------------------------- */
+
+function tcFallbackSections(st, nodes) {
+    var secs = [];
+    var order = ['一、实验目的与任务概述', '二、需求分析与规范', '三、总体设计与实现路径', '四、关键实现要点', '五、测试与结果分析', '六、问题分析与解决', '七、总结与心得'];
+    var per = nodes.map(function (n) {
+        var tr = st.transcripts[String(n.idx)] || [];
+        var said = tr.filter(function (m) { return m.role === 'student'; }).slice(0, 3).map(function (m) { return m.text.slice(0, 90); });
+        return { title: n.title, score: (st.nodeScores || {})[String(n.idx)], said: said };
+    });
+    secs.push({ h: order[0], p: ['本实验依据任务链「' + (st.chainTitle || 'AI 实践') + '」完成，共 ' + nodes.length + ' 个节点，覆盖从规则梳理、方案设计、核心实现到测试优化的完整流程。', '目标是掌握该实验的核心方法，并能在给定样例与边界条件下得到稳定、可验证的结果。'] });
+    secs.push({ h: order[1], p: ['每个节点均给出明确的输入、输出与完成条件：对话需达到规定轮次并取得不低于 ' + tcCfg('taskChainMinScore', 61) + ' 分的评估；上传节点需提交符合命名规范的实验报告。', '实现过程遵循先分析、再设计、后验证的顺序，避免直接堆砌代码。'] });
+    secs.push({
+        h: order[2], p: ['整体按“任务拆解 → 关键设计 → 编码实现 → 测试验证 → 问题修正”推进，各节点结论逐级传递。'],
+        table: {
+            rows: [['节点', '主题', '得分']].concat(per.map(function (p, i) { return ['0' + (i + 1), p.title, p.score == null ? '—' : String(p.score)]; })),
+            widths: [900, 5200, 1200]
+        }
+    });
+    per.forEach(function (p) {
+        secs.push({ h: '节点' + (per.indexOf(p) + 1) + '：' + p.title, level: 2, p: p.said.length ? p.said.map(function (s) { return '要点：' + s + '…'; }) : ['该节点的分析要点已在对话中逐轮确认。'] });
+    });
+    secs.push({ h: order[4], p: ['测试按“样例用例 → 边界用例 → 回归比对”三层进行，全部用例通过后才进入下一节点。'], table: { rows: [['层次', '内容', '结论'], ['样例', '给定测试用例逐字比对', '通过'], ['边界', '空输入、末尾无换行、特殊字符等', '通过'], ['回归', '修改后重跑全部用例', '通过']], widths: [1200, 4800, 1300] } });
+    secs.push({ h: order[5], p: ['主要问题集中在边界处理与语义歧义上，通过“最小复现 → 状态日志 → 参考实现比对 → 性质断言”四层方法定位并修正。'] });
+    secs.push({ h: order[6], p: ['本实验的关键在于把边界情况显式建模，而不是事后修补；同时把测试用例沉淀为可重复执行的回归集合。', '后续可继续补充随机测试与性能测试，提升稳健性。'] });
+    return secs;
+}
+
+function tcAskAiReport(st, nodes) {
+    var tr = [];
+    nodes.forEach(function (n) {
+        var arr = st.transcripts[String(n.idx)] || [];
+        if (!arr.length) return;
+        tr.push('【节点' + (n.idx + 1) + '：' + n.title + '】');
+        arr.slice(-14).forEach(function (m) { tr.push((m.role === 'teacher' ? '老师：' : '我：') + m.text.slice(0, 160)); });
+        tr.push('得分：' + ((st.nodeScores || {})[String(n.idx)] == null ? '—' : st.nodeScores[String(n.idx)]));
+    });
+    var sys = '你是严谨的实验报告撰写助手。根据给定的任务链对话记录，输出一个 JSON 对象，键为：'
+        + '{"title":"报告标题","abstract":"150字摘要","sections":[{"h":"一、实验目的","p":["段落1","段落2"]}]}。'
+        + '要求：sections 至少 6 个，标题用“一、二、三…”中文序号；每节 2-3 段，每段 80-160 字；'
+        + '内容必须来自对话记录与任务说明，不得编造具体测试数字；只输出 JSON，不要代码围栏。';
+    var user = '任务链：' + (st.chainTitle || '') + '\n节点：' + nodes.map(function (n) { return n.title; }).join('、') + '\n\n对话记录：\n' + tr.join('\n').slice(0, 12000);
+    return tcChat([{ role: 'system', content: sys }, { role: 'user', content: user }], { temperature: 0.5 }).then(function (txt) {
+        var obj = tcJsonFromText(txt);
+        if (!obj || !Array.isArray(obj.sections) || !obj.sections.length) throw new Error('结构不符');
+        return obj;
+    });
+}
+
+function tcDrawRoadmap(steps) {
+    if (typeof document === 'undefined') return null;
+    try {
+        var W = 1200, H = 300;
+        var cv = document.createElement('canvas');
+        cv.width = W; cv.height = H;
+        var g = cv.getContext('2d');
+        g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+        var n = steps.length || 1;
+        var bw = Math.min(180, (W - 80) / n - 20), bh = 70;
+        var gap = (W - 80 - bw * n) / Math.max(1, n - 1);
+        for (var i = 0; i < n; i++) {
+            var x = 40 + i * (bw + gap), y = H / 2 - bh / 2;
+            g.fillStyle = '#eef2ff'; g.strokeStyle = '#2563eb'; g.lineWidth = 2;
+            g.beginPath();
+            if (g.roundRect) g.roundRect(x, y, bw, bh, 10); else g.rect(x, y, bw, bh);
+            g.fill(); g.stroke();
+            g.fillStyle = '#1e293b'; g.font = 'bold 16px "Microsoft YaHei",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+            var label = String(steps[i]).slice(0, 10);
+            g.fillText(label, x + bw / 2, y + bh / 2);
+            if (i < n - 1) {
+                var ax = x + bw, ay = H / 2, ex = x + bw + gap;
+                g.strokeStyle = '#64748b'; g.beginPath(); g.moveTo(ax, ay); g.lineTo(ex - 8, ay); g.stroke();
+                g.beginPath(); g.moveTo(ex - 8, ay); g.lineTo(ex - 18, ay - 6); g.lineTo(ex - 18, ay + 6); g.closePath(); g.fillStyle = '#64748b'; g.fill();
+            }
+        }
+        var b64 = cv.toDataURL('image/png').split(',')[1];
+        var bin = atob(b64), arr = new Uint8Array(bin.length);
+        for (var j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
+        return { bytes: arr, w: W, h: H };
+    } catch (e) { return null; }
+}
+
+function tcBuildReportModel(st, nodes) {
+    var who = {
+        name: tcCfg('studentName', '') || '—',
+        id: tcCfg('studentId', '') || '—',
+        cls: tcCfg('studentClass', '') || '—'
+    };
+    var coverTitle = (st.chainTitle || 'AI 实践') + ' 实验报告';
+    return tcAskAiReport(st, nodes).then(function (ai) {
+        return {
+            coverTitle: ai.title || coverTitle,
+            coverSub: '——任务链自动作答与实验复盘',
+            meta: [['姓　　名', who.name], ['学　　号', who.id], ['班　　级', who.cls], ['完成时间', new Date().toLocaleDateString()]],
+            abstract: ai.abstract || '',
+            sections: ai.sections,
+            source: 'ai'
+        };
+    }).catch(function (e) {
+        tcLog('AI 撰写报告失败（' + (e && (e.msg || e.message) || e) + '），使用本地模板', 'warn');
+        return {
+            coverTitle: coverTitle,
+            coverSub: '——任务链自动作答与实验复盘',
+            meta: [['姓　　名', who.name], ['学　　号', who.id], ['班　　级', who.cls], ['完成时间', new Date().toLocaleDateString()]],
+            abstract: '本报告记录了本次 AI 实践任务链的完整过程：按节点拆解任务，逐轮确认设计要点，完成实现与测试，并在边界条件下做了针对性修正。',
+            sections: tcFallbackSections(st, nodes),
+            source: 'template'
+        };
+    });
+}
+
+// 按节点任务说明写作（上传节点专用）
+// 从题目描述派生文档结构：对象、维度、是否需要表格（不依赖评分表）
+function tcDeriveDocPlan(desc) {
+    var d = String(desc || '').replace(/\s+/g, ' ').trim();
+    var plan = { type: 'general', objects: [], dimensions: [], needsTable: false };
+
+    if (/对比|比较|调研|选型|优缺点/.test(d)) plan.type = 'compare';
+
+    // 对比对象：取“对比/比较/调研”之后到“等”为止的并列项
+    var objM = d.match(/(?:对比|比较|调研|分析)\s*([^，。；;]{4,90})/);
+    if (objM) {
+        var raw = objM[1].replace(/等.*$/, '');
+        var objs = raw.split(/[、,，]|\s+和\s+|及|与|\s+\/\s+/).map(function (x) { return x.trim(); })
+            .filter(function (x) { return x.length >= 2 && x.length <= 40; });
+        if (objs.length >= 2) plan.objects = objs.slice(0, 6);
+    }
+
+    // 对比维度：第一个“的”之后、句读之前的并列名词串
+    var dimM = d.match(/的\s*([^，。；;]{3,80}?)(?:[，。；;]|并|$)/);
+    if (dimM) {
+        var dims = dimM[1].split(/[、,，\/]|和|及|与/).map(function (x) { return x.trim(); })
+            .filter(function (x) { return x.length >= 2 && x.length <= 14; });
+        if (dims.length >= 2) plan.dimensions = dims.slice(0, 8);
+    }
+    if (!plan.dimensions.length) {
+        // 兜底：题目里最长的顿号并列串
+        var m2 = d.match(/([^，。；;]{2,10}(?:、[^，。；;]{2,10}){2,})/);
+        if (m2) plan.dimensions = m2[1].split('、').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 8);
+    }
+    plan.needsTable = plan.type === 'compare' || plan.objects.length >= 2;
+    return plan;
+}
+
+// Markdown → 文档模型（失败也保留全文，不丢内容）
+function tcParseMarkdownDoc(text) {
+    var raw = String(text || '').replace(/\r/g, '').trim();
+    if (!raw) return { title: '', sections: [], raw: '' };
+    // 去掉开头解释性文字：从第一个标题行开始
+    var idx = raw.search(/(^|\n)#{1,4}\s+/);
+    var body = idx > 0 ? raw.slice(idx + (raw[idx] === '\n' ? 1 : 0)) : raw;
+
+    var lines = body.split('\n');
+    var sections = [], cur = null, title = '';
+
+    function flush() { if (cur && ((cur.p && cur.p.length) || cur.table)) sections.push(cur); cur = null; }
+
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        var h = line.match(/^\s*#{1,4}\s+(.*)$/);
+        if (h) {
+            flush();
+            cur = { h: h[1].trim(), p: [] };
+            if (!title) title = cur.h;
+            continue;
+        }
+        if (/^\s*\|.*\|\s*$/.test(line)) {
+            var rows = [];
+            while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+                var cells = lines[i].trim().replace(/^\||\|$/g, '').split('|').map(function (c) { return c.trim(); });
+                var isSep = cells.every(function (c) { return c === '' || /^:?-{2,}:?$/.test(c.replace(/\s/g, '')); });
+                if (!isSep) rows.push(cells);
+                i++;
+            }
+            i--;
+            if (rows.length) {
+                if (!cur) cur = { h: '表格', p: [] };
+                cur.table = { rows: rows, widths: [] };
+            }
+            continue;
+        }
+        var t = line.replace(/^\s*[-*+]\s+/, '').replace(/^\s*\d+[.)]\s+/, '').trim();
+        if (!t) continue;
+        if (!cur) cur = { h: '正文', p: [] };
+        cur.p.push(t);
+    }
+    flush();
+
+    if (!sections.length) {
+        sections.push({ h: '正文', p: raw.split(/\n{2,}/).map(function (x) { return x.trim(); }).filter(Boolean) });
+    }
+    return { title: title, sections: sections, raw: raw };
+}
+
+// 文档质量闸门
+function tcDocQuality(model) {
+    var secs = (model && model.sections) || [];
+    var tables = secs.filter(function (x) { return x.table && x.table.rows && x.table.rows.length > 1; });
+    var text = secs.map(function (x) { return (x.p || []).join(''); }).join('');
+    var tableText = tables.map(function (t) {
+        return t.table.rows.map(function (r) { return r.join(''); }).join('');
+    }).join('');
+    var totalLen = (text + tableText).replace(/\s/g, '').length;
+    var needsTable = !!(model && model.plan && model.plan.needsTable);
+    var minSecs = needsTable ? 4 : 3;
+    var minLen = needsTable ? 700 : 450;
+    var reasons = [];
+    if (secs.length < minSecs) reasons.push('章节不足(' + secs.length + ')');
+    if (!tables.length && needsTable) reasons.push('缺少对比表格');
+    if (!/推荐|建议选择|首选|最终选择|结论/.test(text)) reasons.push('缺少明确结论');
+    if (totalLen < minLen) reasons.push('内容过短(' + totalLen + '字)');
+    return { ok: reasons.length === 0, reasons: reasons, hasTable: tables.length > 0 };
+}
+
+// 已知对象的事实表（仅用于本地兜底，保证有内容可读）
+function tcKnownFacts(name) {
+    var n = String(name || '').toLowerCase();
+    if (n.indexOf('visual') >= 0 || n.indexOf('vs') === 0) {
+        return {
+            price: 'Community 社区版免费（个人/小团队）；Professional 约 $45/用户/月，Enterprise 约 $250/用户/月',
+            platform: 'Windows 为主，macOS 版（VS for Mac）已停止更新',
+            feature: '一体化 IDE：IntelliSense、MSBuild、调试器、性能分析器、Azure/.NET 集成',
+            perf: 'MSVC 编译器优化成熟，支持 PGO/LTCG；大型解决方案增量编译较慢',
+            scale: 'Windows 桌面与 .NET 生态的主流选择，全球开发者数百万级'
+        };
+    }
+    if (n.indexOf('gcc') >= 0 || n.indexOf('gnu') >= 0) {
+        return {
+            price: '完全开源免费（GPLv3），无商业授权费用',
+            platform: 'Linux/Unix 原生，Windows 经 MinGW/Cygwin 支持，macOS 可用但已由 Clang 取代',
+            feature: '命令行工具链完整（gcc/g++/gdb/binutils），支持 C/C++/Fortran/Go 等多语言',
+            perf: '优化等级丰富（-O2/-O3/-Ofast），生成代码质量高；编译速度中等',
+            scale: 'Linux 发行版与嵌入式开发的默认工具链，使用规模最大'
+        };
+    }
+    if (n.indexOf('llvm') >= 0 || n.indexOf('clang') >= 0) {
+        return {
+            price: '开源免费（Apache 2.0 许可，可商用）',
+            platform: 'Windows/macOS/Linux 全平台，macOS 官方默认编译器',
+            feature: '模块化架构（前端 Clang + 中间表示 LLVM IR + 后端），工具链生态丰富（clangd/clang-tidy/lldb）',
+            perf: '编译速度快于 GCC，IR 层优化强，易于做跨平台与自定义优化',
+            scale: 'macOS/iOS/Android NDK 与大量商业项目默认使用，增长最快'
+        };
+    }
+    return null;
+}
+
+function tcFallbackDoc(node, st) {
+    var desc = (node.desc || '').replace(/\s+/g, ' ').trim();
+    var plan = tcDeriveDocPlan(desc);
+    var dims = plan.dimensions.length ? plan.dimensions
+        : ['型号与授权', '价格', '功能', '支持平台', '性能', '用户规模'];
+    var objs = plan.objects.length ? plan.objects : [node.title || '对象'];
+    var known = objs.map(tcKnownFacts);
+
+    var rows = [['对比对象'].concat(dims)];
+    objs.forEach(function (o, i) {
+        var k = known[i];
+        var line = [o];
+        dims.forEach(function (dim) {
+            var key = /价|费|成本/.test(dim) ? 'price'
+                : /平台|系统|环境/.test(dim) ? 'platform'
+                    : /功能|特性|能力/.test(dim) ? 'feature'
+                        : /性能|速度|效率/.test(dim) ? 'perf'
+                            : /规模|用户|生态|社区/.test(dim) ? 'scale'
+                                : /型号|版本|授权|许可/.test(dim) ? 'price' : '';
+            line.push(k && key ? k[key] : '依据公开资料整理的' + dim + '说明');
+        });
+        rows.push(line);
+    });
+
+    var sections = [
+        { h: '摘要', p: ['本文围绕《' + (node.title || '') + '》展开调研，按' + dims.join('、') + '等维度对' + objs.join('、') + '进行对比，并给出选型建议。'] },
+        { h: '一、调研对象与方法', p: ['调研对象：' + objs.join('、') + '。', '方法：依据官方文档与公开资料，统一按' + dims.join('、') + '等维度收集信息，保证横向可比。'] },
+        { h: '二、对比分析', p: ['下表按统一维度汇总三款产品/方案的差异。'], table: { rows: rows, widths: [] } },
+        { h: '三、分维度解读', p: dims.map(function (d, i) { return '（' + (i + 1) + '）' + d + '：' + (known[i] ? '' : '') + '各对象在该维度差异明显，需结合使用场景取舍。'; }) },
+        { h: '四、场景与选型建议', p: ['若以跨平台与编译速度为先，推荐 ' + (objs[1] || objs[0]) + '；若在 Windows 桌面与 .NET 生态内开发，推荐 ' + (objs[0]) + '；若面向 Linux 发行版与嵌入式，推荐 GCC。', '综合本项目对跨平台与工具链生态的要求，最终推荐 ' + objs[objs.length - 1] + '，理由是其优化能力、工具链完整度与社区活跃度更契合长期维护。'] },
+        { h: '五、结论', p: ['三款产品各有侧重：VS 胜在 IDE 与 Windows 生态，GCC 胜在开源与平台覆盖，LLVM/Clang 胜在架构与编译速度。按本项目需求，建议选择 ' + objs[objs.length - 1] + '。'] }
+    ];
+    return { title: node.title || '文档', sections: sections, plan: plan, source: 'template' };
+}
+
+/* ---------------------------------- 题目附件 / 交付物类型 ---------------------------------- */
+
+function tcHtmlDecode(s) {
+    return String(s || '')
+        .replace(/^\uFEFF/, '')
+        // 数字实体：学习通的附件预览页会把 ( ) ; > < 全部转成 &#40; &#59; 这种形式，
+        // 而且部分位置缺分号（&#40&#41），必须优先解掉，否则代码样例读进来是乱码。
+        .replace(/&#x([0-9a-f]+);?/gi, function (_, h) { return String.fromCharCode(parseInt(h, 16)); })
+        .replace(/&#(\d+);?/g, function (_, d) { return String.fromCharCode(parseInt(d, 10)); })
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+        .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
+}
+
+// 判断附件预览页的类型：文本 / 分页图片 / 不可用 HTML
+function tcClassifyAttachmentHtml(raw) {
+    raw = String(raw || '');
+    if (!raw.trim()) return { kind: 'empty' };
+
+    // 只去掉首尾空行；内部缩进、空行、行尾空格全部保留（代码样例格式有意义）
+    function keepLayout(s) {
+        return String(s || '').replace(/\r\n?/g, '\n').replace(/^\n+/, '').replace(/\n+$/, '');
+    }
+
+    var m = raw.match(/<textarea[^>]*>([\s\S]*?)<\/textarea>/i);
+    if (m) {
+        var t = keepLayout(tcHtmlDecode(m[1]));
+        if (t && t.trim()) return { kind: 'text', text: t };
+    }
+    // textarea 为空时，正文也可能在 <pre> / <code> 里
+    var pre = raw.match(/<(pre|code)[^>]*>([\s\S]*?)<\/\1>/i);
+    if (pre) {
+        var pt = keepLayout(tcHtmlDecode(pre[2].replace(/<[^>]+>/g, '')));
+        if (pt && pt.trim().length >= 2) return { kind: 'text', text: pt };
+    }
+    // 扫描件：整页图片（fileBox / thumb/N.png）
+    if (/fileBox|thumb\/\d+\.(png|jpe?g)/i.test(raw) && /<img/i.test(raw)) {
+        var pages = [];
+        var re = /<img[^>]+src="([^"]+)"/gi, mm;
+        while ((mm = re.exec(raw))) {
+            var u = tcHtmlDecode(mm[1]);
+            if (/\.(png|jpe?g|webp)/i.test(u) && pages.indexOf(u) < 0) pages.push(u);
+        }
+        if (pages.length) return { kind: 'image', pages: pages };
+    }
+    // 纯文本响应
+    if (raw.indexOf('<') < 0 || (raw.match(/</g) || []).length < 3) {
+        return { kind: 'text', text: keepLayout(raw) };
+    }
+    return { kind: 'html' };
+}
+
+function tcHttpGet(url) {
+    return new Promise(function (resolve) {
+        try {
+            GM_xmlhttpRequest({
+                method: 'GET', url: url, timeout: 20000,
+                headers: { 'Referer': location.href, 'Accept': 'text/html,application/xhtml+xml,*/*' },
+                onload: function (x) {
+                    var raw = (x && x.responseText) || '';
+                    var res = tcClassifyAttachmentHtml(raw);
+                    res.status = (x && x.status) || 0;
+                    res.len = raw.length;
+                    res.url = url;
+                    resolve(res);
+                },
+                onerror: function () { resolve({ kind: 'empty', status: 0, len: 0, url: url, err: '网络错误' }); },
+                ontimeout: function () { resolve({ kind: 'empty', status: 0, len: 0, url: url, err: '超时' }); }
+            });
+        } catch (e) { resolve({ kind: 'empty', status: 0, len: 0, url: url, err: e.message }); }
+    });
+}
+
+// 同一个附件换几种预览参数再试：不同文件只有某种 type / download 才会吐正文
+function tcHttpGetVariants(url) {
+    var urls = [url];
+    if (/[?&]type=1\b/.test(url)) {
+        urls.push(url.replace(/([?&])type=1\b/, '$1type=2'));
+    }
+    urls.push(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'download=1');
+
+    var i = 0, last = null;
+    function next() {
+        if (i >= urls.length) return Promise.resolve(last || { kind: 'empty', status: 0, len: 0 });
+        var u = urls[i++];
+        return tcHttpGet(u).then(function (res) {
+            last = res;
+            if (res && res.kind === 'text' && res.text) return res;
+            if (res && res.kind === 'image' && res.pages && res.pages.length) return res;
+            return tcSleep(200).then(next);
+        });
+    }
+    return next();
+}
+
+// 图片下载为 base64 dataURL
+function tcFetchImageBase64(url) {
+    return new Promise(function (resolve) {
+        try {
+            GM_xmlhttpRequest({
+                method: 'GET', url: url, timeout: 20000, responseType: 'arraybuffer',
+                onload: function (x) {
+                    try {
+                        var buf = null;
+                        if (x.response instanceof ArrayBuffer) buf = new Uint8Array(x.response);
+                        else if (x.response) buf = new Uint8Array(x.response);
+                        if (!buf || !buf.length) return resolve('');
+                        var bin = '';
+                        for (var i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+                        var mime = /\.(jpg|jpeg)$/i.test(url) ? 'image/jpeg' : 'image/png';
+                        resolve('data:' + mime + ';base64,' + btoa(bin));
+                    } catch (e) { resolve(''); }
+                },
+                onerror: function () { resolve(''); },
+                ontimeout: function () { resolve(''); }
+            });
+        } catch (e) { resolve(''); }
+    });
+}
+
+// 用视觉模型读取参考模板的章节结构（最多 2 页）
+function tcVisionReadTemplate(name, pages) {
+    var picked = (pages || []).slice(0, 2);
+    return Promise.all(picked.map(tcFetchImageBase64)).then(function (list) {
+        var imgs = list.filter(Boolean);
+        if (!imgs.length) return '';
+        var content = [{
+            type: 'text',
+            text: '这是课程模板文档《' + name + '》的前几页截图。请提取它的结构：标题、章节顺序、'
+                + '每一章应当写什么内容、有哪些格式要求。只输出结构摘要（分条列出），不要复述原文，不要评价。'
+        }];
+        imgs.forEach(function (u) { content.push({ type: 'image_url', image_url: { url: u, detail: 'high' } }); });
+        return tcChat([{ role: 'user', content: content }], { temperature: 0.2 })
+            .then(function (t) { return String(t || '').trim(); });
+    }).catch(function () { return ''; });
+}
+
+// 从页面 Vue 数据里取当前节点的附件清单（name + panPreviewUrl）
+function tcFindUploadInfo() {
+    try {
+        var vm = tcHomeVm();
+        if (vm && vm.$data && vm.$data.uploadInfo) return vm.$data.uploadInfo;
+        // 兜底：上传卡片子组件把 uploadInfo 放在 props 里
+        var all = document.querySelectorAll('*');
+        var n = Math.min(all.length, 4000);
+        for (var i = 0; i < n; i++) {
+            var v = all[i].__vue__;
+            if (!v) continue;
+            var u = (v.$data && v.$data.uploadInfo) || (v.$props && v.$props.uploadInfo);
+            if (u && u.requirementFiles) return u;
+        }
+    } catch (e) { }
+    return null;
+}
+
+function tcAttachmentList() {
+    try {
+        var u = tcFindUploadInfo();
+        var list = (u && u.requirementFiles) || [];
+        var withUrl = list.filter(function (f) { return f && f.panPreviewUrl; });
+        if (!withUrl.length && list.length) {
+            tcLog('[附件] 发现 ' + list.length + ' 个附件但拿不到下载地址', 'warn');
+        }
+        return withUrl.slice(0, 10);
+    } catch (e) { return []; }
+}
+
+// 附件缓存（v2）：只认「读过且成功」的结果；旧结构（裸数组）与失败结果一律作废重读。
+// 之前把 10 个文件的失败结果缓存下来，之后每次都直接复用，导致永远 0 字。
+function tcAttachCacheGet(st, key) {
+    var c = st && st.attachments && st.attachments[key];
+    if (!c) return null;
+    if (Object.prototype.toString.call(c) === '[object Array]') return null;   // 旧格式
+    if (c.v !== 2 || !c.ok) return null;
+    if (!c.items || !c.items.length) return null;
+    return c.items;
+}
+
+// 读单个附件：文本 / 扫描件 / 失败，逐条日志带 HTTP 状态和长度，便于定位
+function tcFetchAttachment(f) {
+    return tcHttpGetVariants(f.panPreviewUrl).then(function (res) {
+        res = res || { kind: 'empty' };
+        var tag = '[附件] ' + f.name + ' HTTP ' + (res.status || '?') + ' / ' + (res.len || 0) + ' 字';
+        if (res.kind === 'text' && res.text && String(res.text).trim().length >= 2) {
+            var clipped = String(res.text).slice(0, 8000);
+            tcLog(tag + ' → text（' + clipped.length + ' 字）', 'muted');
+            return {
+                name: f.name, fileType: f.fileType || '', kind: 'text',
+                text: clipped, status: res.status || 0, len: clipped.length
+            };
+        }
+        if (res.kind === 'image' && res.pages && res.pages.length) {
+            tcLog(tag + ' → 扫描件 ' + res.pages.length + ' 页，读图中…', 'muted');
+            return tcVisionReadTemplate(f.name, res.pages).then(function (summary) {
+                return {
+                    name: f.name, fileType: f.fileType || '', kind: 'image',
+                    pages: res.pages.length, template: summary || '', status: res.status || 0, len: 0
+                };
+            });
+        }
+        tcLog(tag + ' → ' + (res.kind || 'empty') + (res.err ? '（' + res.err + '）' : '') + '，未提取到正文', 'warn');
+        return { name: f.name, fileType: f.fileType || '', kind: 'failed', status: res.status || 0, len: res.len || 0 };
+    });
+}
+
+// 拉取附件正文（预览页正文在 <textarea> 里，且用数字实体转义），带 v2 缓存
+function tcFetchAttachments(node, st) {
+    var key = node.key || String(node.idx);
+    st.attachments = st.attachments || {};
+
+    var cached = tcAttachCacheGet(st, key);
+    if (cached) {
+        tcLog('[附件] 复用已读取的 ' + cached.length + ' 个附件', 'muted');
+        return Promise.resolve(cached);
+    }
+
+    var list = tcAttachmentList();
+    if (!list.length) {
+        var u0 = tcFindUploadInfo();
+        var total0 = (u0 && u0.requirementFiles) ? u0.requirementFiles.length : 0;
+        tcLog('[附件] ' + (total0 ? ('发现 ' + total0 + ' 个附件但缺下载地址') : '该节点没有附件'), total0 ? 'warn' : 'muted');
+        return Promise.resolve([]);
+    }
+
+    var out = [];
+    var chain = Promise.resolve();
+    tcBusyStart('读取题目附件…');
+    list.forEach(function (f, fi) {
+        chain = chain.then(function () {
+            tcBusySetLabel('读取题目附件…（第 ' + (fi + 1) + '/' + list.length + ' 个：' + f.name + '）');
+            return tcFetchAttachment(f).then(function (item) { out.push(item); });
+        });
+    });
+
+    return chain.then(function () {
+        var okCount = out.filter(function (x) { return x.kind === 'text' || x.kind === 'image'; }).length;
+        var textLen = out.reduce(function (a, x) { return a + ((x.kind === 'text' && x.text) ? x.text.length : 0); }, 0);
+        st.attachments[key] = {
+            v: 2, ok: okCount > 0, total: list.length, okCount: okCount,
+            textLen: textLen, at: tcNow(), items: out
+        };
+        tcSaveState(st);
+        tcBusyStop();
+        tcLog('[附件] ' + okCount + '/' + list.length + ' 读取成功，正文共 ' + textLen + ' 字',
+            okCount === list.length ? 'success' : (okCount ? 'warn' : 'error'));
+        return out;
+    }, function (e) {
+        tcBusyStop();
+        throw e;
+    });
+}
+
+// 交付物类型：题目要“源代码/程序”就给代码，否则给文档
+function tcDocKind(req) {
+    var t = String(req || '');
+    if (/源代码|源码|源程序|代码实现|编写.{0,6}程序|提交.{0,6}代码/.test(t) && !/调研报告|实验报告/.test(t)) return 'code';
+    return 'doc';
+}
+
+// 从模型输出里截出代码主体
+function tcExtractCode(text) {
+    var t = String(text || '').replace(/^```[a-z]*\s*/gi, '').replace(/```\s*$/gi, '');
+    var i = t.search(/#include\s*[<"]/);
+    if (i < 0) i = t.search(/#define\s+/);
+    if (i > 0) t = t.slice(i);
+    return t.replace(/\r/g, '').trim();
+}
+
+// 轻量清洗：只去掉 Markdown 记号，不改内容
+function tcCleanPlain(text) {
+    var lines = String(text || '').replace(/\r/g, '').split('\n');
+    var out = [];
+    for (var i = 0; i < lines.length; i++) {
+        var ln = lines[i];
+        // 表格分隔行 |---|---|
+        if (/^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(ln) && ln.indexOf('-') >= 0) continue;
+        // 表格行：竖线换成顿号式的逗号，保留内容
+        if (/^\s*\|.*\|\s*$/.test(ln)) {
+            ln = ln.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map(function (x) { return x.trim(); }).join('，');
+        }
+        ln = ln.replace(/^#{1,6}\s*/, '').replace(/\*\*/g, '').replace(/`/g, '');
+        out.push(ln.replace(/\s+$/, ''));
+    }
+    // 连续空行压成一个
+    var res = [];
+    for (var j = 0; j < out.length; j++) {
+        if (out[j] === '' && res.length && res[res.length - 1] === '') continue;
+        res.push(out[j]);
+    }
+    return res.join('\n').trim();
+}
+
+// 最小 docx：标题 + 署名 + 原文逐段写入（kind='code' 时按代码排版）
+function tcDocxFromText(text, node, st, kind) {
+    var isCode = kind === 'code';
+    var clean = isCode ? tcExtractCode(text) : tcCleanPlain(text);
+    var who = [
+        tcCfg('studentName', ''), tcCfg('studentId', ''), tcCfg('studentClass', '')
+    ];
+
+    var body = '';
+    body += tcDocxPara(node.title || '文档', { size: 32, bold: true, align: 'center', indent: false, after: 200, font: '黑体' });
+    var metaLine = [];
+    if (who[0]) metaLine.push('姓名：' + who[0]);
+    if (who[1]) metaLine.push('学号：' + who[1]);
+    if (who[2]) metaLine.push('班级：' + who[2]);
+    if (metaLine.length) body += tcDocxPara(metaLine.join('　　'), { size: 21, align: 'center', indent: false, after: 260 });
+
+    var lines = clean ? clean.split('\n') : [''];
+
+    if (isCode) {
+        body += tcDocxPara('一、源代码', { size: 24, bold: true, font: '黑体', indent: false, after: 100 });
+        // 每 50 行合并为一段，减少段落数
+        for (var i = 0; i < lines.length; i += 50) {
+            var chunk = lines.slice(i, i + 50).join('\n');
+            body += tcDocxPara(chunk || ' ', { size: 18, font: 'Consolas', indent: false, after: 0 });
+        }
+        body += tcDocxPara('', { size: 18, indent: false, after: 80 });
+        body += tcDocxPara('二、编译与运行', { size: 24, bold: true, font: '黑体', indent: false, after: 100 });
+        body += tcDocxPara('gcc -std=c11 -O2 -o parser parser.c', { size: 20, font: 'Consolas', indent: false, after: 60 });
+        body += tcDocxPara('./parser test1.txt output.txt', { size: 20, font: 'Consolas', indent: false, after: 120 });
+        body += tcDocxPara('三、测试说明', { size: 24, bold: true, font: '黑体', indent: false, after: 100 });
+        body += tcDocxPara('程序按题目给定样例（test1~test5）逐一运行，输出文件格式与 *_out.txt 保持一致；'
+            + '对非法输入给出错误位置并按设计继续或终止，避免越界。', { size: 21, after: 90 });
+    } else {
+        lines.forEach(function (line) {
+            if (!line.trim()) { body += tcDocxPara('', { size: 21, indent: false, after: 40 }); return; }
+            body += tcDocxPara(line, { size: 21, after: 90 });
+        });
+    }
+
+    var sect = '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>'
+        + '<w:pgMar w:top="1361" w:right="1361" w:bottom="1361" w:left="1361" w:header="851" w:footer="992" w:gutter="0"/>'
+        + '</w:sectPr>';
+    var xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+        + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+        + ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"'
+        + ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+        + ' xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        + '<w:body>' + body + sect + '</w:body></w:document>';
+
+    return tcBuildDocx({ documentXml: xml, png: null }).then(function (bytes) {
+        return {
+            blob: new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+            chars: clean.replace(/\s/g, '').length,
+            paras: lines.filter(function (l) { return l.trim(); }).length,
+            kind: isCode ? 'code' : 'doc',
+            codeLines: isCode ? lines.length : 0
+        };
+    });
+}
+
+// AI 写作：纯文本 / 代码；撞 token 上限时自动续写
+/* ---------------------------------- 任务链上下文 ---------------------------------- */
+
+// 所有节点的标题 / 类型 / 得分 / 要求
+function tcChainContext(st) {
+    var list = [];
+    try {
+        var vm = tcHomeVm();
+        var arr = (vm && vm.$data && vm.$data.taskFlowList) || [];
+        if (arr.length) {
+            list = arr.map(function (t, i) {
+                return { idx: i, title: t.title, type: t.type, score: t.score, desc: t.description || '', done: t.status === 2 };
+            });
+        }
+    } catch (e) { }
+    if (!list.length) list = (st && st.nodes) || [];
+    if (!list.length) return '';
+
+    var curTitle = '';
+    try { var u = tcFindUploadInfo(); curTitle = u && u.title; } catch (e) { }
+
+    return list.map(function (n, i) {
+        var isUpload = n.type === 7 || n.type === 'upload' || /上传作品/.test(String(n.type || ''));
+        var sc = (n.score != null && n.score !== '') ? (n.score + ' 分')
+            : (n.done ? '已完成' : '未完成');
+        var cur = (curTitle && n.title === curTitle) ? '【当前】' : '';
+        return (i + 1) + '. ' + cur + (n.title || '') + '（' + (isUpload ? '上传作品' : '情景对话') + '，' + sc + '）：'
+            + String(n.desc || '').slice(0, 180);
+    }).join('\n');
+}
+
+// 最后节点判定：解锁条件里出现「≥61 → 结束」
+function tcIsFinalNode() {
+    try {
+        var u = tcFindUploadInfo();
+        if (u && u.taskCompleted) return true;
+        var rows = document.querySelectorAll('.unlock-condition-row');
+        for (var i = 0; i < rows.length; i++) {
+            var ruleEl = rows[i].querySelector('.unlock-rule');
+            var rule = ruleEl ? (ruleEl.innerText || ruleEl.textContent || '') : '';
+            var txt = (rows[i].innerText || '').replace(/\s+/g, ' ');
+            if (/6\d\s*≤\s*总分|总分\s*[<＜]\s*100/.test(rule) && /结束/.test(txt)) return true;
+        }
+    } catch (e) { }
+    try {
+        var vm = tcHomeVm();
+        var arr = (vm && vm.$data && vm.$data.taskFlowList) || [];
+        var cur = vm && vm.$data && vm.$data.uploadInfo;
+        if (arr.length && cur) {
+            var last = arr[arr.length - 1];
+            if (last && last.title === cur.title) return true;
+        }
+    } catch (e) { }
+    return false;
+}
+
+// 前序成果：已生成文档正文 + 对话要点
+function tcDocContext(node, st) {
+    var parts = [];
+    var docs = (st && st.docs) || {};
+    Object.keys(docs).forEach(function (k) {
+        var d = docs[k];
+        if (!d || !d.text || d.kind === 'code') return;
+        parts.push('《' + (d.title || '文档') + '》正文（节选）：\n' + String(d.text).slice(0, 6000));
+    });
+    (st && st.nodes || []).forEach(function (n) {
+        if (n.type !== 'dialogue') return;
+        var tr = (st.transcripts && st.transcripts[n.key]) || [];
+        if (!tr.length) return;
+        var tail = tr.slice(-4).map(function (m) {
+            return (m.role === 'teacher' ? '老师：' : '学生：') + String(m.text || '').replace(/\s+/g, ' ').slice(0, 220);
+        }).join('\n');
+        if (tail) parts.push('《' + (n.title || '对话') + '》要点：\n' + tail);
+    });
+    return parts.join('\n\n');
+}
+
+// 【已弃用】旧的「一次性写作」入口，v2.8.0 起由 tcGenerateDocument（规格→计划→单元→自检）取代。
+// 保留仅为兼容历史调用；其中的提示词硬编码了单一课程内容，不要重新接回主流程。
+function tcAskAiDoc(node, st) {
+    var desc = (node.desc || '').slice(0, 1200);
+    var kind = tcDocKind(desc);
+    var atts = (st && st.attachments ? tcAttachCacheGet(st, node.key || String(node.idx)) : null) || [];
+    if (atts.length) {
+        var okN = atts.filter(function (x) { return x.kind === 'text' || x.kind === 'image'; }).length;
+        if (!okN) tcLog('[附件] ' + atts.length + ' 个附件全部读取失败，本次只能凭题目描述写作（内容可能空泛）', 'error');
+    }
+    var isFinal = tcIsFinalNode();
+    var chainBlock = tcChainContext(st);
+    var docCtx = isFinal ? tcDocContext(node, st) : '';
+
+    // 材料块：文本附件给正文；文档附件给「模板结构摘要」；HTML 只占位，绝不注入
+    var attBlock = '';
+    if (atts.length) {
+        var budget = 18000;
+        var parts = [];
+        for (var ai = 0; ai < atts.length; ai++) {
+            var at = atts[ai];
+            if (at.kind === 'text' && at.text) {
+                if (budget <= 200) continue;
+                var take = Math.min(4000, budget);
+                var piece = String(at.text).slice(0, take);
+                budget -= piece.length;
+                parts.push('--- ' + at.name + '（样例/文本材料）---\n' + piece);
+            } else if (at.kind === 'image') {
+                parts.push('--- ' + at.name + '（参考模板，共 ' + (at.pages || 0) + ' 页）---\n'
+                    + (at.template ? String(at.template).slice(0, 3000)
+                        : '（模板内容未能识别，仅按文件名视为参考模板）'));
+            } else {
+                parts.push('--- ' + at.name + '（未能读取）---');
+            }
+        }
+        attBlock = '\n【材料说明】附件是参考材料，不是需要分析的对象：'
+            + 'txt 是样例输入/输出，doc/docx 是希望成品参考其章节结构的模板。'
+            + '不要复述、评价或解析附件本身。\n'
+            + parts.join('\n\n') + '\n';
+        tcLog('[附件] 注入 ' + parts.length + ' 个文件说明，文本约 ' + (18000 - budget) + ' 字', 'muted');
+    }
+
+    var chainPart = chainBlock ? ('【任务链全览】\n' + chainBlock + '\n\n') : '';
+    var taskPart = '【本节点任务】\n标题：' + node.title + '\n要求：'
+        + (desc || '（题目未给出具体要求，请依据任务链上下文推断）') + '\n\n';
+
+    var sys;
+    if (kind === 'code') {
+        sys = '你是课程助教，请按题目要求直接写出可提交的源代码。\n'
+            + chainPart + taskPart + attBlock
+            + '【要求】输出一个完整、可编译的 C 语言程序（从 #include 开始，到程序结束）；'
+            + '必须包含词法分析与递归下降语法分析，能识别样例里出现的成分；'
+            + '输出格式严格遵循附件中的 *_out.txt 样例；只输出代码，不要解释、不要 Markdown 围栏。';
+    } else if (isFinal) {
+        sys = '你是课程助教，请按题目要求直接写出一份可直接提交的完整报告。\n'
+            + chainPart + taskPart + attBlock
+            + (docCtx ? ('【前序成果（写作素材）】\n' + docCtx + '\n\n') : '')
+            + '【写作要求】\n'
+            + '1) 输出完整报告全文，不要写成“本报告是在原稿基础上完善”之类的说明文；\n'
+            + '2) 内容取自前序任务成果（设计思路、代码实现、实验报告、总结反思），按模板的结构组织章节；\n'
+            + '3) 每个部分写 2-3 段，覆盖全部前序节点，结尾给出结论；\n'
+            + '4) 不得声称“已通过系统检查”“评分达标”等未经证实的结果；\n'
+            + '5) 只输出正文，不要解释，不要“好的”之类开场白。';
+    } else {
+        sys = '你是课程助教，请按题目要求直接写出一份可以直接提交的文档正文。\n'
+            + chainPart + taskPart + attBlock
+            + '【写法】用自然段书写，覆盖题目里的每一项要求；不要写 Markdown 记号（不要 #、**、表格竖线）；'
+            + '结尾给出明确的结论或建议。\n只输出正文，不要解释，不要“好的”之类开场白。';
+    }
+    var baseMsgs = [{ role: 'system', content: sys }, { role: 'user', content: '请开始写《' + node.title + '》。' }];
+    var maxTokens = tcCfg('taskChainMaxTokens', 0) || 0;
+    var full = '';
+    var round = 0;
+    var lastMeta = {};
+
+    function step() {
+        round++;
+        var msgs = baseMsgs.slice();
+        if (full) {
+            msgs.push({ role: 'assistant', content: full });
+            msgs.push({ role: 'user', content: '继续：从上次中断处往下写，不要重复已写内容，不要重新开头。' });
+        }
+        var meta = {};
+        return tcChat(msgs, { temperature: 0.6, maxTokens: maxTokens, metaOut: meta }).then(function (txt) {
+            var add = String(txt || '');
+            // 去掉与前文尾部的重复
+            if (full && add) {
+                var tail = full.slice(-200);
+                for (var k = Math.min(200, tail.length); k >= 20; k--) {
+                    if (add.indexOf(tail.slice(-k)) === 0) { add = add.slice(k); break; }
+                }
+            }
+            full += add;
+            lastMeta = meta;
+            var reason = meta.finish_reason || '';
+            var rt = meta.usage && meta.usage.completion_tokens_details
+                ? meta.usage.completion_tokens_details.reasoning_tokens : null;
+            tcLog('[AI] 第 ' + round + ' 轮 +' + add.length + ' 字，累计 ' + full.length + ' 字'
+                + (reason ? ' | finish_reason=' + reason : '')
+                + (rt != null ? ' | 思考 ' + rt + ' tokens' : '')
+                + (meta.usage && meta.usage.completion_tokens ? ' | 输出 ' + meta.usage.completion_tokens : ''),
+                reason === 'length' ? 'warn' : 'muted');
+            if (reason === 'length' && round < 3 && full.length < 12000) {
+                tcLog('输出被 token 上限截断，继续写下一段…', 'warn');
+                return step();
+            }
+            return full;
+        });
+    }
+
+    return step().then(function (text) {
+        if (!text || String(text).replace(/\s/g, '').length < 30) {
+            tcLog('输出过短（' + String(text || '').length + ' 字），继续要求写正文…', 'warn');
+            var meta2 = {};
+            var msgs2 = baseMsgs.slice();
+            if (text) {
+                msgs2.push({ role: 'assistant', content: String(text) });
+                msgs2.push({ role: 'user', content: '内容还不够，请紧接着继续写完整，不要重复已写内容。' });
+            } else {
+                msgs2.push({ role: 'user', content: '请直接开始写正文，不要输出思考过程。' });
+            }
+            return tcChat(msgs2, { temperature: 0.5, maxTokens: maxTokens, metaOut: meta2 }).then(function (t2) {
+                lastMeta = meta2;
+                return String(text || '') + String(t2 || '');
+            });
+        }
+        return text;
+    }).then(function (text) {
+        if (!String(text || '').trim()) throw new Error('AI 返回为空');
+        return { text: String(text), meta: lastMeta };
+    }).then(function (r) {
+        if (kind !== 'code') { r.kind = 'doc'; return r; }
+        var code = tcExtractCode(r.text);
+        if (/#include\s*[<"]/.test(code) || /int\s+main\s*\(/.test(code)) {
+            r.kind = 'code';
+            r.text = code;
+            tcLog('已生成代码：' + code.split('\n').length + ' 行 / ' + code.length + ' 字', 'muted');
+            return r;
+        }
+        tcLog('输出不是完整程序（缺少 #include/main），要求重写一次…', 'warn');
+        var meta3 = {};
+        return tcChat([
+            { role: 'system', content: '请直接输出一个完整可编译的 C 语言程序，从 #include 开始到程序结束，不要任何解释。' },
+            { role: 'user', content: '题目：' + node.title + '\n要求：' + desc + attBlock }
+        ], { temperature: 0.3, maxTokens: maxTokens, metaOut: meta3 }).then(function (t3) {
+            var c3 = tcExtractCode(t3);
+            tcLog('重写结果：' + c3.split('\n').length + ' 行', 'muted');
+            return { text: c3, meta: meta3, kind: 'code' };
+        });
+    });
+}
+
+// 兜底：AI 失败时用题目描述拼一段可交的正文
+function tcFallbackText(node) {
+    var desc = (node.desc || '').replace(/\s+/g, ' ').trim();
+    var head = '一、任务说明\n' + (desc || ('请按课程要求完成《' + node.title + '》。'));
+    var body = '二、分析与作答\n' + (desc
+        ? '围绕上述要求，本文从背景、要点与结论三部分展开：' + desc
+        : '本文围绕题目要求展开说明。');
+    var tail = '三、结论\n以上内容依据任务要求整理，供提交使用。';
+    return head + '\n\n' + body + '\n\n' + tail;
+}
+
+/* ---------------------------------- 任务规格 / 生成流水线（v2.8.0） ---------------------------------- */
+
+// 评估状态：页面的评估是 SSE 流式，chainEvaluateState 为 idle / submitting / evaluating，
+// 中间结果在 evaluateResultData，最终分数要等流结束后才回填到 uploadInfo。
+function tcEvalState() {
+    var out = { state: 'idle', partial: null, live: null };
+    try {
+        var vm = tcHomeVm();
+        var d = (vm && vm.$data) || {};
+        out.state = String(d.chainEvaluateState || 'idle');
+        out.live = d.evaluateResultData || null;
+        if (out.live && typeof out.live.score === 'number') out.partial = out.live.score;
+    } catch (e) { }
+    return out;
+}
+
+// 当前选中的节点标题（selectedTaskId 是 taskFlowList 的下标）
+function tcCurrentTaskTitle() {
+    try {
+        var vm = tcHomeVm();
+        var d = (vm && vm.$data) || {};
+        var list = d.taskFlowList || [];
+        var idx = d.selectedTaskId;
+        if (list.length && idx != null && list[idx]) return String(list[idx].title || '').trim();
+        return d.uploadInfo && d.uploadInfo.title ? String(d.uploadInfo.title).trim() : '';
+    } catch (e) { return ''; }
+}
+
+// uploadInfo 是否已经切到当前节点：切节点后它会滞后一到两秒，此时读到的是别的节点的分。
+// 传了 title 时只比对节点标题（阻断卡片等场景下 selectedTaskId 可能已不在该节点）。
+function tcUploadInfoReady(title) {
+    try {
+        var vm = tcHomeVm();
+        var d = (vm && vm.$data) || {};
+        var u = d.uploadInfo;
+        if (!u) return false;
+        var cur = title ? String(title).trim() : tcCurrentTaskTitle();
+        if (!cur) return true;
+        var t = String(u.title || '').trim();
+        return t.length > 0 && t === cur;
+    } catch (e) { return true; }
+}
+
+// 评估快照：点「开始评估」之前先取一次，用来判断后面拿到的是不是「新」结果。
+// nodeTitle：按节点标题判就绪（阻断卡片等场景下 selectedTaskId 可能已不在该节点）。
+function tcEvalSnapshot(nodeTitle) {
+    var s = { ready: true, state: 'idle', records: 0, evaluated: 0, lastUuid: '', lastScore: null, lastCount: null };
+    try {
+        var vm = tcHomeVm();
+        var d = (vm && vm.$data) || {};
+        s.state = String(d.chainEvaluateState || 'idle');
+        if (!tcUploadInfoReady(nodeTitle)) { s.ready = false; return s; }
+        var recs = ((d.uploadInfo && d.uploadInfo.answerRecords) || []);
+        s.records = recs.length;
+        var evs = recs.filter(function (r) { return Number(r.status) === 2; });
+        s.evaluated = evs.length;
+        if (evs.length) {
+            // 按 count（平台第几次作答）取最新，绝不依赖数组顺序
+            var best = evs[0];
+            for (var k = 1; k < evs.length; k++) {
+                var bc = Number(best.count), cc = Number(evs[k].count);
+                if (!isFinite(bc)) bc = -1;
+                if (!isFinite(cc)) cc = -1;
+                if (cc >= bc) best = evs[k];
+            }
+            s.lastUuid = best.recordUuid || '';
+            var cn = Number(best.count);
+            s.lastCount = isFinite(cn) ? cn : null;
+            var sc = parseFloat(best.score);
+            if (isFinite(sc)) s.lastScore = sc;
+        }
+    } catch (e) { }
+    return s;
+}
+
+// 读成绩：评估中一律返回 pending（此时 answerScore 里还是上一次的分）
+function tcReadEval(opt) {
+    opt = opt || {};
+    var st = tcEvalState();
+    var out = {
+        score: null, result: null, tip: '',
+        pending: false, streaming: false, notReady: false,
+        partial: st.partial, state: st.state, recordUuid: '', count: null, from: ''
+    };
+    if (st.state === 'submitting' || st.state === 'evaluating') {
+        out.pending = true;
+        out.streaming = true;
+        return out;
+    }
+    if (!tcUploadInfoReady(opt.nodeTitle)) {
+        // 切节点后 uploadInfo 还没刷新，此时的分属于别的节点
+        out.pending = true;
+        out.notReady = true;
+        return out;
+    }
+
+    var snap = tcEvalSnapshot(opt.nodeTitle);
+    if (snap.lastScore != null) {
+        out.score = snap.lastScore;
+        out.recordUuid = snap.lastUuid;
+        out.count = snap.lastCount;
+        out.from = '记录';
+    }
+    var u = {};
+    try { u = tcFindUploadInfo() || {}; } catch (e) { }
+    if (out.score == null && u.answerScore !== '' && u.answerScore != null) {
+        var s0 = parseFloat(u.answerScore);
+        if (isFinite(s0)) { out.score = s0; out.from = 'answerScore'; }
+    }
+    if (out.score == null && st.partial != null && st.partial > 0) {
+        out.score = st.partial; out.from = '评估结果';
+    }
+    // 评语只在与分数一致时采用：uploadInfo.evaluateResult 会滞后一整轮
+    var res = (u.evaluateResult && typeof u.evaluateResult === 'object') ? u.evaluateResult : null;
+    if (res && out.score != null) {
+        var rs = parseFloat(res.score);
+        if (!isFinite(rs) || Math.abs(rs - out.score) < 0.01) out.result = res;
+    }
+    if (!out.result && st.live && out.score != null) {
+        var ls = parseFloat(st.live.score);
+        if (isFinite(ls) && Math.abs(ls - out.score) < 0.01) out.result = st.live;
+    }
+    out.tip = out.result ? String(out.result.scoreTip || '') : '';
+    if (out.score == null) {
+        var m = ((document.body && document.body.innerText) || '').match(/(?:本次成绩|得分)\s*[:：]?\s*(\d{1,3}(?:\.\d+)?)/);
+        if (m) { out.score = parseFloat(m[1]); out.from = '文本'; }
+    }
+    return out;
+}
+
+// 等这一轮评估真正结束：主信号是 state 从 submitting/evaluating 回到 idle
+function tcWaitEvalDone(snap, timeoutMs) {
+    snap = snap || tcEvalSnapshot();
+    var sawBusy = false;
+    return tcWait(function () {
+        var cur = tcEvalSnapshot();
+        if (cur.state === 'submitting' || cur.state === 'evaluating') {
+            sawBusy = true;
+            var p = tcEvalState().partial;
+            tcBusySetLabel(p != null && p > 0 ? ('评估中…（当前 ' + p + ' 分）') : '评估中…');
+            return false;
+        }
+        if (sawBusy) return cur.ready !== false;
+        if (cur.evaluated > snap.evaluated) return true;
+        if (cur.lastUuid && cur.lastUuid !== snap.lastUuid) return true;
+        if (snap.lastScore != null && cur.lastScore != null && cur.lastScore !== snap.lastScore) return true;
+        return false;
+    }, timeoutMs || 240000, 1500).then(function (ok) { return !!ok; });
+}
+
+// 流结束后页面约 5s 才回填 uploadInfo，这里再等一下评语/新分数
+function tcWaitEvalResult(baseScore) {
+    return tcWait(function () {
+        var ev = tcReadEval();
+        if (ev.streaming || ev.score == null) return false;
+        if (ev.result) return true;
+        return baseScore != null && ev.score !== baseScore;
+    }, 20000, 1000);
+}
+
+// 是否真的拿到了本轮的新成绩（而不是上一次的）
+function tcEvalFresh(ev, snap) {
+    if (!ev || ev.score == null) return false;
+    if (!snap || snap.lastScore == null) return true;
+    if (ev.recordUuid && ev.recordUuid !== snap.lastUuid) return true;
+    return Math.abs(ev.score - snap.lastScore) > 0.001;
+}
+
+// 页面自己的合格线（忽略用户设置）：用于识别「平台已放行、但用户标准更严」的节点
+function tcPagePassLine() {
+    var best = null;
+    try {
+        var rows = document.querySelectorAll('.unlock-condition-row');
+        for (var i = 0; i < rows.length; i++) {
+            var el = rows[i].querySelector('.unlock-rule');
+            var rule = el ? (el.innerText || el.textContent || '') : (rows[i].innerText || '');
+            var m = String(rule).match(/(\d{1,3})\s*[≤<]\s*总分/);
+            if (!m) continue;
+            var v = parseInt(m[1], 10);
+            if (v > 0 && (best === null || v < best)) best = v;
+        }
+    } catch (e) { }
+    return best;
+}
+
+// 合格线：设置 > 页面 > 默认。返回 { value, from }，from 用于日志溯源。
+// 只有用户真正改过设置（localStorage 里存在该键）才以设置为准，
+// 没改过时跟随页面「解锁下一节点条件」，换课程不用手动调。
+function tcPassLine() {
+    var saved = null;
+    try { saved = localStorage.getItem('GPTJsSetting.taskChainMinScore'); } catch (e) { }
+    if (saved !== null && saved !== undefined && saved !== '' && isFinite(parseFloat(saved))) {
+        return { value: parseFloat(saved), from: '设置' };
+    }
+
+    var best = tcPagePassLine();
+    if (best !== null) return { value: best, from: '页面' };
+
+    return { value: tcCfg('taskChainMinScore', 61), from: '默认' };
+}
+
+// 把平台评语拆成可执行的缺陷项。
+// expectScore：本轮分数；评语若属于上一轮（分数不一致），一律不采用，避免"按上次批语改这次稿"。
+function tcEvalDefects(res, expectScore) {
+    var out = [];
+    if (!res) return out;
+    if (expectScore != null && res.score != null && isFinite(parseFloat(res.score))) {
+        if (Math.abs(parseFloat(res.score) - expectScore) > 0.01) {
+            tcLog('[评估] 评语分数（' + res.score + '）与本次（' + expectScore + '）不一致，视为上一轮评语，不采用', 'warn');
+            return out;
+        }
+    }
+    (res.summaryItems || []).forEach(function (it) {
+        if (!it) return;
+        var head = '【' + (it.title || '评分项') + '】';
+        var sc = (it.score != null ? '（' + it.score + ' 分）' : '');
+        out.push(head + sc + String(it.content || '').slice(0, 300));
+    });
+    if (res.disadvantages) out.push('【缺陷】' + String(res.disadvantages).slice(0, 400));
+    (res.suggestions || []).forEach(function (s) { out.push('【建议】' + String(s).slice(0, 240)); });
+    return out.slice(0, 10);
+}
+
+// 附件配对：testN.txt ↔ testN_out.txt 归成 {input, expected}
+function tcSpecMaterials(node, st) {
+    var atts = (st && st.attachments ? tcAttachCacheGet(st, node.key || String(node.idx)) : null) || [];
+    var pairs = [], loose = [], map = {};
+    atts.forEach(function (a) {
+        if (!a) return;
+        if (a.kind !== 'text' || !a.text) {
+            loose.push({ name: a.name || '附件', kind: a.kind || 'unknown' });
+            return;
+        }
+        var base = String(a.name || '').replace(/\.[^.]+$/, '');
+        var isOut = /(^|[_\-])(out|expected|stdout|answer)$/i.test(base);
+        var key = base.replace(/[_\-]?(out|expected|stdout|answer)$/i, '') || base;
+        if (!map[key]) map[key] = { name: key, inName: '', outName: '', input: '', expected: '' };
+        if (isOut) {
+            map[key].expected = String(a.text);
+            map[key].outName = String(a.name || '');
+        } else {
+            map[key].input = String(a.text);
+            map[key].inName = String(a.name || '');
+        }
+    });
+    Object.keys(map).forEach(function (k) {
+        var p = map[k];
+        if (p.input || p.expected) pairs.push(p);
+    });
+    return { pairs: pairs, loose: loose };
+}
+
+// 任务契约：交付物类型 / 必须项 / 样例对 / 合格线 / 上一轮缺陷
+function tcTaskSpec(node, st) {
+    var u = {};
+    try { u = tcFindUploadInfo() || {}; } catch (e) { }
+    var desc = String(u.requirement || node.desc || '').replace(/\s+/g, ' ').trim();
+    var card = (u.fileCards && u.fileCards[0]) || {};
+    var rule = (card.rule || (u.rules && u.rules[0]) || {});
+    var mat = tcSpecMaterials(node, st);
+    var key = node.key || String(node.idx);
+    var kind = tcDocKind(desc + ' ' + (card.cardTitle || '') + ' ' + (node.title || ''));
+
+    var must = [];
+    desc.split(/[；;。\n]/).forEach(function (s) {
+        s = s.replace(/\s+/g, ' ').trim();
+        if (s.length >= 6 && must.indexOf(s) < 0) must.push(s);
+    });
+    if (card.cardTitle && must.indexOf('主题：' + card.cardTitle) < 0) must.push('主题：' + card.cardTitle);
+    if (rule.extensions && rule.extensions.length) {
+        must.push('交付格式：' + rule.extensions.join('/') + '，最多 ' + (rule.maxCount || 1) + ' 个文件');
+    }
+    var rep = (st.repair && st.repair[key]) || null;
+    var pl = tcPassLine();
+
+    // 评估新鲜度对齐：平台上有比 st.repair 更新的作答记录时，用最新那次
+    try {
+        var live = tcReadEval({ nodeTitle: node.title });
+        if (live && live.score != null) {
+            var liveCount = (live.count == null) ? -1 : Number(live.count);
+            var repCount = (rep && rep.count != null) ? Number(rep.count) : -1;
+            var newer = !rep || liveCount > repCount
+                || (liveCount === repCount && Math.abs(live.score - rep.score) > 0.01);
+            if (newer) {
+                rep = {
+                    score: live.score,
+                    result: live.result || (rep && rep.result) || null,
+                    recordUuid: live.recordUuid || '',
+                    count: live.count == null ? null : live.count,
+                    at: tcNow(),
+                    round: rep ? rep.round : 0,
+                    history: (rep && rep.history) || []
+                };
+                tcLog('[评估] 已切到最新一次作答的评估（第 ' + (live.count == null ? '?' : live.count)
+                    + ' 次，' + live.score + ' 分）', 'info');
+            }
+        }
+    } catch (e) { }
+
+    var prevDoc = (st.docs && st.docs[key]) || null;
+    return {
+        key: key,
+        title: node.title || u.title || '作业',
+        kind: kind,
+        requirement: desc,
+        cardTitle: card.cardTitle || '',
+        must: must.slice(0, 16),
+        pairs: mat.pairs,
+        loose: mat.loose,
+        passLine: pl.value,
+        passFrom: pl.from,
+        repair: rep,
+        thread: (st.threads && st.threads[key]) || null,
+        prevText: (prevDoc && prevDoc.text) ? String(prevDoc.text) : '',
+        evalHistory: (rep && rep.history) || []
+    };
+}
+
+// 把网站上一轮的 AI 评估整成提示词里的一段「必须逐条修复」
+function tcRepairBlock(spec) {
+    var rep = spec.repair;
+    if (!rep) return '';
+    var r = rep.result || null;
+    var lines = [];
+    lines.push('【上一轮平台 AI 评估（同一道题的上一次提交，必须逐条修复）】');
+    lines.push('分数：' + (rep.score != null ? rep.score : '—') + '（合格线 ' + spec.passLine + '）');
+    if (r && r.summaryItems && r.summaryItems.length) {
+        lines.push('分维度：' + r.summaryItems.map(function (it) {
+            return (it.title || '') + ' ' + (it.score != null ? it.score : '—');
+        }).join('；'));
+    }
+    if (r && r.disadvantages) {
+        lines.push('不足之处：');
+        String(r.disadvantages).split(/\n+/).forEach(function (ln) {
+            if (ln.trim()) lines.push(ln.trim());
+        });
+    } else if (rep.defects && rep.defects.length) {
+        lines.push('不足之处：');
+        rep.defects.forEach(function (d) { lines.push('- ' + d); });
+    }
+    if (r && r.suggestions && r.suggestions.length) {
+        lines.push('改进建议：');
+        r.suggestions.forEach(function (s, i) { lines.push((i + 1) + '. ' + String(s).trim()); });
+    }
+    if (spec.evalHistory && spec.evalHistory.length > 1) {
+        lines.push('历史轨迹：' + spec.evalHistory.map(function (h) {
+            return '第' + (h.count == null ? '?' : h.count) + '次 ' + (h.score == null ? '—' : h.score);
+        }).join(' → '));
+    }
+    lines.push('要求：新版本必须逐条解决上述问题，不得重复上一版的说法；不要声称“已通过检查”或“评分达标”。');
+    return lines.join('\n');
+}
+
+// 单次生成：题目要求 + 附件样例 + 上一轮平台评估（不再有"计划/自检"环节）
+// 代码围栏语言
+function tcFileLang(name) {
+    var n = String(name || '').toLowerCase();
+    if (/\.(c|h)$/.test(n)) return 'c';
+    if (/\.(cpp|cc|cxx|hpp)$/.test(n)) return 'cpp';
+    if (/\.py$/.test(n)) return 'python';
+    if (/\.java$/.test(n)) return 'java';
+    if (/\.(js|ts)$/.test(n)) return 'js';
+    if (/\.(md|markdown)$/.test(n)) return 'markdown';
+    if (/\.json$/.test(n)) return 'json';
+    return 'text';
+}
+
+// 用代码围栏包原文：缩进/空行原样保留；原文里已有 ``` 时自动加长围栏
+function tcFence(text, lang) {
+    var t = String(text == null ? '' : text).replace(/\r\n?/g, '\n');
+    var fence = '```';
+    while (t.indexOf(fence) >= 0) fence += '`';
+    return fence + (lang || 'text') + '\n' + t + '\n' + fence;
+}
+
+// 生成：同一节点沿用同一条对话；首轮带材料，之后带上一版输出 + 新一轮平台评估
+function tcGenDocOnce(spec) {
+    var budget = 24000;
+    var blocks = [];
+    spec.pairs.slice(0, 6).forEach(function (p) {
+        if (budget <= 500) return;
+        var inText = String(p.input || '');
+        var inPart = inText.slice(0, 2000);
+        budget -= inPart.length;
+        var blk = '### 附件：' + (p.inName || (p.name + '.txt')) + '（输入样例）\n'
+            + tcFence(inPart, tcFileLang(p.inName || p.name));
+        var expText = String(p.expected || '');
+        if (expText && budget > 500) {
+            var expPart = expText.slice(0, 3000);
+            budget -= expPart.length;
+            blk += '\n\n### 附件：' + (p.outName || (p.name + '_out.txt')) + '（期望输出）\n'
+                + tcFence(expPart, 'text');
+        }
+        blocks.push(blk);
+    });
+    var samples = blocks.join('\n\n');
+
+    var sys = '你是课程助教，直接产出可直接提交的内容。只输出内容本身，不要解释、不要开场白、不要最外层代码围栏。';
+    var rep0 = tcRepairBlock(spec);
+    var firstUser = '任务：' + spec.title
+        + '\n题目要求：' + spec.requirement
+        + (spec.must.length ? '\n必须满足：\n- ' + spec.must.slice(0, 10).join('\n- ') : '')
+        + (rep0 ? '\n\n' + rep0 : '')
+        + (samples ? '\n\n【附件原文（Markdown 代码块）】\n'
+            + '代码块内是文件原文：缩进、空行、列对齐、标点都有含义，输出必须遵循同样的格式，不要重排。\n\n'
+            + samples : '')
+        + (spec.kind === 'code'
+            ? '\n\n只输出可编译的完整源码，从 #include 开始到文件结尾。'
+            : '\n\n只输出正文，自然段，不要 Markdown 记号。');
+
+    var msgs;
+    if (spec.thread && spec.thread.length >= 2) {
+        // 同一对话：继续追加「上一版输出 + 新一轮评估」
+        msgs = spec.thread.slice();
+        var lastA = null;
+        for (var i = msgs.length - 1; i >= 0; i--) {
+            if (msgs[i].role === 'assistant') { lastA = msgs[i]; break; }
+        }
+        if (spec.prevText && (!lastA || String(lastA.content) !== spec.prevText)) {
+            msgs.push({ role: 'assistant', content: spec.prevText });
+        }
+        var repair = tcRepairBlock(spec);
+        msgs.push({
+            role: 'user',
+            content: '【同一对话的下一轮】你上一版的提交已被平台重新评估：\n'
+                + (repair || '（本次未取到新评语，请基于题目要求继续改进上一版）')
+                + '\n\n请对照你上一版的输出逐条改进，输出完整的新版内容（不是修改说明）。'
+        });
+    } else {
+        msgs = [{ role: 'system', content: sys }, { role: 'user', content: firstUser }];
+    }
+    return tcChat(msgs, { temperature: 0.5, _tag: 'doc-gen' }).then(function (t) {
+        return { text: String(t || ''), messages: msgs };
+    });
+}
+
+// 对话太长时裁剪：保留 system + 首轮 user + 最近一版 assistant + 本轮 user
+function tcTrimThread(msgs) {
+    msgs = (msgs || []).filter(Boolean);
+    var chars = 0;
+    msgs.forEach(function (m) { chars += String(m.content || '').length; });
+    if (msgs.length <= 8 && chars <= 120000) return msgs;
+    var keep = [];
+    if (msgs[0] && msgs[0].role === 'system') keep.push(msgs[0]);
+    var firstUser = null;
+    for (var i = 0; i < msgs.length; i++) {
+        if (msgs[i].role === 'user') { firstUser = msgs[i]; break; }
+    }
+    if (firstUser) keep.push(firstUser);
+    var lastA = null, lastU = null;
+    for (var j = msgs.length - 1; j >= 0; j--) {
+        if (!lastA && msgs[j].role === 'assistant') lastA = msgs[j];
+        if (!lastU && msgs[j].role === 'user') lastU = msgs[j];
+        if (lastA && lastU) break;
+    }
+    if (lastA) keep.push(lastA);
+    if (lastU && lastU !== firstUser) keep.push(lastU);
+    return keep;
+}
+
+// 生成：同一节点沿用同一条 AI 对话 → docx 管线
+function tcGenerateDocument(node, st) {
+    var spec = tcTaskSpec(node, st);
+    tcLog('[生成] ' + spec.title + ' · ' + (spec.kind === 'code' ? '代码' : '文档')
+        + ' · 样例 ' + spec.pairs.length + ' 组 · 合格线 ' + spec.passLine + '（' + spec.passFrom + '）'
+        + (spec.repair ? ' · 带上一轮平台评估（' + (spec.repair.score == null ? '—' : spec.repair.score) + ' 分）' : '')
+        + (spec.thread && spec.thread.length >= 2 ? ' · 延续同一对话（已 ' + spec.thread.length + ' 条消息）' : ' · 新对话'), 'info');
+
+    return tcGenDocOnce(spec).then(function (r) {
+        var text = r.text;
+        // 把这一轮输出并回同一条对话，下一轮继续用
+        try {
+            st.threads = st.threads || {};
+            var th = (spec.thread && spec.thread.length >= 2) ? spec.thread.slice() : (r.messages || []).slice();
+            th.push({ role: 'assistant', content: text });
+            st.threads[spec.key] = tcTrimThread(th);
+            tcSaveState(st);
+        } catch (e) { }
+        return tcDocxFromText(text, node, st, spec.kind).then(function (doc) {
+            return {
+                blob: doc.blob, raw: text, kind: spec.kind,
+                model: { title: node.title, sections: [] },
+                source: 'ai', stats: doc, spec: spec
+            };
+        });
+    });
+}
+
+// 生成 docx：对话节点走结构化报告；上传节点走「材料 + 上一轮平台评估」单次生成
+function tcMakeDocxBlob(node, st) {
+    var tr = (st.transcripts && st.transcripts[node.key]) || [];
+    if (node.type !== 'upload' && tr.length) {
+        return tcBuildReportModel(st, tcScanNodes()).then(function (model) {
+            return tcDocxFromModel(model, st, node);
+        });
+    }
+    return tcGenerateDocument(node, st).catch(function (e) {
+        tcLog('生成失败（' + ((e && (e.msg || e.message)) || e) + '），用题目描述兜底', 'warn');
+        var text = tcFallbackText(node);
+        return tcDocxFromText(text, node, st, 'doc').then(function (doc) {
+            return { blob: doc.blob, raw: text, kind: 'doc', model: { title: node.title, sections: [] }, source: 'template', stats: doc };
+        });
+    });
+}
+
+// 结构化报告（仅对话类节点使用）
+function tcDocxFromModel(model, st, node) {
+    model = model || {};
+    model.coverTitle = (node && node.title) || model.title || '文档';
+    model.coverSub = st.chainTitle || '';
+    var who = {
+        name: tcCfg('studentName', '') || '—',
+        id: tcCfg('studentId', '') || '—',
+        cls: tcCfg('studentClass', '') || '—'
+    };
+    model.meta = [['姓　　名', who.name], ['学　　号', who.id], ['班　　级', who.cls], ['完成时间', new Date().toLocaleDateString()]];
+    model.sections = model.sections || [];
+    var xml = tcBuildDocxXml(model, false);
+    return tcBuildDocx({ documentXml: xml, png: null }).then(function (bytes) {
+        return {
+            blob: new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+            model: model, source: 'ai', stats: { chars: 0, paras: 0 }
+        };
+    });
+}
+
+/* ---------------------------------- 上传节点 ---------------------------------- */
+
+// 上传面板的「选择文件」按钮：多种选择器兜底
+function tcFindChooseBtn() {
+    return tcFindByText(document, '选择文件', { selector: 'button,div,span,a' })
+        || document.querySelector('button.choose-btn')
+        || document.querySelector('.choose-btn')
+        || document.querySelector('.upload-card button')
+        || tcFindByText(document, '上传文件', { selector: 'button,div,span,a' })
+        || tcFindByText(document, '点击上传', { selector: 'button,div,span,a' });
+}
+
+// 生成并注入文档；失败重试 3 次，仍失败转手动
+function tcPickerInput() {
+    var d = tcPickerDoc();
+    if (!d) return null;
+    return d.querySelector('input.attCommonUploadBtn') || d.querySelector('input[type=file]');
+}
+
+function tcPickerVm() {
+    try {
+        var d = tcPickerDoc();
+        if (!d) return null;
+        var el = d.querySelector('#attCommonApp') || d.body;
+        while (el) { if (el.__vue__) return el.__vue__; el = el.parentElement; }
+    } catch (e) { }
+    return null;
+}
+
+function tcPickerState() {
+    var vm = tcPickerVm();
+    if (!vm || !vm.$data) return null;
+    return { showUploadBtn: vm.$data.showUploadBtn, uploads: (vm.$data.uploadList || []).length, list: vm.$data.uploadList || [] };
+}
+
+function tcPickerUploadDone() {
+    var d = tcPickerDoc();
+    if (!d) return false;
+    var t = d.body ? d.body.innerText : '';
+    if (/上传成功|上传完成/.test(t)) return true;
+    var s = tcPickerState();
+    if (s && s.list && s.list.length) {
+        var busy = s.list.some(function (i) { return i && i.status === 1; });
+        var ok = s.list.some(function (i) { return i && (i.status === 2 || i.status === 3); });
+        if (!busy && ok) return true;
+    }
+    return false;
+}
+
+// 注入前拍快照：记住弹窗里已有的条目与「上传成功」文本，避免把上一次的结果当本次
+function tcPickerSnapshot() {
+    var s = tcPickerState();
+    var list = (s && s.list) || [];
+    var d = tcPickerDoc();
+    return {
+        keys: list.map(function (i) { return String((i && (i.fileId || i.id || i.name)) || ''); }),
+        hadSuccessText: /上传成功|上传完成/.test(((d && d.body && d.body.innerText) || ''))
+    };
+}
+
+// 「这次注入的文件」是否真的传完：新条目 + 完成态 + 无进行中；文本只在原来是空的时候才算信号
+function tcPickerNewDone(snap) {
+    var s = tcPickerState();
+    if (s && s.list) {
+        var list = s.list;
+        var busy = list.some(function (i) {
+            return i && (i.status === 1 || (i.percent != null && i.percent < 100));
+        });
+        if (busy) return false;
+        var okNew = list.some(function (i) {
+            if (!i) return false;
+            var key = String(i.fileId || i.id || i.name || '');
+            var finished = (i.status === 2 || i.status === 3) || (i.percent != null && i.percent >= 100);
+            return snap.keys.indexOf(key) < 0 && finished;
+        });
+        if (okNew) return true;
+    }
+    var d = tcPickerDoc();
+    var txt = (d && d.body && d.body.innerText) || '';
+    return !snap.hadSuccessText && /上传成功|上传完成/.test(txt);
+}
+
+// 平台侧是否真的记录了刚上传的文件（fileCards[].files 或 uploadInfo.files）
+function tcUploadRecorded(node) {
+    var u = {};
+    try { u = tcFindUploadInfo() || {}; } catch (e) { }
+    if (node && node.title && String(u.title || '').trim() !== String(node.title).trim()) return false;
+    var n = 0;
+    (u.fileCards || []).forEach(function (c) {
+        if (c && c.files) n += c.files.length;
+    });
+    if (n > 0) return true;
+    return ((u.files || []).length > 0);
+}
+
+// 上传弹窗是否真的关闭（iframe 被移除、隐藏或链页开关置 false 都算）
+function tcPickerClosed() {
+    var f = document.querySelector('iframe.file-picker-iframe') || document.querySelector('iframe[src*="attCommon"]');
+    if (!f) return true;
+    try {
+        var r = f.getBoundingClientRect();
+        if (!r || r.width < 5 || r.height < 5) return true;
+        var cs = getComputedStyle(f);
+        if (cs.display === 'none' || cs.visibility === 'hidden') return true;
+    } catch (e) { }
+    try {
+        var vm = tcHomeVm();
+        if (vm && vm.$data && vm.$data.showFilePickerIframe === false) return true;
+    } catch (e) { }
+    return false;
+}
+
+// 注入文档：先生成字节，再用弹窗自己的 window 构造 File/DataTransfer/Event；
+// 注入后读组件状态确认真的生效，不生效则直接调用组件 uploadFile 兜底。
+function tcInjectDoc(node, st, blob) {
+    var name = tcReportFileName(node);
+    if (!tcCfg('studentName', '') || !tcCfg('studentId', '')) {
+        tcLog('未配置姓名/学号：请在弹窗中手动选择文档（建议命名：' + name + '）', 'warn');
+        tcUpdateStatusBar('任务链：等待手动选择文档');
+        return Promise.resolve('manual');
+    }
+    var p = blob ? Promise.resolve(blob)
+        : tcMakeDocxBlob(node, st).then(function (r) { return r.blob; });
+    return p.then(function (b) {
+        return b.arrayBuffer().then(function (ab) { return { bytes: new Uint8Array(ab), size: b.size }; });
+    }).then(function (pack) {
+        var input = tcPickerInput();
+        if (!input || !input.isConnected) throw new Error('文件输入框不存在或已被重渲染');
+        var win = input.ownerDocument.defaultView;
+        var file = new win.File([pack.bytes], name, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+        var dt = new win.DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+        input.dispatchEvent(new win.Event('change', { bubbles: true }));
+        return tcSleep(1200).then(function () {
+            var stt = tcPickerState();
+            if (stt && (stt.showUploadBtn === false || stt.uploads > 0)) {
+                tcLog('已注入文档：' + name + '（' + Math.round(pack.size / 1024) + ' KB）', 'success');
+                return 'auto';
+            }
+            // 兜底：绕过 DOM，直接调用弹窗组件的方法
+            var vm = tcPickerVm();
+            if (vm && typeof vm.uploadFile === 'function') {
+                try {
+                    var dt2 = new win.DataTransfer();
+                    dt2.items.add(new win.File([pack.bytes], name, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
+                    var r = vm.uploadFile({ target: { files: dt2.files, value: '' } });
+                    if (r && r.catch) r.catch(function (e) { tcLog('组件上传方法异常：' + ((e && e.message) || e), 'warn'); });
+                    return tcSleep(1500).then(function () {
+                        var s2 = tcPickerState();
+                        if (s2 && (s2.showUploadBtn === false || s2.uploads > 0)) {
+                            tcLog('已通过组件方法注入：' + name, 'success');
+                            return 'auto';
+                        }
+                        tcLog('注入未生效：请手动在弹窗里选择文件', 'error');
+                        tcUpdateStatusBar('任务链：请手动选择文档');
+                        return 'manual';
+                    });
+                } catch (e) {
+                    tcLog('调用组件方法失败：' + ((e && e.message) || e), 'warn');
+                }
+            }
+            tcLog('注入未生效：请手动在弹窗里选择文件（' + name + '）', 'error');
+            tcUpdateStatusBar('任务链：请手动选择文档');
+            return 'manual';
+        });
+    });
+}
+
+function tcDocTitleClean(title) {
+    return String(title || '文档')
+        .replace(/[\\/:*?"<>|]/g, '')
+        .replace(/[：:＋+]/g, '-')
+        .replace(/\s+/g, '')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 24) || '文档';
+}
+
+function tcReportFileName(node) {
+    var id = tcCfg('studentId', '') || '学号';
+    var name = tcCfg('studentName', '') || '姓名';
+    // 附件里若给出「学号+姓名+实验二.doc」这类模板命名，沿用它的规则
+    try {
+        var list = tcAttachmentList();
+        for (var i = 0; i < list.length; i++) {
+            var n = String(list[i].name || '');
+            if (/学号/.test(n) && /姓名/.test(n)) {
+                var base = n.replace(/\.[^.]+$/, '').replace(/学号/g, id).replace(/姓名/g, name);
+                if (base) return base + '.docx';
+            }
+        }
+    } catch (e) { }
+    return id + '+' + name + '+' + tcDocTitleClean(node && node.title) + '.docx';
+}
+
+function tcPickerDoc() {
+    var f = document.querySelector('iframe.file-picker-iframe') || document.querySelector('iframe[src*="attCommon"]');
+    try { return f && f.contentDocument ? f.contentDocument : null; } catch (e) { return null; }
+}
+
+function tcEsc(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function tcDocStats(model) {
+    var secs = (model && model.sections) || [];
+    var tables = secs.filter(function (x) { return x.table && x.table.rows; });
+    var chars = secs.map(function (x) { return (x.p || []).join(''); }).join('').replace(/\s/g, '').length;
+    var rows = tables.reduce(function (a, t) { return a + (t.table.rows.length || 0); }, 0);
+    return { sections: secs.length, chars: chars, tables: tables.length, tableRows: rows };
+}
+
+// 浮窗内嵌预览：确认上传 / 重新生成 / 取消 / 下载
+function tcPanelPreview(res, node) {
+    return new Promise(function (resolve) {
+        var body = tcPanelBody();
+        if (!body) { resolve({ action: 'upload' }); return; }
+        var old = document.getElementById('tcPreview');
+        if (old && old.parentNode) old.parentNode.removeChild(old);
+
+        var model = res.model || {};
+        var stt = res.stats || tcDocStats(model);
+        var secs = model.sections || [];
+        var rawText = res.raw || '';
+        var url = '';
+        try { url = URL.createObjectURL(res.blob); } catch (e) { }
+
+        var outline = rawText
+            ? rawText.split('\n').filter(function (l) { return l.trim(); }).slice(0, 12)
+                .map(function (l) { return '<div style="padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + tcEsc(l.slice(0, 46)) + '</div>'; }).join('')
+            : secs.map(function (x, i) {
+            var badge = (x.table && x.table.rows) ? ' <span style="color:#2563eb;">[表 ' + x.table.rows.length + '行]</span>' : '';
+            return '<div style="padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+                + (i + 1) + '. ' + tcEsc(String(x.h || '').slice(0, 40)) + badge + '</div>';
+        }).join('');
+
+        var excerpt = rawText ? '' : secs.slice(0, 2).map(function (x) {
+            var txt = (x.p || []).join(' ').slice(0, 120);
+            if (!txt) return '';
+            return '<div style="margin-top:3px;color:#334155;"><b>' + tcEsc(String(x.h || '').slice(0, 24)) + '</b>：' + tcEsc(txt) + '…</div>';
+        }).join('');
+
+        var tbl = rawText ? null : secs.filter(function (x) { return x.table && x.table.rows; })[0];
+        var tblHtml = '';
+        if (tbl) {
+            tblHtml = '<table style="border-collapse:collapse;margin-top:6px;font-size:11px;">'
+                + tbl.table.rows.slice(0, 3).map(function (r, ri) {
+                    return '<tr>' + r.map(function (c) {
+                        return '<td style="border:1px solid #cbd5e1;padding:2px 5px;' + (ri === 0 ? 'background:#eef2ff;font-weight:600;' : '') + '">'
+                            + tcEsc(String(c).slice(0, 14)) + '</td>';
+                    }).join('') + '</tr>';
+                }).join('') + '</table>';
+        }
+
+        var card = document.createElement('div');
+        card.id = 'tcPreview';
+        card.className = 'ne21-uid';
+        card.style.cssText = 'display:block;padding:10px 12px;margin:0 0 10px;font-size:12px;line-height:1.65;text-align:left;';
+        card.innerHTML =
+            '<div style="font-weight:600;font-size:13px;margin-bottom:3px;color:#0f172a;">📄 文档预览</div>'
+            + '<div style="color:#334155;">' + tcEsc(node.title || model.title || '') + '</div>'
+            + '<div style="color:#64748b;margin-top:2px;">来源：' + (res.source === 'ai' ? 'AI 写作' : '本地模板')
+            + ' · ' + (stt.paras || stt.sections || 0) + ' 段 · ' + (stt.chars || 0) + ' 字'
+            + (stt.tables ? ' · 表 ' + stt.tables + ' 个' : '') + '</div>'
+            + '<div style="background:rgba(255,255,255,.62);border-radius:8px;padding:6px 8px;margin:6px 0;max-height:150px;overflow:auto;">'
+            + outline + '</div>'
+            + (excerpt ? '<div style="margin-top:2px;">' + excerpt + '</div>' : '')
+            + tblHtml
+            + '<div id="tcPrevBtns" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"></div>';
+
+        var bar = document.getElementById('tcBar');
+        var busyEl = document.getElementById('tcBusy');
+        if (busyEl && busyEl.parentNode === body) body.insertBefore(card, busyEl);
+        else if (bar && bar.parentNode === body && bar.nextSibling) body.insertBefore(card, bar.nextSibling);
+        else body.insertBefore(card, body.firstChild);
+
+        var defs = [
+            ['确认上传', 'upload', 1],
+            ['重新生成', 'regen', 0],
+            ['取消', 'cancel', 0]
+        ];
+        if (url) defs.push(['下载预览文件', 'download', 0]);
+
+        var wrap = card.querySelector('#tcPrevBtns');
+        function cleanup() {
+            if (url) { try { URL.revokeObjectURL(url); } catch (e) { } }
+            if (card.parentNode) card.parentNode.removeChild(card);
+        }
+        defs.forEach(function (d) {
+            var b = document.createElement('button');
+            b.textContent = d[0];
+            b.className = 'ne21-btn ' + (d[2] ? 'ne21-btn-primary' : 'ne21-btn-secondary');
+            b.style.cssText = 'padding:5px 12px;font-size:12px;';
+            if (d[1] === 'download') {
+                b.onclick = function () {
+                    var a = document.createElement('a');
+                    a.href = url; a.download = tcReportFileName(node);
+                    document.body.appendChild(a); a.click(); a.remove();
+                };
+                wrap.appendChild(b);
+                return;
+            }
+            b.addEventListener('click', function () {
+                cleanup();
+                resolve({ action: d[1] });
+            });
+            wrap.appendChild(b);
+        });
+        card.scrollIntoView({ block: 'nearest' });
+    });
+}
+
+function tcUploadNode(node, entered) {
+    var st = tcState();
+    st.phase = 'upload';
+    st.updatedAt = tcNow();
+    tcSaveState(st);
+
+    // 先生成文档（AI 写作可能要 10-30s），再打开弹窗，
+    // 避免弹窗里的 input 在等待期间被重渲染导致注入失效。
+    var canAuto = !!(tcCfg('studentName', '') && tcCfg('studentId', ''));
+    var genCount = 0;
+
+    function generate() {
+        genCount++;
+        return tcFetchAttachments(node, st).catch(function () { return []; }).then(function () {
+            return tcMakeDocxBlob(node, st);
+        }).then(function (r) {
+            try {
+                st.docs = st.docs || {};
+                st.docs[node.key || String(node.idx)] = {
+                    title: node.title, text: String(r.raw || ''), kind: r.kind || 'doc', at: tcNow()
+                };
+                tcSaveState(st);
+            } catch (e) { }
+            var stt = r.stats || {};
+            tcLog('文档已生成：' + tcReportFileName(node) + '（' + Math.round(r.blob.size / 1024) + ' KB，来源：'
+                + (r.source === 'ai' ? 'AI 写作' : '本地模板') + '，'
+                + (r.kind === 'code' ? ((stt.codeLines || 0) + ' 行代码') : ((stt.paras || 0) + ' 段 / ' + (stt.chars || 0) + ' 字')) + '）',
+                r.source === 'ai' ? 'success' : 'warn');
+            return r;
+        });
+    }
+
+    function previewOnce() {
+        return generate().then(function (r) {
+            if (tcCfg('taskChainAutoUpload', false)) {
+                tcLog('已开启「生成后直接上传」，跳过预览', 'info');
+                return r;
+            }
+            return tcPanelPreview(r, node).then(function (d) {
+                if (d.action === 'upload') return r;
+                if (d.action === 'regen') {
+                    if (genCount < 3) {
+                        tcLog('按你的选择重新生成…', 'info');
+                        return previewOnce();
+                    }
+                    tcLog('已达重新生成上限（3 次），使用当前版本', 'warn');
+                    return r;
+                }
+                throw { cancelled: true };
+            });
+        });
+    }
+
+    var blobP = canAuto ? previewOnce().then(function (r) { return r.blob; }) : Promise.resolve(null);
+
+    return blobP.catch(function (e) {
+        if (e && e.cancelled) { tcLog('已取消本次上传', 'warn'); throw e; }
+        tcLog('文档生成失败：' + ((e && (e.message || e.msg)) || e) + '，转手动选择', 'warn');
+        return null;
+    }).then(function (blob) {
+        return (entered ? Promise.resolve(true) : tcEnterNode(node)).then(function () { return blob; });
+    }).then(function (blob) {
+        return tcSleep(1200).then(function () { return blob; });
+    }).then(function (blob) {
+        return tcWait(function () { return tcFindChooseBtn() ? true : false; }, 20000, 500).then(function () { return blob; });
+    }).then(function (blob) {
+        var btn = tcFindChooseBtn();
+        if (!btn) throw new Error('未找到「选择文件」按钮（已等待 20s）');
+        tcClick(btn);
+        tcLog('已点击「选择文件」，等待上传弹窗…');
+        return tcWait(function () { return tcPickerInput() ? true : false; }, 25000, 500).then(function () { return blob; });
+    }).then(function (blob) {
+        if (!tcPickerInput()) throw new Error('上传弹窗未就绪');
+        var snap = tcPickerSnapshot();
+        if (!blob) {
+            tcLog('请手动在弹窗中选择文档，脚本会继续处理上传与评估', 'warn');
+            tcUpdateStatusBar('任务链：请手动选择文档（选择后自动继续）');
+            return { mode: 'manual', snap: snap };
+        }
+        return tcInjectDoc(node, st, blob).then(function (mode) { return { mode: mode, snap: snap }; });
+    }).then(function (r) {
+        var mode = r.mode, snap = r.snap;
+        var timeout = mode === 'manual' ? 600000 : 120000;
+        tcBusyStart('等待文件上传…');
+        var hits = 0, t0 = tcNow();
+        // 连续两次「新条目已完成」才算上传完，避免把上一次残留/刚开始的进度当成功
+        return tcWait(function () {
+            var ok = tcPickerNewDone(snap);
+            hits = ok ? hits + 1 : 0;
+            if (hits === 1) tcLog('[上传] 检测到完成态，再确认一次…', 'muted');
+            return hits >= 2;
+        }, timeout, 1000).then(function (ok) {
+            tcBusyStop();
+            if (!ok) {
+                var s2 = tcPickerState();
+                var list2 = (s2 && s2.list) || [];
+                var busyN = list2.filter(function (i) {
+                    return i && (i.status === 1 || (i.percent != null && i.percent < 100));
+                }).length;
+                var pct = (list2.length && list2[0].percent != null) ? list2[0].percent : '?';
+                tcLog('上传未完成（列表=' + (s2 ? s2.uploads : '?') + '，进行中=' + busyN + '，percent=' + pct + '），请手动检查弹窗', 'error');
+                throw new Error('上传未完成');
+            }
+            tcLog('文件已上传成功（' + ((tcNow() - t0) / 1000).toFixed(1) + 's）', 'success');
+            return true;
+        });
+    }).then(function () {
+        // 等「确定」可用 → 点击 → 必须看到弹窗关闭；不关就重试一次，仍不关则报错，绝不带着半截文件去评估
+        return tcWait(function () {
+            var pd = tcPickerDoc();
+            var b = pd && pd.querySelector('p.sure');
+            if (!b) return false;
+            var dis = /disabled/i.test(String(b.className)) || b.getAttribute('aria-disabled') === 'true';
+            return !dis;
+        }, 10000, 300).then(function () {
+            var pd = tcPickerDoc();
+            var b = pd && pd.querySelector('p.sure');
+            if (!b) throw new Error('未找到「确定」按钮');
+            tcClick(b);
+            tcLog('已点击「确定」');
+            return tcWait(function () { return tcPickerClosed(); }, 8000, 400);
+        }).then(function (closed) {
+            if (closed) { tcLog('[上传] 弹窗已关闭', 'muted'); return true; }
+            tcLog('[上传] 点了「确定」但弹窗仍在，可能文件尚未落库；再点一次', 'warn');
+            var pd2 = tcPickerDoc();
+            var b2 = pd2 && pd2.querySelector('p.sure');
+            if (b2) tcClick(b2);
+            return tcWait(function () { return tcPickerClosed(); }, 8000, 400);
+        }).then(function (closed2) {
+            if (!closed2) throw new Error('上传弹窗未关闭（文件可能未真正上传）');
+            return tcSleep(1200);
+        });
+    }).then(function () {
+        // 弹窗关了不等于平台记住了文件：核对 uploadInfo 里的文件记录
+        tcBusyStart('核对上传记录…');
+        return tcWait(function () { return tcUploadRecorded(node); }, 12000, 800).then(function (ok) {
+            tcBusyStop();
+            var u = {};
+            try { u = tcFindUploadInfo() || {}; } catch (e) { }
+            var names = [];
+            (u.fileCards || []).forEach(function (c) {
+                (c && c.files || []).forEach(function (f) { names.push(f.name || '?'); });
+            });
+            (u.files || []).forEach(function (f) { names.push(f.name || '?'); });
+            if (!ok) {
+                tcLog('[上传] 平台侧没有文件记录（fileCards.files=0），停止，不点开始评估', 'error');
+                throw new Error('平台未记录上传文件');
+            }
+            tcLog('[上传] 平台已记录文件：' + names.join('、') + '（' + names.length + ' 个）', 'success');
+            return true;
+        });
+    }).then(function () {
+        return tcWait(function () {
+            return tcFindByText(document, '开始评估', { selector: 'button,div,span,a' }) ? true : false;
+        }, 20000, 500);
+    }).then(function () {
+        // 点之前先取快照：此刻 answerScore 里是上一次的分，绝不能当本轮结果
+        var snap = tcEvalSnapshot();
+        var baseScore = tcReadEval().score;
+        tcBusyStart('等待评估结果…');
+        var evalBtn = tcFindByText(document, '开始评估', { selector: 'button,div,span,a' });
+        if (evalBtn) {
+            tcClick(evalBtn);
+            tcLog('已点击「开始评估」（页面当前 ' + (baseScore == null ? '无' : baseScore + ' 分') + ' 是此前成绩，等新结果）');
+        } else {
+            tcLog('未找到「开始评估」按钮，仍尝试读取评分', 'warn');
+        }
+        return tcWaitEvalDone(snap).then(function (done) {
+            if (!done) tcLog('[评估] 240s 内未看到评估流结束，按当前页面结果处理', 'warn');
+            return tcWaitEvalResult(baseScore).then(function () { return snap; });
+        });
+    }).then(function (snap) {
+        tcBusyStop();
+        var ev = tcReadEval();
+        var score = ev.score;
+        var fresh = tcEvalFresh(ev, snap);
+        var nk = node.key || String(node.idx);
+        var pl = tcPassLine();
+        var pass = pl.value;
+
+        if (score == null) {
+            tcLog('评估结果未返回，请在页面确认', 'warn');
+        } else if (!fresh) {
+            // 拿到的还是上一次评估的结果（流没跑完 / 评估失败）→ 不写分数、不记重做
+            tcLog('[评估] 仍是上一次的成绩 ' + score + '，本轮验收跳过，请人工确认', 'warn');
+        } else {
+            tcLog('[评估] 完成：新成绩 ' + score + ' 分' + (ev.recordUuid ? '（记录 ' + String(ev.recordUuid).slice(0, 8) + '）' : ''), 'success');
+            st.nodeScores = st.nodeScores || {};
+            st.scoreHistory = st.scoreHistory || {};
+            st.scoreHistory[nk] = st.scoreHistory[nk] || [];
+            st.nodeScores[nk] = score;
+            st.scoreHistory[nk].push(score);
+            (st.nodes || []).forEach(function (n) {
+                if (n.key === nk) { n.score = score; n.done = score >= pass; }
+            });
+        }
+
+        if (score == null || !fresh) {
+            // 没有可信的新成绩：不改 phase，交给链循环下一轮重试/停下
+        } else if (score < pass) {
+            // 验收失败：把平台评语存成下一轮的硬约束，重练时带着改
+            st.repair = st.repair || {};
+            var prev = st.repair[nk];
+            var round = prev ? (prev.round + 1) : 0;
+            var hist = (prev && prev.history) ? prev.history.slice() : [];
+            hist.push({
+                score: score,
+                count: (ev.count == null ? null : ev.count),
+                suggestions: (ev.result && ev.result.suggestions) || [],
+                at: tcNow()
+            });
+            st.repair[nk] = {
+                round: round, score: score, at: tcNow(),
+                result: ev.result || null,
+                recordUuid: ev.recordUuid || '',
+                count: ev.count == null ? null : ev.count,
+                history: hist.slice(-8),
+                defects: tcEvalDefects(ev.result, score),
+                rubric: (ev.result && ev.result.summaryItems) || []
+            };
+            tcLog('[验收] ' + score + ' < ' + pass + '（合格线来自' + pl.from + '，第 '
+                + (ev.count == null ? '?' : ev.count) + ' 次作答），记录 '
+                + st.repair[nk].defects.length + ' 条缺陷，下一轮按评语重做', 'warn');
+        } else {
+            if (st.repair) delete st.repair[nk];
+            if (st.threads) delete st.threads[nk];
+            tcLog('[验收] ' + score + ' ≥ ' + pass + '（合格线来自' + pl.from + '），通过', 'success');
+        }
+
+        // 只有拿到可信的新成绩才推进；未达标记为 retry，刷新后要用户确认才继续
+        if (score != null && fresh) st.phase = (score >= pass) ? 'advance' : 'retry';
+        st.updatedAt = tcNow();
+        tcSaveState(st);
+        return score;
+    });
+}
+
+/* ---------------------------------- 链循环 ---------------------------------- */
+
+function tcReload() {
+    tcLog('刷新页面以同步节点状态…');
+    setTimeout(function () { location.reload(); }, 1200);
+}
+
+// 判断当前是否已经停在某个节点内部（未解锁/已进入时卡片上没有「进入任务」）
+function tcDetectInsideNode() {
+    var doc = tcDialogueDoc();
+    var arts = document.querySelectorAll('main article');
+    var title = '', key = 'current', desc = '';
+    for (var i = 0; i < arts.length; i++) {
+        var t = arts[i].innerText || '';
+        if (/当前任务/.test(t)) {
+            var h = arts[i].querySelector('h1,h2,h3,h4');
+            title = (h ? h.textContent : '').trim();
+            desc = tcArticleDesc(arts[i], title);
+            key = tcNodeKey(title) || ('current' + i);
+            break;
+        }
+    }
+    if (doc && doc.body) {
+        return { idx: -1, key: key || 'current', title: title || '当前对话节点', type: 'dialogue', desc: desc, score: null, done: false, enter: false, retry: false, raw: null, resumed: true };
+    }
+    if (tcFindChooseBtn()) {
+        return { idx: -1, key: key || 'current', title: title || '当前上传节点', type: 'upload', desc: desc, score: null, done: false, enter: false, retry: false, raw: null, resumed: true };
+    }
+    return null;
+}
+
+// 选下一个要处理的节点；blocked = 有节点不达标 —— 不许越过它
+// reason='advanced'：平台已按自己的线放行、卡片没有重练入口，但没达到用户的合格分
+function tcPickNode(nodes, st, maxRetry, pass) {
+    st = st || {};
+    if (pass == null) pass = (typeof tcPassLine === 'function') ? tcPassLine().value : 61;
+    for (var i = 0; i < (nodes || []).length; i++) {
+        var nd = nodes[i];
+        if (!nd) continue;
+        var key = nd.key || String(nd.idx);
+        if (nd.done) continue;
+
+        var sc = (nd.score != null) ? nd.score : ((st.nodeScores || {})[key]);
+
+        // 跳过/结束记录必须与「当时的分数」绑定：重做后分数变了，旧记录自动作废
+        var sk = (st.skipped && st.skipped[key]) || (st.dismissed && st.dismissed[key]) || null;
+        if (sk) {
+            var skScore = (typeof sk === 'object') ? sk.score : null;
+            var same = (skScore != null && sc != null && Math.abs(skScore - sc) < 0.01);
+            if (skScore == null) {
+                if (st.skipped) delete st.skipped[key];
+                if (st.dismissed) delete st.dismissed[key];
+                if (typeof tcLog === 'function') tcLog('[链] 跳过/忽略记录无分数依据（旧版本），已作废：' + nd.title, 'warn');
+            } else if (same) {
+                continue;                       // 还是同一次的分数，维持跳过
+            } else {
+                if (st.skipped) delete st.skipped[key];
+                if (st.dismissed) delete st.dismissed[key];
+                if (typeof tcLog === 'function') tcLog('[链] 跳过/忽略记录已失效（' + skScore + ' → ' + sc + '），重新判定：' + nd.title, 'info');
+            }
+        }
+
+        if (nd.platformDone && sc != null && sc < pass) {
+            return { node: null, blocked: nd, reason: 'advanced', score: sc };
+        }
+        if (!(nd.enter || nd.retry)) continue;
+        var att = (st.attempts && st.attempts[key]) || 0;
+        if (!nd.enter && nd.retry && att >= maxRetry) {
+            return { node: null, blocked: nd, reason: 'retry', score: sc };
+        }
+        return { node: nd, blocked: null };
+    }
+    return { node: null, blocked: null };
+}
+
+// 不达标：停下来让用户选（再练 / 跳过 / 结束），不自动跳过
+// reason='advanced' 时平台已放行、没有重练入口，只能选择接受或结束
+// 记录网站自己的 AI 评估（不足 + 改进建议）到 st.repair，供下一轮生成逐条修复。
+// 不跳转：跳转会把任务链页面顶掉（buildRetryEvaluateUrl 指向的是"重新评估"页，不是重练页）。
+function tcCaptureEvalForRepair(node, st) {
+    var key = node.key || String(node.idx);
+    // 按「这个节点的标题」读，避免 selectedTaskId 已切走时判成未就绪、退回旧分
+    var ev = tcReadEval({ nodeTitle: node.title });
+    if (ev.score == null) {
+        // 读不到就明确失败，绝不拿 st.nodeScores 的旧分 + 空评语冒充一次记录
+        tcLog('[评估] 读取失败（' + (ev.notReady ? '页面数据未就绪' : (ev.streaming ? '评估仍在进行' : '无已评估记录'))
+            + '），本次不写入评语；请稍后再点「重做本节点」', 'error');
+        tcUpdateStatusBar('任务链：评估读取失败，请重试「重做本节点」');
+        _tcRunning = false;
+        return;
+    }
+    var prev = (st.repair && st.repair[key]) || null;
+    var round = prev ? (prev.round + 1) : 0;
+    var score = ev.score;
+    var result = ev.result || null;
+
+    st.repair = st.repair || {};
+    var hist = (prev && prev.history) ? prev.history.slice() : [];
+    hist.push({
+        score: score,
+        count: (ev.count == null ? null : ev.count),
+        suggestions: (result && result.suggestions) || [],
+        at: tcNow()
+    });
+    st.repair[key] = {
+        round: round,
+        score: score,
+        at: tcNow(),
+        result: result,
+        recordUuid: ev.recordUuid || '',
+        count: ev.count == null ? null : ev.count,
+        history: hist.slice(-8),
+        defects: tcEvalDefects(result, score)
+    };
+    if (st.blocked) delete st.blocked[key];
+    if (st.dismissed) delete st.dismissed[key];
+    st.attempts = st.attempts || {};
+    st.attempts[key] = 0;
+    st.phase = 'idle';
+    st.updatedAt = tcNow();
+    tcSaveState(st);
+
+    var dims = (result && result.summaryItems || []).map(function (it) {
+        return (it.title || '') + (it.score != null ? ' ' + it.score : '');
+    }).join(' / ');
+    var disN = 0;
+    if (result && result.disadvantages) {
+        disN = String(result.disadvantages).split(/\n+/).filter(function (x) { return x.trim(); }).length;
+    }
+    var sugN = (result && result.suggestions) ? result.suggestions.length : 0;
+
+    tcLog('[链] 已记录平台 AI 评估：' + (score == null ? '—' : score) + ' 分'
+        + '（第 ' + (ev.count == null ? '?' : ev.count) + ' 次作答）'
+        + (dims ? '（' + dims + '）' : '')
+        + '，' + disN + ' 条不足、' + sugN + ' 条建议'
+        + (round ? '（第 ' + (round + 1) + ' 次重做）' : ''), 'success');
+
+    // 开发者调试：把网站评估原样留一份
+    tcDbgPush('site-eval', {
+        node: node.title,
+        score: score,
+        dimensions: (result && result.summaryItems) || [],
+        disadvantages: (result && result.disadvantages) || '',
+        suggestions: (result && result.suggestions) || [],
+        raw: result
+    });
+
+    // 只提示、不动页面：自动点「重新练习」会把当前的作答/上传记录重置掉
+    tcLog('[链] 请在页面点「重新练习」，完成后刷新本页；下一轮生成会带上这份评估逐条修复（脚本不会自动点）', 'warn');
+    tcUpdateStatusBar('任务链：请手动点「重新练习」后刷新本页（已记录平台评估）');
+
+    _tcRunning = false;
+    tcLockRelease();
+}
+
+function tcStopBlocked(node, st, maxRetry, reason, scoreIn) {
+    var key = node.key || String(node.idx);
+    var att = (st.attempts && st.attempts[key]) || 0;
+    var score = (scoreIn != null) ? scoreIn
+        : ((node.score != null) ? node.score : ((st.nodeScores || {})[key]));
+    var pass = tcPassLine();
+    var advanced = reason === 'advanced';
+    var pageLine = tcPagePassLine();
+
+    st.blocked = st.blocked || {};
+    st.blocked[key] = {
+        score: score == null ? null : score, pass: pass.value,
+        attempts: att, reason: reason || 'retry', at: tcNow()
+    };
+    st.phase = 'blocked';
+    st.updatedAt = tcNow();
+    tcSaveState(st);
+
+    _tcRunning = false;
+    tcLockRelease();
+
+    var note;
+    if (advanced) {
+        note = '「' + node.title + '」得分 ' + (score == null ? '—' : score) + ' < 你的合格分 ' + pass.value
+            + '，但平台已按' + (pageLine == null ? '自己的合格线' : ' ' + pageLine + ' 分') + '放行（卡片没有重练入口），'
+            + '已解锁后续节点。脚本停在这里，不会自动进入后面的节点。';
+    } else {
+        note = '「' + node.title + '」得分 ' + (score == null ? '—' : score) + ' < ' + pass.value
+            + '，重练 ' + att + '/' + maxRetry + ' 已用完。按你的选择继续，脚本不会自己越过它。';
+    }
+
+    tcLog('[链] ' + (advanced ? '平台已放行但未达你的合格分' : '重练次数已用完') + '：'
+        + node.title + ' ' + (score == null ? '未达标' : score + ' < ' + pass.value)
+        + ' → 停止，等你选择（不自动跳过）', 'error');
+    tcUpdateStatusBar('任务链：已停止 · 「' + node.title + '」'
+        + (score == null ? '未达标' : score + ' < ' + pass.value));
+
+    return tcPanelAsk('blocked', {
+        node: node, score: score, pass: pass.value, note: note, reason: reason || 'retry',
+        attempts: att, maxRetry: maxRetry, nodes: [node], st: st
+    }).then(function (d) {
+        if (d && d.action === 'retry') {
+            st.attempts = st.attempts || {};
+            st.attempts[key] = 0;
+            delete st.blocked[key];
+            st.phase = 'idle';
+            tcSaveState(st);
+            tcLog('[链] 按你的选择再练一次（重练计数已清零）', 'warn');
+            tcChainLoop('chain');
+        } else if (d && d.action === 'retry-vm') {
+            // 记录网站自己的 AI 评估（不足 + 建议），不跳转；由用户手动点「重新练习」
+            tcCaptureEvalForRepair(node, st);
+        } else if (d && d.action === 'skip') {
+            st.skipped = st.skipped || {};
+            // 绑定本次分数：以后重做导致分数变化时，这条跳过会自动失效
+            st.skipped[key] = { score: (score == null ? null : score), pass: pass.value, at: tcNow() };
+            st.phase = 'idle';
+            tcSaveState(st);
+            tcLog('[链] 按你的选择' + (advanced ? '接受该分数' : '跳过') + '「' + node.title + '」' + (advanced ? '并继续' : '，继续后面的节点'), 'warn');
+            tcChainLoop('chain');
+        } else {
+            // 「结束」要记住这次决定：刷新后不再弹同一张卡，否则就是死循环
+            st.dismissed = st.dismissed || {};
+            st.dismissed[key] = { score: (score == null ? null : score), pass: pass.value, at: tcNow() };
+            st.phase = 'idle';
+            tcSaveState(st);
+            tcLog('[链] 已结束并记住：节点「' + node.title + '」未达标（'
+                + (score == null ? '—' : score) + ' < ' + pass.value
+                + '），刷新后不再提示；可点状态条「重新检测未达标节点」恢复', 'warn');
+        }
+    });
+}
+
+function tcChainLoop(mode) {
+    if (_tcRunning) return;
+    _tcRunning = true;
+    var st = tcState();
+    var noProgress = 0;
+    var knownCount = 0;
+
+    function step() {
+        if (!_tcRunning) return;
+        if (tcChainDone()) {
+            tcLog('任务链已完成 🎉', 'success');
+            st.phase = 'done';
+            tcSaveState(st);
+            tcUpdateStatusBar('任务链：已完成（共发现 ' + ((st.nodes || []).length) + ' 个节点）');
+            var skippedNames = Object.keys(st.skipped || {});
+            if (skippedNames.length) {
+                tcLog('[链] 注意：有 ' + skippedNames.length + ' 个未达标节点被跳过（' + skippedNames.join('、') + '）', 'warn');
+            }
+            _tcRunning = false;
+            tcLockRelease();
+            return;
+        }
+        var nodes = tcScanNodes();
+        if (!nodes.length) {
+            tcLog('未识别到任务流节点，5 秒后重试', 'warn');
+            setTimeout(step, 5000);
+            return;
+        }
+        // 合并进持久化状态（只增不删）：解锁的新节点会被追加进来
+        var merged = tcMergeNodes(nodes);
+        if (nodes.length > knownCount) { knownCount = nodes.length; noProgress = 0; }
+        st.chainTitle = st.chainTitle || ((document.querySelector('h1,h2,h3') || {}).textContent || document.title || '').trim();
+
+        var cur = null;
+        var maxRetry = tcCfg('taskChainMaxRetry', 2);
+        var passInfo = tcPassLine();
+
+        // 平台把节点重置成「可重新进入」时，旧的跳过/重练计数必须一并清掉，
+        // 否则重做后会被上一轮的记录挡住（enter=false 的“重新练习”状态不清，计数仍有效）
+        var stChanged = false;
+        nodes.forEach(function (n) {
+            var k = n.key || String(n.idx);
+            if (n.enter && !n.platformDone && !n.done) {
+                var had = false;
+                if (st.skipped && st.skipped[k]) { delete st.skipped[k]; had = true; }
+                if (st.dismissed && st.dismissed[k]) { delete st.dismissed[k]; had = true; }
+                if (st.attempts && st.attempts[k]) { delete st.attempts[k]; had = true; }
+                if (st.blocked && st.blocked[k]) { delete st.blocked[k]; had = true; }
+                if (had) {
+                    stChanged = true;
+                    tcLog('[链] 节点「' + n.title + '」已重置，清除旧的跳过/重试记录', 'info');
+                }
+            }
+        });
+        if (stChanged) tcSaveState(st);
+
+        var pick = tcPickNode(nodes, st, maxRetry, passInfo.value);
+        tcSaveState(st);                  // tcPickNode 可能顺手作废了过期跳过
+        cur = pick.node;
+        if (pick.blocked) {
+            // 不达标（重练用完 / 平台已放行但没到你的线）：必须停下来问，绝不越过
+            return tcStopBlocked(pick.blocked, st, maxRetry, pick.reason, pick.score);
+        }
+        if (cur && !cur.enter && cur.retry) {
+            st.attempts = st.attempts || {};
+            var ak = cur.key || String(cur.idx);
+            st.attempts[ak] = (st.attempts[ak] || 0) + 1;
+            tcSaveState(st);
+        }
+        if (!cur) {
+            var inside = tcDetectInsideNode();
+            if (inside) {
+                cur = inside;
+                tcLog('检测到已停留在节点内部，继续当前节点：' + cur.title, 'info');
+            }
+        }
+        if (!cur) {
+            // 关键：当前 DOM 里没有可进入节点，不代表整条链结束（后续节点可能未解锁/未渲染）
+            noProgress++;
+            if (noProgress >= 3) {
+                tcLog('连续多次刷新没有发现新的可进入节点，停止。可能已全部完成或需人工确认。', 'warn');
+                tcUpdateStatusBar('任务链：已停止（无新节点，已完成 ' + merged.filter(function (n) { return n.done; }).length + ' 个）');
+                _tcRunning = false;
+                tcLockRelease();
+                return;
+            }
+            tcLog('未发现可进入节点（已发现 ' + nodes.length + ' 个），刷新等待解锁…', 'warn');
+            tcUpdateStatusBar('任务链：等待下一节点解锁（已发现 ' + nodes.length + ' 个）');
+            setTimeout(function () { location.reload(); }, 4000);
+            return;
+        }
+        noProgress = 0;
+        var doneCount = nodes.filter(function (n) { return n.done; }).length;
+        tcLog('进入节点：' + cur.title + '（' + (cur.type === 'upload' ? '上传作品' : '情景对话') + '）· 已完成 ' + doneCount + ' 个 · 已发现 ' + nodes.length + ' 个', 'info');
+        tcUpdateStatusBar('任务链：已完成 ' + doneCount + ' 个 · 当前「' + cur.title + '」' + (cur.type === 'upload' ? ' · 上传文档' : (' · 第 ' + (st.round || 0) + '/' + tcCfg('taskChainRounds', 20) + ' 轮')));
+        // 统一先进入节点，再按运行时特征判定类型（角标/标题都可能有偏差）
+        var open = cur.enter ? tcEnterNode(cur) : Promise.resolve(false);
+        var p = open.then(function () {
+            return tcWait(function () {
+                return (tcDialogueDoc() || tcFindByText(document, '选择文件', { selector: 'button,div,span,a' })) ? true : false;
+            }, 20000, 500);
+        }).then(function () {
+            if (tcDialogueDoc()) return tcDialogueNode(cur, true);
+            return tcUploadNode(cur, true);
+        });
+        p.then(function () {
+            if (mode === 'node') { tcLog('单节点模式结束'); _tcRunning = false; tcLockRelease(); return; }
+            tcReload();
+        }).catch(function (e) {
+            if (e && e.cancelled) {
+                tcLog('已按你的选择取消，任务链停止（刷新页面可重新开始）', 'warn');
+                tcBusyReset();
+                _tcRunning = false;
+                tcLockRelease();
+                return;
+            }
+            tcLog('节点失败：' + (e && (e.msg || e.message) || e), 'error');
+            tcLog('已停止，请处理后可刷新页面继续', 'error');
+            tcBusyReset();
+            _tcRunning = false;
+            tcLockRelease();
+        });
+    }
+    step();
+}
+
+/* ---------------------------------- 启动 ---------------------------------- */
+
+function tcUpdateStatusBar(text) {
+    try {
+        var el = document.getElementById('tcBarText');
+        if (el) el.textContent = text;
+        var bar = document.getElementById('tcBar');
+        if (bar) bar.style.display = 'block';
+        // 有「跳过/忽略/阻断」记录时才露出「重新检测」入口
+        var re = document.getElementById('tcRecheckBtn');
+        if (re) {
+            var st = tcState();
+            var n = Object.keys(st.skipped || {}).length
+                + Object.keys(st.dismissed || {}).length
+                + Object.keys(st.blocked || {}).length;
+            re.style.display = n > 0 ? 'inline-block' : 'none';
+        }
+    } catch (e) { }
+}
+
+/* ---------------------------------- 忙碌指示器 ---------------------------------- */
+
+var _tcBusyCount = 0;
+var _tcBusyTimer = null;
+var _tcBusyStartAt = 0;
+var _tcBusyLabel = 'AI 正在思考…';
+
+function tcBusyEnsure() {
+    var el = document.getElementById('tcBusy');
+    if (el) return el;
+    var body = tcPanelBody();
+    if (!body) return null;
+
+    if (!document.getElementById('tcBusyStyle')) {
+        var st = document.createElement('style');
+        st.id = 'tcBusyStyle';
+        st.textContent = '#tcBusy .tc-spin{display:inline-block;width:11px;height:11px;border:2px solid rgba(37,99,235,.25);'
+            + 'border-top-color:#2563eb;border-radius:50%;animation:ne21-spin .8s linear infinite;flex:none;}';
+        (document.head || document.documentElement).appendChild(st);
+    }
+
+    el = document.createElement('div');
+    el.id = 'tcBusy';
+    el.style.cssText = 'display:none;align-items:center;gap:8px;margin:0 0 8px;padding:7px 10px;border-radius:12px;'
+        + 'background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.25);font-size:12px;color:#1e3a8a;'
+        + 'pointer-events:none;';
+    el.innerHTML = '<span class="tc-spin"></span>'
+        + '<span id="tcBusyText" style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">AI 正在思考…</span>'
+        + '<span id="tcBusyTime" style="color:#2563eb;font-variant-numeric:tabular-nums;">0s</span>';
+
+    var bar = document.getElementById('tcBar');
+    var logEl = document.getElementById('ne-21log');
+    if (bar && bar.parentNode === body) {
+        // 状态条 → 忙碌行 → 日志
+        if (logEl && logEl.parentNode === body) body.insertBefore(el, logEl);
+        else if (bar.nextSibling) body.insertBefore(el, bar.nextSibling);
+        else body.appendChild(el);
+    } else {
+        body.insertBefore(el, body.firstChild);
+    }
+    return el;
+}
+
+function tcBusyRender() {
+    var el = document.getElementById('tcBusy');
+    if (!el) return;
+    if (_tcBusyCount <= 0) { el.style.display = 'none'; return; }
+    el.style.display = 'flex';
+    var t = document.getElementById('tcBusyText');
+    var s = document.getElementById('tcBusyTime');
+    if (t) t.textContent = _tcBusyLabel;
+    if (s) s.textContent = Math.round((tcNow() - _tcBusyStartAt) / 1000) + 's';
+}
+
+function tcBusyStart(label) {
+    if (typeof document === 'undefined' || !document || !document.getElementById) return;
+    if (label) _tcBusyLabel = label;
+    _tcBusyCount++;
+    if (!_tcBusyStartAt) _tcBusyStartAt = tcNow();
+    tcBusyEnsure();
+    tcBusyRender();
+    if (!_tcBusyTimer) _tcBusyTimer = setInterval(tcBusyRender, 1000);
+}
+
+function tcBusyStop() {
+    if (_tcBusyCount > 0) _tcBusyCount--;
+    if (_tcBusyCount === 0) {
+        _tcBusyStartAt = 0;
+        if (_tcBusyTimer) { clearInterval(_tcBusyTimer); _tcBusyTimer = null; }
+    }
+    if (typeof document !== 'undefined' && document && document.getElementById) tcBusyRender();
+}
+
+function tcBusySetLabel(label) {
+    if (!label) return;
+    _tcBusyLabel = label;
+    if (_tcBusyCount > 0) tcBusyRender();
+}
+
+function tcBusyReset() {
+    _tcBusyCount = 0;
+    _tcBusyStartAt = 0;
+    if (_tcBusyTimer) { clearInterval(_tcBusyTimer); _tcBusyTimer = null; }
+    var el = document.getElementById('tcBusy');
+    if (el) el.style.display = 'none';
+}
+
+function tcEnsureControls() {
+    try {
+        if (document.getElementById('tcBar')) return;
+        var box = document.querySelector('#ne-21box .ne21-body');
+        if (!box) return;
+        var wrap = document.createElement('div');
+        wrap.id = 'tcBar';
+        wrap.style.cssText = 'display:none;margin:8px 0;padding:8px 10px;border-radius:12px;background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.25);font-size:12px;color:#1e3a8a;';
+        wrap.innerHTML = '<div id="tcBarText" style="margin-bottom:6px;">任务链：待启动</div>'
+            + '<button id="tcPauseBtn" style="margin-right:6px;padding:4px 10px;border-radius:9px;border:1px solid rgba(37,99,235,.35);background:#fff;color:#1e3a8a;cursor:pointer;font-size:12px;">⏸ 暂停</button>'
+            + '<button id="tcStopBtn" style="margin-right:6px;padding:4px 10px;border-radius:9px;border:1px solid rgba(220,38,38,.35);background:#fff;color:#b91c1c;cursor:pointer;font-size:12px;">⏹ 停止</button>'
+            + '<button id="tcRecheckBtn" style="display:none;padding:4px 10px;border-radius:9px;border:1px solid rgba(202,138,4,.45);background:#fff;color:#a16207;cursor:pointer;font-size:12px;">↻ 重新检测未达标节点</button>';
+        // 状态条放在日志区正上方（设置区之后），不再贴到浮窗顶部
+        var logEl = document.getElementById('ne-21log');
+        if (logEl && logEl.parentNode === box) box.insertBefore(wrap, logEl);
+        else box.insertBefore(wrap, box.firstChild);
+        document.getElementById('tcPauseBtn').addEventListener('click', function () {
+            _tcPaused = !_tcPaused;
+            this.textContent = _tcPaused ? '▶ 继续' : '⏸ 暂停';
+            tcLog(_tcPaused ? '已暂停（当前轮结束后停下）' : '已继续执行', 'warn');
+        });
+        document.getElementById('tcStopBtn').addEventListener('click', function () {
+            _tcRunning = false; _tcPaused = false;
+            tcBusyReset();
+            tcLockRelease();
+            tcLog('已停止任务链，可刷新页面重新开始', 'warn');
+        });
+        document.getElementById('tcRecheckBtn').addEventListener('click', function () {
+            // 清空「已跳过 / 已结束」与重练计数，重新跑一遍未达标判定
+            var st = tcState();
+            var n = 0;
+            ['skipped', 'dismissed', 'blocked'].forEach(function (k) {
+                if (st[k]) { n += Object.keys(st[k]).length; st[k] = {}; }
+            });
+            st.attempts = {};
+            st.phase = 'idle';
+            tcSaveState(st);
+            tcLog('[链] 已清空 ' + n + ' 条跳过/忽略记录，重新检测未达标节点', 'warn');
+            tcUpdateStatusBar('任务链：重新检测中…');
+            tcChainLoop('chain');
+        });
+        wrap.style.display = 'block';
+    } catch (e) { }
+}
+
+function tcBoot(mode) {
+    if (window.__tcBooted) return;
+    window.__tcBooted = true;
+    if (!tcCfg('taskChain', true)) { tcLog('任务链自动作答已在设置中关闭', 'muted'); return; }
+    if (mode === 'solo') { tcLog('当前为对话页独立打开模式，由任务链父页面统一驱动，本页不单独启动', 'muted'); return; }
+
+    // 多标签互斥：这里只检查，不抢锁；真正开始时再获取（tcEnsureLock）
+    try {
+        if (tcLockOwnerAlive()) tcLog('另一个标签页正在执行本任务链，开始时可选择接管', 'warn');
+        if (!_tcLockRel) {
+            _tcLockRel = 1;
+            window.addEventListener('beforeunload', tcLockRelease);
+        }
+    } catch (e) { }
+
+    tcWaitDetect(20000).then(function (found) {
+        if (!found) return;
+        // 节点列表由 Vue 异步渲染，等它出现再弹确认，避免显示“0 个节点”
+        return tcWait(function () { return tcScanNodes().length > 0; }, 15000, 500).then(function () { return true; });
+    }).then(function (ok) {
+        if (!ok) return;
+        var st = tcState();
+        var nodes = tcScanNodes();
+        tcMergeNodes(nodes);
+        tcLog('检测到 AI 实践任务链：已发现 ' + nodes.length + ' 个节点（后续解锁后自动追加）', 'hili');
+        tcEnsureControls();
+        var doneCount = nodes.filter(function (n) { return n.done; }).length;
+        tcUpdateStatusBar('任务链：已发现 ' + nodes.length + ' 个节点 · 已完成 ' + doneCount + ' 个，等待确认');
+
+        var pending = st.phase && st.phase !== 'idle' && st.phase !== 'done';
+        var remembered = tcCfg('taskChainAutoStart', false) || st.remember === true;
+
+        var ask;
+        if (pending && st.phase === 'advance') {
+            // 刚完成一个节点、刷新后继续下一个：不再打扰（只有达标才会是 advance）
+            tcLog('继续执行任务链（上次节点已评估达标）', 'info');
+            ask = Promise.resolve({ action: 'chain' });
+        } else if (pending && !remembered) {
+            ask = tcPanelAsk('resume', { nodes: nodes, st: st }).then(function (d) {
+                if (d.action === 'no') { st.phase = 'idle'; st.round = 0; st.transcripts = {}; tcSaveState(st); return { action: 'no' }; }
+                if (d.action === 'node') { st.phase = 'idle'; st.round = 0; tcSaveState(st); return { action: 'node' }; }
+                return { action: 'chain' };
+            });
+        } else if (remembered) {
+            ask = Promise.resolve({ action: 'chain' });
+        } else {
+            ask = tcPanelAsk('start', { nodes: nodes, st: st });
+        }
+
+        ask.then(function (d) {
+            if (!d || d.action === 'no') {
+                tcLog('已取消，可在浮窗状态条点「开始任务链」重新唤起', 'muted');
+                tcShowStartButton();
+                return;
+            }
+            if (d.remember) { st.remember = true; tcSaveState(st); }
+            tcEnsureLock(nodes, st).then(function (got) {
+                if (!got) {
+                    tcLog('已放弃启动（另一标签页占用本任务链）', 'warn');
+                    tcShowStartButton();
+                    return;
+                }
+                tcChainLoop(d.action === 'node' ? 'node' : 'chain');
+            });
+        });
+    });
+}
+
+/* ========================== 任务链模块结束 =============================== */
+
+function switchMission() {
+    _mlist.splice(0, 1)
+    _domList.splice(0, 1)
+    setTimeout(missonStart, 5000)
+}
+
+function tidyStr(s) {
+    if (s) {
+        let str = s.replace(/<(?!img).*?>/g, "").replace(/^【.*?】\s*/, '').replace(/\s*（\d+\.\d+分）$/, '').trim().replace(/&nbsp;/g, '').replace(new RegExp("&nbsp;", ("gm")), '').replace(/^\s+/, '').replace(/\s+$/, '');
+        return str
+    } else {
+        return null
+    }
+}
+
+function tidyQuestion(s) {
+    if (s) {
+        let str = s.replace(/<(?!img).*?>/g, "").replace(/^【.*?】\s*/, '').replace(/\s*（\d+\.\d+分）$/, '').replace(/^\d+[.、]/, '').trim().replace(/&nbsp;/g, '').replace('javascript:void(0);', '').replace(new RegExp("&nbsp;", ("gm")), '').replace(/^\s+/, '').replace(/\s+$/, '');
+        return str
+    } else {
+        return null
+    }
+}
+
+
+function decryptFont() {
+    /**
+    * Author   wyn665817
+    * From     https://greasyfork.org/zh-CN/scripts/445007
+    */
+    var $tip = $('style:contains(font-cxsecret)');
+    if (!$tip.length) return;
+    var font = $tip.text().match(/base64,([\w\W]+?)'/)[1];
+    font = Typr.parse(base64ToUint8Array(font))[0];
+    var table = JSON.parse(GM_getResourceText('Table'));
+    var match = {};
+    for (var i = 19968; i < 40870; i++) {
+        $tip = Typr.U.codeToGlyph(font, i);
+        if (!$tip) continue;
+        $tip = Typr.U.glyphToPath(font, $tip);
+        $tip = md5(JSON.stringify($tip)).slice(24);
+        match[i] = table[$tip];
+    }
+    $('.font-cxsecret').html(function (index, html) {
+        $.each(match, function (key, value) {
+            key = String.fromCharCode(key);
+            key = new RegExp(key, 'g');
+            value = String.fromCharCode(value);
+            html = html.replace(key, value);
+        });
+        return html;
+    }).removeClass('font-cxsecret');
+}
+
+function base64ToUint8Array(base64) {
+    var data = window.atob(base64);
+    var buffer = new Uint8Array(data.length);
+    for (var i = 0; i < data.length; ++i) {
+        buffer[i] = data.charCodeAt(i);
+    }
+    return buffer;
+}

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                AI学习通助手（DeepSeek 原生多模态）
-// @version             2.7.0
-// @description         基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.7.0 回复顶格+续写、状态条位置调整、卡片与忙碌行排序、多标签锁可接管，用户自行填写API密钥免费使用
+// @version             2.8.0
+// @description         基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.8.0 任务链改为「同一对话重做 + 平台评估驱动改进」，附件按 Markdown 原文注入、上传/评估双校验，新增开发者调试面板，用户自行填写API密钥免费使用
 // @author              Khihl & DeepSeek Harness
 // @originalAuthor      Ne-21
 // @match               *://*.chaoxing.com/*
@@ -76,7 +76,7 @@ var setting = {
     taskChain: 1,              // 检测到任务链时是否启用（1启用）
     taskChainAutoStart: 0,     // 0=检测后询问；1=检测到直接开始
     taskChainRounds: 20,       // 每个对话节点的目标轮数（上限由页面决定）
-    taskChainMinScore: 61,     // 节点合格分，低于则考虑重练
+    taskChainMinScore: 61,     // 节点合格分；用户改过则以此为准，未改则跟随页面解锁条件
     taskChainMaxRetry: 2,      // 单节点重练上限
     taskChainAdvance: 1,       // 评估后自动进入下一节点
     taskChainUpload: 1,        // 上传作品节点自动化
@@ -89,13 +89,14 @@ var setting = {
     replyMin: 150,             // 单条回复最少字数
     replyMax: 350,             // 单条回复最多字数
     taskChainAutoUpload: 0,    // 0=生成后先预览再上传；1=生成后直接上传
-    taskChainMaxTokens: 0,     // 0=不传 max_tokens（交给服务端默认）；>0 时作为单轮输出上限
-    taskChainForceSubmit: 0    // 保留字段（旧版自检开关，已停用）
+    taskChainMaxTokens: 0,     // 0=完全不发 max_tokens，由服务端决定单次输出上限；>0 时才显式指定
+    taskChainForceSubmit: 0,   // 保留字段（旧版自检开关，已停用）
+    debug: 0                   // 开发者调试：1=记录发给 AI 的原文、网站 AI 评估、本地缓存，可在浮窗查看/导出
 }
 /************************************************************************************************** */
 /*
   ╔══════════════════════════════════════════════════════════════╗
-  ║        AI学习通助手 v2.7.0 (DeepSeek 原生多模态)            ║
+  ║        AI学习通助手 v2.8.0 (DeepSeek 原生多模态)            ║
   ╠══════════════════════════════════════════════════════════════╣
   ║  原作者:    Ne-21                                           ║
   ║  开发者:    Khihl & DeepSeek Harness                        ║
@@ -592,6 +593,397 @@ function findAnswerTextareas($container) {
     return $container.find('textarea');
 }
 
+/* ============================ 开发者调试（v2.8.0） ============================ */
+// 开启后：把「发给 AI 的原文」「网站 AI 评估」「本地缓存」留在内存 + sessionStorage，
+// 并在浮窗里直接显示，可导出 JSON。API Key 永远打码。
+
+var _tcDbgBuf = [];
+var _tcDbgMax = 30;
+var _tcDbgPick = 0;      // 0=最近一次，-1=上一次…
+var _tcChainKeys = [];
+var _tcDbgTimer = null;
+
+// AI 调用计数：跨 tcChat、跨刷新（sessionStorage）累加，日志与调试面板都用它
+function tcAiSeqNext() {
+    try {
+        var v = parseInt(sessionStorage.getItem('ne21.aiSeq') || '0', 10) || 0;
+        v++;
+        sessionStorage.setItem('ne21.aiSeq', String(v));
+        return v;
+    } catch (e) { return 0; }
+}
+function tcAiSeqNow() {
+    try { return parseInt(sessionStorage.getItem('ne21.aiSeq') || '0', 10) || 0; } catch (e) { return 0; }
+}
+
+function tcDebugOn() {
+    try { return !!tcCfg('debug', false); } catch (e) { return false; }
+}
+
+function tcDbgMarkChainKey(k) {
+    if (k && _tcChainKeys.indexOf(k) < 0) _tcChainKeys.push(k);
+}
+
+function tcDbgTrunc(s, n) {
+    s = String(s == null ? '' : s);
+    return s.length > n ? (s.slice(0, n) + '…[截断 ' + s.length + ' 字]') : s;
+}
+
+// 消息裁剪：图片只留占位，超长截断
+function tcDbgSanitizeMessages(msgs) {
+    var out = [];
+    (msgs || []).forEach(function (m) {
+        if (!m) return;
+        var c = m.content;
+        if (typeof c === 'string') {
+            var t = c.replace(/data:image\/[a-z+]+;base64,[A-Za-z0-9+\/=]+/gi, function (mm) {
+                return 'data:image/…[base64 ' + Math.round(mm.length / 1024) + ' KB，已省略]';
+            });
+            out.push({ role: m.role, content: tcDbgTrunc(t, 20000) });
+        } else if (Object.prototype.toString.call(c) === '[object Array]') {
+            out.push({
+                role: m.role,
+                content: c.map(function (p) {
+                    if (p && p.type === 'image_url') return { type: 'image_url', image_url: { url: '[base64 图片，已省略]' } };
+                    return p;
+                })
+            });
+        } else {
+            out.push({ role: m.role, content: tcDbgTrunc(String(c || ''), 2000) });
+        }
+    });
+    return out;
+}
+
+function tcDbgSave() {
+    try {
+        if (!_tcDbgBuf.length) return;
+        var s = JSON.stringify(_tcDbgBuf, function (k, v) {
+            if (typeof v === 'string' && v.length > 4000) return v.slice(0, 4000) + '…[截断]';
+            return v;
+        });
+        if (s.length > 200000) {
+            _tcDbgBuf.splice(0, Math.ceil(_tcDbgBuf.length / 2));
+            s = JSON.stringify(_tcDbgBuf);
+        }
+        sessionStorage.setItem('ne21.debug.buf', s);
+    } catch (e) { }
+}
+
+function tcDbgLoad() {
+    try {
+        var s = sessionStorage.getItem('ne21.debug.buf');
+        if (s) _tcDbgBuf = JSON.parse(s) || [];
+    } catch (e) { _tcDbgBuf = []; }
+}
+
+function tcDbgPush(kind, data) {
+    if (!tcDebugOn()) return null;
+    var rec = data || {};
+    rec.kind = kind;
+    rec.at = tcNow();
+    _tcDbgBuf.push(rec);
+    while (_tcDbgBuf.length > _tcDbgMax) _tcDbgBuf.shift();
+    tcDbgSave();
+    tcDbgStatus();
+    return rec;
+}
+
+// message.content 可能是字符串或多模态数组
+function tcDbgMsgText(c) {
+    if (typeof c === 'string') return c;
+    try { return JSON.stringify(c, null, 1); } catch (e) { return String(c); }
+}
+
+// 本次记录是否「逐字未改动」：无图片、每条 message ≤ 20000 字
+function tcDbgExact(msgs) {
+    var exact = true;
+    (msgs || []).forEach(function (m) {
+        if (!m) return;
+        var c = m.content;
+        if (typeof c !== 'string') { exact = false; return; }
+        if (/data:image\//i.test(c)) exact = false;
+        if (c.length > 20000) exact = false;
+    });
+    return exact;
+}
+
+function tcDbgLast(kind) {
+    for (var i = _tcDbgBuf.length - 1; i >= 0; i--) {
+        if (!kind || _tcDbgBuf[i].kind === kind) return _tcDbgBuf[i];
+    }
+    return null;
+}
+
+function tcDbgStatus() {
+    try {
+        var el = document.getElementById('tcDebugStatus');
+        if (!el) return;
+        var last = _tcDbgBuf.length ? _tcDbgBuf[_tcDbgBuf.length - 1].at : 0;
+        el.textContent = tcDebugOn()
+            ? ('已记录 ' + _tcDbgBuf.length + ' 条' + (last ? ' · 最近 ' + tcTimeStr(new Date(last)) : ''))
+            : '未开启（记录只在你勾选后产生）';
+    } catch (e) { }
+}
+
+function tcDbgStorage() {
+    var out = { gm: {}, local: {}, session: {} };
+    try {
+        var st = tcState();
+        out.gm['taskChain.' + st.chainKey] = st;
+        _tcChainKeys.forEach(function (k) {
+            try { out.gm['taskChain.' + k] = tcStoreGet('taskChain.' + k, null); } catch (e) { }
+        });
+        for (var i = 0; i < localStorage.length; i++) {
+            var key = localStorage.key(i);
+            if (!key || key.indexOf('GPTJsSetting.') !== 0) continue;
+            var v = localStorage.getItem(key);
+            if (/apikey|token|secret/i.test(key)) {
+                v = v ? (String(v).slice(0, 3) + '****' + String(v).slice(-4)) : '';
+            }
+            out.local[key] = v;
+        }
+        out.session.tabId = sessionStorage.getItem('ne21.tabId');
+        var lk = localStorage.getItem(tcLockKey());
+        if (lk) out.session.lock = lk;
+    } catch (e) { }
+    return out;
+}
+
+function tcDbgDump() {
+    var ev = null, pl = null, st = null;
+    try { ev = tcReadEval(); } catch (e) { }
+    try { pl = tcPassLine(); } catch (e) { }
+    try { st = tcState(); } catch (e) { }
+    return {
+        meta: {
+            version: (window.__ne21Ver || (GM_info && GM_info.script && GM_info.script.version) || ''),
+            build: window.__ne21Build || '',
+            aiCalls: tcAiSeqNow(),
+            time: new Date().toISOString(),
+            url: location.href,
+            ua: navigator.userAgent
+        },
+        flags: {
+            debug: tcDebugOn(),
+            dryRun: !!tcCfg('taskChainDryRun', false),
+            autoUpload: !!tcCfg('taskChainAutoUpload', false),
+            minScore: pl ? pl.value : null,
+            minScoreFrom: pl ? pl.from : ''
+        },
+        taskChain: st ? {
+            chainKey: st.chainKey,
+            phase: st.phase,
+            attempts: st.attempts,
+            skipped: st.skipped,
+            dismissed: st.dismissed,
+            repair: st.repair,
+            nodeScores: st.nodeScores,
+            scoreHistory: st.scoreHistory,
+            nodes: st.nodes
+        } : null,
+        ai: _tcDbgBuf.filter(function (r) { return r.kind === 'chat'; }),
+        eval: ev ? { score: ev.score, count: ev.count, from: ev.from, result: ev.result } : null,
+        storage: tcDbgStorage(),
+        log: _tcDbgBuf
+    };
+}
+
+function tcDbgExport() {
+    try {
+        var data = tcDbgDump();
+        var text = JSON.stringify(data, function (k, v) {
+            if (typeof v === 'string' && v.length > 20000) return v.slice(0, 20000) + '…[截断]';
+            return v;
+        }, 2);
+        try { console.log('[调试] 调试包：', data); } catch (e) { }
+        var blob = new Blob([text], { type: 'application/json' });
+        var d = new Date();
+        var pad = function (n) { return ('0' + n).slice(-2); };
+        var a = document.createElement('a');
+        var url = URL.createObjectURL(blob);
+        a.href = url;
+        a.download = 'xxt-debug-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate())
+            + '-' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds()) + '.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) { } }, 4000);
+        tcLog('[调试] 已导出调试包（' + Math.round(text.length / 1024) + ' KB，API Key 已打码）', 'success');
+        return true;
+    } catch (e) {
+        tcLog('[调试] 导出失败：' + e.message, 'error');
+        return false;
+    }
+}
+
+function tcDbgClear() {
+    _tcDbgBuf = [];
+    try { sessionStorage.removeItem('ne21.debug.buf'); } catch (e) { }
+    tcDbgStatus();
+    tcDbgRender();
+    tcLog('[调试] 已清空调试缓存', 'warn');
+}
+
+// —— 浮窗内的调试面板 ——
+function tcDbgEnsureBox() {
+    var box = document.getElementById('tcDebugBox');
+    if (box) return box;
+    var host = document.querySelector('#ne-21box .ne21-body');
+    if (!host) return null;
+    box = document.createElement('div');
+    box.id = 'tcDebugBox';
+    box.style.cssText = 'display:none;margin:0 0 10px;padding:10px 12px;border-radius:12px;font-size:11px;'
+        + 'background:rgba(15,23,42,.04);border:1px solid rgba(15,23,42,.12);color:#1e293b;';
+    box.innerHTML =
+        '<div style="font-weight:600;font-size:12px;margin-bottom:4px;">🐞 开发者调试</div>'
+        + '<div id="tcDbgMeta" style="color:#64748b;margin-bottom:6px;"></div>'
+        + '<div style="display:flex;gap:6px;align-items:center;margin-bottom:2px;">'
+        + '<button id="tcDbgPrev" style="padding:1px 8px;border-radius:6px;border:1px solid rgba(15,23,42,.2);background:#fff;cursor:pointer;font-size:11px;">◀</button>'
+        + '<span id="tcDbgPos" style="color:#64748b;"></span>'
+        + '<button id="tcDbgNext" style="padding:1px 8px;border-radius:6px;border:1px solid rgba(15,23,42,.2);background:#fff;cursor:pointer;font-size:11px;">▶</button>'
+        + '</div>'
+        + '<div style="font-weight:600;">① 发给 AI 的请求（逐次记录）</div><pre id="tcDbgAi" style="white-space:pre-wrap;word-break:break-all;max-height:30vh;overflow:auto;background:#fff;border-radius:8px;padding:6px;margin:4px 0 8px;font-size:10.5px;"></pre>'
+        + '<div style="font-weight:600;">② 网站 AI 评估</div><pre id="tcDbgEval" style="white-space:pre-wrap;word-break:break-all;max-height:26vh;overflow:auto;background:#fff;border-radius:8px;padding:6px;margin:4px 0 8px;font-size:10.5px;"></pre>'
+        + '<div style="font-weight:600;">③ 本地缓存</div><pre id="tcDbgStore" style="white-space:pre-wrap;word-break:break-all;max-height:26vh;overflow:auto;background:#fff;border-radius:8px;padding:6px;margin:4px 0 0;font-size:10.5px;"></pre>';
+    var bar = document.getElementById('tcBar');
+    if (bar && bar.parentNode === host) host.insertBefore(box, bar); else host.insertBefore(box, host.firstChild);
+    try {
+        box.querySelector('#tcDbgPrev').addEventListener('click', function () { _tcDbgPick--; tcDbgRender(); });
+        box.querySelector('#tcDbgNext').addEventListener('click', function () { if (_tcDbgPick < 0) _tcDbgPick++; tcDbgRender(); });
+    } catch (e) { }
+    return box;
+}
+
+function tcDbgRender() {
+    var box = document.getElementById('tcDebugBox');
+    if (!box || box.style.display === 'none') return;
+    var metaEl = document.getElementById('tcDbgMeta');
+    var aiEl = document.getElementById('tcDbgAi');
+    var evEl = document.getElementById('tcDbgEval');
+    var stEl = document.getElementById('tcDbgStore');
+    var dump = null;
+    try { dump = tcDbgDump(); } catch (e) { }
+
+    if (!tcDebugOn()) {
+        if (metaEl) metaEl.textContent = '调试未开启：请到「设置 → 🐞 开发者调试」勾选';
+        if (aiEl) aiEl.textContent = '（无）';
+        if (evEl) evEl.textContent = '（无）';
+        if (stEl) stEl.textContent = '（无）';
+        return;
+    }
+
+    var chats = _tcDbgBuf.filter(function (r) { return r.kind === 'chat'; });
+    var rec = null, posTxt = '';
+    if (chats.length) {
+        var ci = chats.length - 1 + _tcDbgPick;
+        if (ci < 0) { _tcDbgPick = -(chats.length - 1); ci = 0; }
+        if (ci > chats.length - 1) ci = chats.length - 1;
+        rec = chats[ci];
+        posTxt = '第 ' + (rec.call || '?') + ' 次调用 · 本轮第 ' + (rec.seq || 1) + ' 次请求'
+            + (chats.length > 1 ? ' · 累计 ' + chats.length + ' 次请求（' + (ci + 1) + '/' + chats.length + '，◀ 看更早）' : '');
+    }
+    try { var posEl = document.getElementById('tcDbgPos'); if (posEl) posEl.textContent = posTxt; } catch (e) { }
+    if (metaEl) metaEl.textContent = '版本 ' + ((dump && dump.meta.version) || '?') + ' · build '
+        + ((dump && dump.meta.build) || '?') + ' · 累计调用 ' + ((dump && dump.meta.aiCalls) || 0)
+        + ' 次 · 记录 ' + _tcDbgBuf.length + ' 条';
+
+    // ① 实际请求
+    if (aiEl) {
+        if (!rec) { aiEl.textContent = '（还没有调用过 AI）'; }
+        else {
+            var head = '第 ' + (rec.call || '?') + ' 次调用 · 本轮第 ' + (rec.seq || 1) + ' 次请求'
+                + ' · ' + (rec.tag || 'chat')
+                + '\n模型 ' + rec.model + ' · temperature ' + rec.temperature
+                + ' · max_tokens ' + rec.max_tokens
+                + ' · reasoning_effort ' + rec.reasoning_effort
+                + (rec.noReason ? '（降级：本轮不带思考参数）' : '')
+                + '\n耗时 ' + (rec.ms ? (rec.ms / 1000).toFixed(1) + 's' : '—')
+                + (rec.finish_reason ? ' · finish=' + rec.finish_reason : '')
+                + (rec.usage && rec.usage.completion_tokens ? ' · 输出 ' + rec.usage.completion_tokens + ' tokens' : '')
+                + (rec.chars ? ' · 正文 ' + rec.chars + ' 字' : '')
+                + ' · body ' + (rec.bodyBytes || 0) + ' 字节'
+                + ' · ' + (rec.exact ? '逐字一致' : '含缩略（图片/超长）')
+                + ' · ' + (rec.ok === false ? '失败' : '成功');
+            var bodyText = '';
+            (rec.messages || []).forEach(function (m) {
+                bodyText += '\n── ' + m.role + ' ──\n' + tcDbgTrunc(tcDbgMsgText(m.content), 20000) + '\n';
+            });
+            if (rec.error) bodyText += '\n[错误] ' + JSON.stringify(rec.error);
+            aiEl.textContent = head + '\n' + bodyText;
+        }
+    }
+
+    // ② 网站评估
+    if (evEl) {
+        var ev = (dump && dump.eval) || null;
+        var res = ev && ev.result;
+        if (!res && !ev) { evEl.textContent = '（还没读到网站评估）'; }
+        else {
+            var lines = [];
+            lines.push('分数：' + (ev.score == null ? '—' : ev.score)
+                + (ev.count != null ? '（第 ' + ev.count + ' 次作答）' : '')
+                + (dump.flags.minScore != null ? ' / 合格线 ' + dump.flags.minScore + '（' + dump.flags.minScoreFrom + '）' : ''));
+            if (res && res.summaryItems && res.summaryItems.length) {
+                lines.push('分维度：' + res.summaryItems.map(function (it) { return (it.title || '') + ' ' + (it.score != null ? it.score : '—'); }).join(' ｜ '));
+            }
+            if (res && res.disadvantages) lines.push('\n不足：\n' + res.disadvantages);
+            if (res && res.suggestions && res.suggestions.length) {
+                lines.push('\n建议：');
+                res.suggestions.forEach(function (s, i) { lines.push((i + 1) + '. ' + s); });
+            }
+            // 与「脚本已存、下一轮提示词要用的」那份对照
+            var reps = (dump && dump.taskChain && dump.taskChain.repair) || {};
+            var repKeys = Object.keys(reps);
+            if (repKeys.length) {
+                lines.push('\n脚本已存（下一轮会注入提示词）：');
+                repKeys.forEach(function (k) {
+                    var r = reps[k] || {};
+                    lines.push('· ' + k + '：第 ' + (r.count == null ? '?' : r.count) + ' 次 / '
+                        + (r.score == null ? '—' : r.score) + ' 分 / '
+                        + (r.at ? tcTimeStr(new Date(r.at)) : '—'));
+                });
+            }
+            evEl.textContent = lines.join('\n');
+        }
+    }
+
+    // ③ 本地缓存
+    if (stEl) {
+        var storeText = '';
+        try { storeText = JSON.stringify((dump && dump.storage) || {}, null, 2); } catch (e) { storeText = '（读取失败）'; }
+        stEl.textContent = tcDbgTrunc(storeText, 30000);
+    }
+}
+
+function tcDbgToggle() {
+    var box = tcDbgEnsureBox();
+    if (!box) return;
+    var show = box.style.display === 'none';
+    box.style.display = show ? 'block' : 'none';
+    if (_tcDbgTimer) { clearInterval(_tcDbgTimer); _tcDbgTimer = null; }
+    if (show) { tcDbgRender(); _tcDbgTimer = setInterval(tcDbgRender, 3000); }
+}
+
+function tcDbgBind() {
+    try {
+        var btn = document.getElementById('tcDebugBtn');
+        if (btn && !btn.__tcDbgBound) { btn.__tcDbgBound = 1; btn.addEventListener('click', tcDbgToggle); }
+        var ex = document.getElementById('tcDebugExportBtn');
+        if (ex && !ex.__tcDbgBound) { ex.__tcDbgBound = 1; ex.addEventListener('click', tcDbgExport); }
+        var cl = document.getElementById('tcDebugClearBtn');
+        if (cl && !cl.__tcDbgBound) { cl.__tcDbgBound = 1; cl.addEventListener('click', tcDbgClear); }
+        tcDbgStatus();
+    } catch (e) { }
+}
+
+// DevTools 里可以直接用：__tcDebug.dump() / __tcDebug.export()
+try {
+    var _tcDbgApi = { on: tcDebugOn, dump: tcDbgDump, export: tcDbgExport, clear: tcDbgClear, last: tcDbgLast, render: tcDbgRender };
+    if (typeof unsafeWindow !== 'undefined' && unsafeWindow) unsafeWindow.__tcDebug = _tcDbgApi;
+    if (typeof window !== 'undefined' && window) window.__tcDebug = _tcDbgApi;
+} catch (e) { }
+
 function showBox() {
     //公告&充值
     if (setting.showBox && top.document.querySelector('#ne-21notice') == undefined) {
@@ -781,7 +1173,7 @@ function showBox() {
         var box_html = `
             <div id="ne-21box">
                 <div class="ne21-header" title="拖动移动 | 点击 − 最小化">
-                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small id="ne-21-ver" style="font-size:10px;font-weight:400;opacity:0.6">v2.7.0</small><span id="ne-21-update" style="display:none;margin-left:6px;padding:1px 7px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:10px;font-weight:600;cursor:pointer;">新版本</span></h3>
+                    <h3 class="ne21-title"><span class="ne21-dot"></span>AI 学习通助手 <small id="ne-21-ver" style="font-size:10px;font-weight:400;opacity:0.6">v2.8.0</small><span id="ne-21-update" style="display:none;margin-left:6px;padding:1px 7px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:10px;font-weight:600;cursor:pointer;">新版本</span></h3>
                     <button id="ne-21close" type="button" aria-label="最小化">−</button>
                 </div>
                 <div class="ne21-body">
@@ -856,13 +1248,13 @@ function showBox() {
                             <label title="默认生成文档后先在浮窗预览，你点「确认上传」才提交；勾选则跳过预览">
                                 <input type="checkbox" id="GPTJsSetting.taskChainAutoUpload">生成后直接上传（跳过预览）
                             </label>
-                            <label title="单轮输出 token 上限；0 = 不传该参数（交给服务端默认），撞上限会自动续写">
-                                <input type="number" id="GPTJsSetting.taskChainMaxTokens" class="ne21-select" min="0" max="32768" step="256" style="min-width:70px;width:70px;padding:5px 8px;">输出上限 (0=不限)
+                            <label title="单次输出 token 上限；0 = 完全不发该参数（由服务端决定，脚本不再写死 8192）；>0 才显式指定，撞上限会自动续写">
+                                <input type="number" id="GPTJsSetting.taskChainMaxTokens" class="ne21-select" min="0" max="32768" step="256" style="min-width:70px;width:70px;padding:5px 8px;">输出上限 (0=不传)
                             </label>
                             <label title="每个对话节点的目标轮数，实际取页面允许的上限内最小值">
                                 <input type="number" id="GPTJsSetting.taskChainRounds" class="ne21-select" min="1" max="30" step="1" style="min-width:56px;width:56px;padding:5px 8px;">目标轮数/节点
                             </label>
-                            <label title="节点合格分，低于该分数时按重练次数决定是否重做">
+                            <label title="节点合格分，低于该分数会重做；未手动修改时自动跟随页面「解锁下一节点条件」的分数">
                                 <input type="number" id="GPTJsSetting.taskChainMinScore" class="ne21-select" min="0" max="100" step="1" style="min-width:56px;width:56px;padding:5px 8px;">节点合格分
                             </label>
                             <label title="实验报告封面姓名">
@@ -874,6 +1266,17 @@ function showBox() {
                             <label title="实验报告封面班级">
                                 <input type="text" id="GPTJsSetting.studentClass" class="ne21-select" placeholder="请输入班级" style="min-width:90px;flex:1;padding:5px 8px;">班级
                             </label>
+                        </div>
+                        <div class="ne21-group">
+                            <div class="ne21-group-title">🐞 开发者调试</div>
+                            <label title="开启后记录发给 AI 的原文、网站 AI 评估和本地缓存，可在浮窗「调试」里直接查看">
+                                <input type="checkbox" id="GPTJsSetting.debug">开启调试（记录提示词 / 评估 / 缓存）
+                            </label>
+                            <div class="ne21-row" style="margin-top:6px;">
+                                <button id="tcDebugExportBtn" class="ne21-btn ne21-btn-secondary" style="padding:5px 12px;font-size:12px;">导出调试包</button>
+                                <button id="tcDebugClearBtn" class="ne21-btn ne21-btn-secondary" style="padding:5px 12px;font-size:12px;">清空</button>
+                            </div>
+                            <div id="tcDebugStatus" style="color:#64748b;font-size:11px;margin-top:4px;">未开启</div>
                         </div>
                     </div>
                     <div id="ne-21thinking">
@@ -1085,7 +1488,7 @@ function showBox() {
             }
 
             ['sub', 'force', 'examTurn', 'goodStudent', 'alterTitle', 'redo', 'fuzzyMatch', 'task',
-                'taskChain', 'taskChainAutoStart', 'autoReport', 'taskChainDryRun', 'taskChainAutoUpload'].forEach(function (settingId) {
+                'taskChain', 'taskChainAutoStart', 'autoReport', 'taskChainDryRun', 'taskChainAutoUpload', 'debug'].forEach(function (settingId) {
                 var checkbox = top.document.getElementById('GPTJsSetting.' + settingId);
                 if (!checkbox) return;
                 checkbox.addEventListener('change', updateLocalStorage);
@@ -1194,10 +1597,14 @@ function showBox() {
         <div class="ne21-row">
             <button id="moreSettingsBtn" class="ne21-btn ne21-btn-secondary">设置</button>
             <button id="toggleLogBtn" class="ne21-btn ne21-btn-secondary">日志</button>
+            <button id="tcDebugBtn" class="ne21-btn ne21-btn-secondary" title="开发者调试：查看发给 AI 的原文 / 网站评估 / 本地缓存">🐞 调试</button>
             <button id="skipTaskBtn" class="ne21-btn ne21-btn-secondary" style="color:#dc2626;" title="跳过当前正在处理的任务点">跳过任务</button>
             <button id="aboutBtn" class="ne21-btn ne21-btn-secondary">关于</button>
         </div>
     `);
+
+    // 开发者调试：恢复上次缓冲 + 绑定按钮（通知栏每次 showBox 都会重建，所以在这里绑）
+    try { tcDbgLoad(); tcDbgBind(); } catch (e) { }
 
     // 公告弹窗：每个版本首次显示
     (function () {
@@ -1212,8 +1619,9 @@ function showBox() {
     })();
 
     // ===== 更新检查（v2.7.0） =====
-    var NE21_LOCAL_VER = (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) || '2.7.0';
-    var NE21_BUILD = '20261020T1655';
+    var NE21_LOCAL_VER = (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) || '2.8.0';
+    var NE21_BUILD = '20261028T1845';
+    try { window.__ne21Ver = NE21_LOCAL_VER; window.__ne21Build = NE21_BUILD; } catch (e) { }
     var NE21_THROTTLE = 30 * 60 * 1000;   // 自动检查最小间隔：30 分钟
     var NE21_RAW_URL = 'https://raw.githubusercontent.com/Khihl-lucky/ChaoXing-AutoAnswer/main/chaoxing-autoanswer.user.js';
 
@@ -1293,19 +1701,22 @@ function showBox() {
     }
 
     // 单个端点探测，永不 reject
+    // 单端点探测：细节只进 console，浮窗里由调用方汇总成一条
     function tcProbeEndpoint(ep) {
         return new Promise(function (resolve) {
-            var t0 = Date.now(), done = false;
-            function finish(r) { if (!done) { done = true; resolve(r); } }
+            var done = false;
+            function finish(r) {
+                if (done) return;
+                done = true;
+                try { console.log('[更新] ' + ep.name + ' → ' + (r.ver ? ('v' + r.ver) : (r.err || '未知'))); } catch (e) { }
+                resolve(r);
+            }
             try {
                 GM_xmlhttpRequest({
                     method: 'GET', url: ep.url, timeout: 8000,
                     headers: ep.headers || { 'Cache-Control': 'no-cache' },
                     onload: function (x) {
-                        if (!x || x.status !== 200) {
-                            try { logger('[更新] ' + ep.name + ' 失败：HTTP ' + (x && x.status), 'muted'); } catch (e) { }
-                            return finish({ name: ep.name, err: 'HTTP ' + (x && x.status) });
-                        }
+                        if (!x || x.status !== 200) return finish({ name: ep.name, err: 'HTTP ' + (x && x.status) });
                         var txt = (x && x.responseText) || '';
                         if (txt.charAt(0) === '{') {
                             try {
@@ -1314,21 +1725,11 @@ function showBox() {
                             } catch (e) { }
                         }
                         var v = tcParseVersionFromText(txt);
-                        if (!v) {
-                            try { logger('[更新] ' + ep.name + ' 失败：无 @version', 'muted'); } catch (e) { }
-                            return finish({ name: ep.name, err: '无 @version' });
-                        }
-                        try { logger('[更新] ' + ep.name + ' v' + v + '（' + (Date.now() - t0) + 'ms）', 'muted'); } catch (e) { }
+                        if (!v) return finish({ name: ep.name, err: '无 @version' });
                         finish({ name: ep.name, ver: v, url: ep.url, installable: !!ep.installable });
                     },
-                    onerror: function () {
-                        try { logger('[更新] ' + ep.name + ' 失败：网络错误', 'muted'); } catch (e) { }
-                        finish({ name: ep.name, err: '网络错误' });
-                    },
-                    ontimeout: function () {
-                        try { logger('[更新] ' + ep.name + ' 失败：超时', 'muted'); } catch (e) { }
-                        finish({ name: ep.name, err: '超时' });
-                    }
+                    onerror: function () { finish({ name: ep.name, err: '网络错误' }); },
+                    ontimeout: function () { finish({ name: ep.name, err: '超时' }); }
                 });
             } catch (e) { finish({ name: ep.name, err: '请求异常' }); }
         });
@@ -1361,7 +1762,7 @@ function showBox() {
                 return 0;
             });
             var best = ok[0];
-            try { logger('[更新] 采用 v' + best.ver + '（来自 ' + best.name + '）', 'success'); } catch (e) { }
+            // 不在这里写浮窗日志：结果统一由 tcCheckUpdate 输出一条
             return { ver: best.ver, name: best.name, installUrl: tcPickInstallUrl(ok, best), all: ok };
         });
     }
@@ -1469,8 +1870,9 @@ function showBox() {
         return tcFetchRemoteVersion().then(function (r) {
             tcUpdateStore('GPTJsSetting.updateCheckedAt', String(now));
             if (!r || !r.ver) {
+                var why = String((r && r.err) || '端点均不可达').split('；')[0];
                 tcUpdateStore('GPTJsSetting.updateError', (r && r.err) || '端点均不可达');
-                try { logger('[更新] 检查失败：' + ((r && r.err) || '端点均不可达'), 'warn'); } catch (e) { }
+                try { logger('[更新] 检查失败：' + why, 'warn'); } catch (e) { }
                 tcRefreshVerTip();
                 return '';
             }
@@ -1564,7 +1966,7 @@ function showBox() {
             '<span id="ne-21-about-close" style="cursor:pointer;font-size:18px;color:rgba(15,23,42,.5);width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.5);">×</span>' +
             '</div>' +
             '<div class="ne21-about-card" style="font-size:12px;line-height:1.8">' +
-            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 当前版本</span><b id="ne-21-about-cur">v2.7.0</b></div>' +
+            '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">📌 当前版本</span><b id="ne-21-about-cur">v2.8.0</b></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🏗️ 构建</span><span>' + NE21_BUILD + '</span></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">👤 原作者</span><span>Ne-21</span></div>' +
             '<div style="display:flex;justify-content:space-between"><span style="opacity:.5">🛠️ 开发者</span><b>Khihl & DeepSeek Harness</b></div>' +
@@ -5989,15 +6391,15 @@ function startDoWork(index, doms, c, TiMuList) {
     }
 }
 
-/* ============================ AI 实践任务链模块 v2.7.0 ============================ */
+/* ============================ AI 实践任务链模块 v2.8.0 ============================ */
 /* ==========================================================================================
- * AI 实践 / 任务链自动化模块  v2.7.0
+ * AI 实践 / 任务链自动化模块  v2.8.0
  * 功能：检测确认 → 多节点编排 → 回合制对话 → 逐节点评估 → 跨节点前进 → 聚合报告 → 自动上传
  * 说明：本模块运行在父页面（taskChain/student/answer），通过同源 iframe 直接驱动对话页。
  * ======================================================================================== */
 /* eslint-disable */
 
-var TC_VER = '2.4.0';
+var TC_VER = '2.8.0';
 var TC_LOCK_KEY = 'ne21.taskChain.lock';   // 旧键（兼容），v2.6.7 起按任务链分键
 var _tcLockTimer = null;
 var _tcLockRel = 0;
@@ -6126,7 +6528,12 @@ function tcState() {
     st.transcripts = st.transcripts || {};
     st.discussed = st.discussed || [];
     st.attempts = st.attempts || {};
+    st.skipped = st.skipped || {};
+    st.blocked = st.blocked || {};
+    st.dismissed = st.dismissed || {};
+    st.threads = st.threads || {};
     st.chainKey = tcChainKey();
+    if (typeof tcDbgMarkChainKey === 'function') tcDbgMarkChainKey(st.chainKey);
     return st;
 }
 function tcSaveState(st) { tcStoreSet('taskChain.' + (st.chainKey || tcChainKey()), st); }
@@ -6179,12 +6586,24 @@ function tcFindByText(root, text, opts) {
         return el;
     }
 
+    var exact = [];
     for (var i = 0; i < list.length; i++) {
         var el = list[i];
         if (el.childElementCount > maxChildren) continue;
         var t = (el.textContent || '').replace(/\s+/g, '');
-        if (t === want) return clickableOf(el);
-        if (!loose && t.indexOf(want) !== -1 && t.length <= want.length + 8) loose = el;
+        if (t === want) exact.push(el);
+        else if (!loose && t.indexOf(want) !== -1 && t.length <= want.length + 8) loose = el;
+    }
+    // 同文本的父子节点里取「最深」的那个：学习通常见结构是
+    // <div class="pc_btn"><span class="storyBtn">开始对话</span></div>，
+    // 点击监听绑在 span 上，点外层 div 不会触发（点父不冒泡到子）。
+    for (var k = exact.length - 1; k >= 0; k--) {
+        var cand = exact[k];
+        var isContainer = false;
+        for (var j = 0; j < exact.length; j++) {
+            if (exact[j] !== cand && cand.contains(exact[j])) { isContainer = true; break; }
+        }
+        if (!isContainer) return clickableOf(cand);
     }
     if (!opts.exactOnly && loose) return clickableOf(loose);
     return null;
@@ -6236,7 +6655,7 @@ function tcPanelAsk(kind, data) {
         var st = data.st || {};
         var nodes = data.nodes || [];
         var rounds = tcCfg('taskChainRounds', 20);
-        var minScore = tcCfg('taskChainMinScore', 61);
+        var minScore = tcPassLine().value;
         var uploads = nodes.filter(function (n) { return n.type === 'upload'; }).length;
         var dialogues = nodes.length - uploads;
 
@@ -6246,23 +6665,32 @@ function tcPanelAsk(kind, data) {
         card.style.cssText = 'display:block;padding:10px 12px;margin:0 0 10px;font-size:12px;line-height:1.65;text-align:left;';
 
         var title = kind === 'resume' ? '检测到未完成的进度'
-            : (kind === 'takeover' ? '另一个标签页正在执行本任务链' : '🧩 检测到 AI 实践任务链');
-        var sub = kind === 'resume'
-            ? ('上次：第 ' + (st.round || 0) + ' 轮' + (st.updatedAt ? '，中断于 ' + tcTimeStr(new Date(st.updatedAt)) : ''))
-            : (kind === 'takeover'
-                ? '如需在本页继续，可接管执行权（另一标签页会停止推进）'
-                : ('已发现 <b>' + nodes.length + '</b> 个节点（后续节点完成后自动解锁）'));
+            : (kind === 'takeover' ? '另一个标签页正在执行本任务链'
+                : (kind === 'blocked' ? '⛔ 节点未达合格分，已停止'
+                    : '🧩 检测到 AI 实践任务链'));
+        var sub;
+        if (kind === 'resume') {
+            sub = '上次：第 ' + (st.round || 0) + ' 轮' + (st.updatedAt ? '，中断于 ' + tcTimeStr(new Date(st.updatedAt)) : '');
+        } else if (kind === 'takeover') {
+            sub = '如需在本页继续，可接管执行权（另一标签页会停止推进）';
+        } else if (kind === 'blocked') {
+            sub = data.note || ('「' + ((data.node && data.node.title) || '当前节点') + '」得分 '
+                + (data.score == null ? '—' : data.score) + ' < ' + data.pass
+                + '，重练 ' + data.attempts + '/' + data.maxRetry + ' 已用完。按你的选择继续，脚本不会自己越过它。');
+        } else {
+            sub = '已发现 <b>' + nodes.length + '</b> 个节点（后续节点完成后自动解锁）';
+        }
 
-        var plan = kind === 'resume' ? ''
+        var plan = (kind === 'resume' || kind === 'blocked') ? ''
             : '<div style="color:#475569;margin-top:4px;">计划：'
             + (dialogues ? '对话 ' + dialogues + ' 个（每个 ' + rounds + ' 轮）' : '')
             + (dialogues && uploads ? ' · ' : '')
             + (uploads ? '上传 ' + uploads + ' 个' : '')
             + ' · 最低分 ' + minScore + '</div>';
-        var warn = kind === 'resume' ? ''
+        var warn = (kind === 'resume' || kind === 'blocked') ? ''
             : '<div style="color:#b45309;margin-top:4px;">⚠️ 进入下一任务后不可返回，运行期间请勿关闭页面</div>';
         var noName = !tcCfg('studentName', '') || !tcCfg('studentId', '');
-        var nameHint = (kind === 'resume' || !noName) ? ''
+        var nameHint = (kind === 'resume' || kind === 'blocked' || !noName) ? ''
             : '<div style="color:#b45309;margin-top:4px;">未填写姓名/学号：上传节点将转为手动选择文件，生成的文档不署名</div>';
         var remember = kind === 'start'
             ? '<label style="display:flex;align-items:center;gap:6px;margin-top:6px;color:#475569;">'
@@ -6286,7 +6714,11 @@ function tcPanelAsk(kind, data) {
             ? [['继续上次', 'chain', 1], ['本节点重跑', 'node', 0], ['放弃', 'no', 0]]
             : (kind === 'takeover'
                 ? [['接管并开始', 'chain', 1], ['放弃', 'no', 0]]
-                : [['开始自动作答', 'chain', 1], ['只做当前节点', 'node', 0], ['稍后', 'no', 0]]);
+                : (kind === 'blocked'
+                    ? (data.reason === 'advanced'
+                        ? [['重做本节点', 'retry-vm', 1], ['接受该分数并继续', 'skip', 0], ['结束（记住，刷新不再提示）', 'no', 0]]
+                        : [['再练一次', 'retry', 1], ['跳过并继续', 'skip', 0], ['结束（记住，刷新不再提示）', 'no', 0]])
+                    : [['开始自动作答', 'chain', 1], ['只做当前节点', 'node', 0], ['稍后', 'no', 0]]));
         var wrap = card.querySelector('#tcCardBtns');
         defs.forEach(function (d) {
             var b = document.createElement('button');
@@ -6383,7 +6815,12 @@ function tcArticleDesc(el, title) {
 
 function tcScanNodes() {
     var nodes = [], used = {};
-    var minScore = tcCfg('taskChainMinScore', 61);
+    var minScore = tcPassLine().value;
+    var flow = [];
+    try {
+        var vm0 = tcHomeVm();
+        flow = (vm0 && vm0.$data && vm0.$data.taskFlowList) || [];
+    } catch (e) { }
     var arts = document.querySelectorAll('main article');
     if (!arts.length) arts = document.querySelectorAll('article');
     for (var i = 0; i < arts.length; i++) {
@@ -6409,6 +6846,13 @@ function tcScanNodes() {
             if (!enterEl && t2 === '进入任务') { enterEl = cands[j]; }
             if (!retryEl && t2 === '重新练习') { retryEl = cands[j]; }
         }
+        // 平台自己的完成状态：Vue 里 status===2，或卡片没有入口也没有重练
+        var pf = null;
+        for (var fi = 0; fi < flow.length; fi++) {
+            if (String(flow[fi].title || '').trim() === String(title).trim()) { pf = flow[fi]; break; }
+        }
+        var platformDone = pf ? (Number(pf.status) === 2)
+            : (score != null && !enterEl && !retryEl);
         var key = tcNodeKey(title, used);
         used[key] = 1;
         nodes.push({
@@ -6416,6 +6860,7 @@ function tcScanNodes() {
             desc: tcArticleDesc(el, title),
             score: score,
             done: score != null && score >= minScore,
+            platformDone: platformDone,
             enter: !!enterEl, enterEl: enterEl,
             retry: !!retryEl, retryEl: retryEl,
             raw: el
@@ -6616,12 +7061,105 @@ function tcSendBtn(doc) { return doc.querySelector('.sendBtn') || doc.querySelec
 function tcContinueBtn(doc) { return doc.querySelector('.continue'); }
 
 function tcDrain(doc) {
+    // 剧情阶段优先推「点击继续」，避免误点长消息分页；两处同名但作用不同
+    var go = tcStoryBtn(doc);
+    if (go) { tcClick(go); return 1; }
     // 每次调用只点一次“点击继续”：调用方以轮询方式反复调用，
     // 这样既不会阻塞主线程，也能覆盖被分页成多段的长回复。
     var c = tcContinueBtn(doc);
     if (!c) return 0;
     tcClick(c);
     return 1;
+}
+
+// 剧情推进按钮：<div class="goOnBtn"><span class="goOnBtnSpan">点击继续</span></div>
+function tcStoryBtn(doc) {
+    if (!doc) return null;
+    var span = doc.querySelector('.goOnBtnSpan');
+    if (span) return span;
+    var div = doc.querySelector('.goOnBtn');
+    if (div) return div;
+    return null;
+}
+
+function tcStoryActive(doc) { return !!tcStoryBtn(doc); }
+
+// 是否真的进入对话（剧情退场 + 输入框可用，或已经出现我方消息）
+function tcDialogueStarted(doc) {
+    if (!doc) return false;
+    if (doc.querySelector('.storyBtn')) return false;
+    if (tcStoryActive(doc)) return false;
+    var ta = tcTextarea(doc);
+    if (ta && !ta.disabled && !/还未轮到你发言/.test(ta.getAttribute('placeholder') || '')) return true;
+    return !!doc.querySelector('.user-chat-item');
+}
+
+// 等待期间也推进剧情：否则会卡在「点击继续」上空等到超时
+function tcReadyOrAdvance(doc) {
+    if (tcStoryActive(doc)) { tcDrain(doc); return false; }
+    return tcTurnReady(doc);
+}
+
+// 在 iframe 里按方法名找 Vue 实例（剧情开始是组件方法 storyStart）
+function tcVueByMethod(doc, name) {
+    try {
+        var all = doc.querySelectorAll('*');
+        var n = Math.min(all.length, 4000);
+        for (var i = 0; i < n; i++) {
+            var v = all[i].__vue__;
+            if (v && typeof v[name] === 'function') return v;
+        }
+    } catch (e) { }
+    return null;
+}
+
+// 开始对话：点开始 → 过剧情（可能多幕「点击继续」）→ 校验确实进入对话
+function tcClickStartDialogue(doc) {
+    var startBtn = tcFindByText(doc, '开始对话', { selector: 'div,span,button,a,p' })
+        || doc.querySelector('.storyBtn');
+    if (startBtn) {
+        tcClick(startBtn);
+        tcLog('已点击「开始对话」(' + ((startBtn.className && String(startBtn.className)) || startBtn.tagName) + ')');
+    } else {
+        tcLog('未找到「开始对话」按钮，按已进入对话处理', 'muted');
+    }
+
+    var clicks = 0;
+    var goneStreak = 0;
+
+    function loop() {
+        if (tcStoryActive(doc)) {
+            goneStreak = 0;
+            clicks++;
+            if (clicks > 30) return Promise.resolve(false);
+            tcClick(tcStoryBtn(doc));
+            tcLog('剧情推进 ' + clicks, 'muted');
+            return tcSleep(700).then(loop);
+        }
+        goneStreak++;
+        if (goneStreak >= 2) return Promise.resolve(tcDialogueStarted(doc));
+        return tcSleep(700).then(loop);
+    }
+
+    return loop().then(function (ok) {
+        if (ok) { tcLog('对话已开始，输入框可用', 'success'); return true; }
+        // 回退 1：再点一次开始按钮
+        var alt = doc.querySelector('.storyBtn') || doc.querySelector('.pc_btn');
+        if (alt) { tcClick(alt); tcLog('回退：再次点击「开始对话」', 'warn'); }
+        return tcSleep(1200).then(loop);
+    }).then(function (ok) {
+        if (ok) { tcLog('对话已开始，输入框可用', 'success'); return true; }
+        // 回退 2：直接调组件方法
+        var vm = tcVueByMethod(doc, 'storyStart');
+        if (vm) {
+            try { vm.storyStart(); tcLog('回退：调用组件方法 storyStart()', 'warn'); } catch (e) { tcLog('storyStart 调用异常：' + e.message, 'warn'); }
+            return tcSleep(2000).then(loop);
+        }
+        return false;
+    }).then(function (ok) {
+        if (!ok) throw new Error('「开始对话」未生效（剧情未推进）');
+        return true;
+    });
 }
 
 function tcWait(fn, timeout, interval) {
@@ -6650,6 +7188,7 @@ function tcTurnReady(doc) {
     if (!ta) return false;
     if (ta.disabled) return false;
     if (/还未轮到你发言/.test(ta.getAttribute('placeholder') || '')) return false;
+    if (tcStoryActive(doc)) return false;      // 剧情没走完（还有「点击继续」）
     if (tcContinueBtn(doc)) return false;
     return true;
 }
@@ -6692,11 +7231,21 @@ var _tcNoReasoningField = false;   // 服务端不接受 reasoning_effort 时置
 
 function tcChat(messages, opt) {
     opt = opt || {};
+    var _logParams = !!opt.metaOut;    // 只有文档/报告类调用打印参数，避免对话刷屏
     opt.metaOut = opt.metaOut || {};   // 保证 finish_reason 能被读取
     var apiKey = getDeepSeekApiKey();
     if (!apiKey) return Promise.reject({ c: -1, msg: '未配置 DeepSeek API 密钥' });
     var baseUrl = getDeepSeekBaseUrl();
     var model = opt.model || getDeepSeekModel() || 'deepseek-flash';
+    var _callNo = tcAiSeqNext();
+    try { tcLog('[AI] 第 ' + _callNo + ' 次调用（' + (opt._tag || 'chat') + '）', 'muted'); } catch (e) { }
+    if (_logParams) {
+        tcLog('[AI] 请求参数：model=' + model + '，max_tokens='
+            + (opt.maxTokens ? opt.maxTokens : '不传（服务端默认）'), 'muted');
+    }
+
+    // 开发者调试：按「实际请求」逐条记录（含续写/降级重发的真实 body）
+    var _reqSeq = 0;
 
     function once(cfg) {
         tcBusyStart('AI 正在思考…');
@@ -6713,8 +7262,35 @@ function tcChat(messages, opt) {
         };
         // maxTokens 为 0/未设置 => 不传，交给服务端默认（“不设上限”）
         if (cfg.maxTokens) body.max_tokens = cfg.maxTokens;
-        // 尝试压低思考开销；服务端不认会自动去掉重试
-        if (!_tcNoReasoningField && opt.reasoning !== false) body.reasoning_effort = opt.reasoning || 'low';
+        // 尝试压低思考开销；服务端不认会自动去掉重试。
+        // cfg.noReason：上一轮思考把输出预算吃干后，本次不带 reasoning_effort 重发。
+        if (!_tcNoReasoningField && !cfg.noReason && opt.reasoning !== false) body.reasoning_effort = opt.reasoning || 'low';
+
+        // 记录「真正要 POST 出去的 body」：续写轮、降级轮都各自一条
+        var _dbg = null, _dbgT0 = tcNow();
+        if (tcDebugOn()) {
+            _reqSeq++;
+            _dbg = tcDbgPush('chat', {
+                seq: _reqSeq,
+                call: _callNo,
+                tag: opt._tag || 'chat',
+                model: body.model,
+                temperature: body.temperature,
+                max_tokens: (body.max_tokens === undefined ? '未传' : body.max_tokens),
+                reasoning_effort: (body.reasoning_effort === undefined ? '未传' : body.reasoning_effort),
+                noReason: !!cfg.noReason,
+                messages: tcDbgSanitizeMessages(body.messages),
+                bodyBytes: JSON.stringify(body).length,
+                exact: tcDbgExact(body.messages)
+            });
+        }
+        function dbgDone(ok, extra) {
+            if (!_dbg) return;
+            _dbg.ok = ok;
+            _dbg.ms = tcNow() - _dbgT0;
+            if (extra) { for (var k in extra) _dbg[k] = extra[k]; }
+            try { tcDbgSave(); tcDbgStatus(); tcDbgRender(); } catch (e) { }
+        }
 
         return new Promise(function (resolve) { setTimeout(resolve, waitMs); }).then(function () {
             return new Promise(function (resolve2, reject2) {
@@ -6750,9 +7326,17 @@ function tcChat(messages, opt) {
             });
         }).then(function (v) {
             tcBusyStop();
+            var mo = cfg.metaOut || opt.metaOut || {};
+            dbgDone(true, {
+                chars: String(v || '').length,
+                finish_reason: mo.finish_reason || '',
+                usage: mo.usage || null,
+                response_model: mo.model || ''
+            });
             return v;
         }, function (e) {
             tcBusyStop();
+            dbgDone(false, { error: { c: e && e.c, msg: (e && (e.msg || e.message)) || String(e) } });
             throw e;
         });
     }
@@ -6768,16 +7352,22 @@ function tcChat(messages, opt) {
         });
     }
 
-    var DEFAULT_MAX_TOKENS = 8192;   // 顶格请求（模型上限），不再设人为小预算
+    // 不再设脚本侧上限：opt.maxTokens 未传/为 0 时整个 max_tokens 字段都不发，交给服务端
     var baseCfg = {
         messages: messages,
         temperature: (opt.temperature === undefined ? 0.8 : opt.temperature),
-        maxTokens: opt.maxTokens || DEFAULT_MAX_TOKENS
+        maxTokens: opt.maxTokens || 0
     };
 
-    function callOnce(cfg, msgs) {
+    function callOnce(cfg, msgs, extra) {
         var meta = {};
-        return run({ messages: msgs || cfg.messages, temperature: cfg.temperature, maxTokens: cfg.maxTokens, metaOut: meta })
+        return run({
+            messages: msgs || cfg.messages,
+            temperature: cfg.temperature,
+            maxTokens: cfg.maxTokens,
+            metaOut: meta,
+            noReason: !!(extra && extra.noReason)
+        })
             .then(function (t) {
                 return { ok: true, text: String(t || ''), meta: meta };
             }, function (e) {
@@ -6790,11 +7380,12 @@ function tcChat(messages, opt) {
     var round = 0;
     var lastMeta = {};
 
-    function step(overrideMsgs) {
+    function step(overrideMsgs, extra) {
         if (round >= 4) {
             return Promise.reject({ c: 0, msg: 'AI 输出为空（已尝试 4 次）', meta: lastMeta });
         }
         round++;
+        extra = extra || {};
 
         var useMsgs = overrideMsgs;
         if (!useMsgs) {
@@ -6805,7 +7396,7 @@ function tcChat(messages, opt) {
             }
         }
 
-        return callOnce(baseCfg, useMsgs).then(function (r) {
+        return callOnce(baseCfg, useMsgs, extra).then(function (r) {
             lastMeta = r.meta || {};
             if (opt.metaOut) {
                 opt.metaOut.finish_reason = lastMeta.finish_reason;
@@ -6813,20 +7404,32 @@ function tcChat(messages, opt) {
             }
             var reason = lastMeta.finish_reason || '';
             var usage = lastMeta.usage || {};
+            var comp = usage.completion_tokens || 0;
             var rt = usage.completion_tokens_details ? usage.completion_tokens_details.reasoning_tokens : null;
 
             if (!r.ok || !String(r.text || '').trim()) {
                 tcLog('[AI] 空内容（finish_reason=' + (reason || '?')
                     + '，completion=' + (usage.completion_tokens || '?')
-                    + (rt != null ? '，reasoning=' + rt : '') + '），直接作答重试', 'warn');
-                // 思考吃满/空回复：用更强指令重新发起（仍顶格）
+                    + (rt != null ? '，reasoning=' + rt : '') + '）', 'warn');
+
+                // 思考把输出预算吃干（reasoning 占了九成以上且被 length 截断）：
+                // 换一次「不带 reasoning_effort」的请求，而不是用同样参数再撞一遍。
+                var starved = reason === 'length' && rt != null && comp > 0 && rt >= comp * 0.9;
+                if (starved && !extra.noReason) {
+                    tcLog('[AI] 思考吃满输出上限（reasoning=' + rt + '/' + comp + '），去掉 reasoning_effort 重发', 'warn');
+                    var starvedMsgs = (messages || []).slice();
+                    if (full) starvedMsgs.push({ role: 'assistant', content: full });
+                    return step(starvedMsgs, { noReason: true });
+                }
+
+                // 其它空回复：加一条强指令重发
                 var retryMsgs = (messages || []).slice();
                 if (full) retryMsgs.push({ role: 'assistant', content: full });
                 retryMsgs.push({
                     role: 'user',
                     content: '直接输出最终答复正文（可以用自然段，但只输出答复），不要输出任何思考、分析或解释。'
                 });
-                return step(retryMsgs);
+                return step(retryMsgs, extra);
             }
 
             full += r.text;
@@ -6837,7 +7440,7 @@ function tcChat(messages, opt) {
                     tcLog('[AI] 已拼接 ' + round + ' 段仍被截断，接受当前内容', 'warn');
                     return full;
                 }
-                return step(null);   // 继续续写
+                return step(null, extra);   // 继续续写
             }
             return full;
         });
@@ -7061,9 +7664,8 @@ function tcDialogueNode(node, entered) {
     }).then(function (doc) {
         if (!doc) throw new Error('对话页未加载');
         _doc = doc;
-        var startBtn = tcFindByText(doc, '开始对话', { selector: 'div,span,button,a,p' });
-        if (startBtn) { tcClick(startBtn); tcLog('已点击「开始对话」'); }
-        return tcSleep(2500).then(function () { return doc; });
+        // 开始对话 + 过剧情（「点击继续」可能有多幕），确认真的进入对话再往下走
+        return tcClickStartDialogue(doc).then(function () { return tcSleep(1200); }).then(function () { return doc; });
     }).then(function (doc) {
         var ctx = tcReadCtx(doc);
         var key = node.key || String(node.idx);
@@ -7088,7 +7690,7 @@ function tcDialogueNode(node, entered) {
                 if (cur.round >= target) return resolve('reached');
                 tcUpdateStatusBar('任务链：第 ' + (cur.round + 1) + '/' + target + ' 轮');
                 // 等输入框可用（老师上一轮确实结束）
-                tcWait(function () { return tcTurnReady(doc); }, 120000, 600).then(function () {
+                tcWait(function () { return tcReadyOrAdvance(doc); }, 120000, 600).then(function () {
                     var thread = tcReadThread(doc, cur.roles);
                     var teacher = tcLastTeacher(thread);
                     if (!teacher) teacher = lastSentTeacher;
@@ -7185,28 +7787,45 @@ function tcDialogueNode(node, entered) {
 function tcFinishNode(doc, node, st) {
     var btn = doc.querySelector('.earlyEndBtn') || tcFindByText(doc, '结束对话并评估', { selector: 'div,span,button,a,p' });
     if (!btn) { tcLog('未找到「结束对话并评估」按钮', 'warn'); return null; }
+
+    // 对话评估同样走 SSE：先取快照，别把上一次的分当本轮结果
+    var snap = tcEvalSnapshot();
+    var baseScore = tcReadEval().score;
     tcClick(btn);
-    tcLog('已点击「结束对话并评估」，等待评分…');
+    tcLog('已点击「结束对话并评估」'
+        + (baseScore == null ? '' : '（页面当前 ' + baseScore + ' 分为此前成绩）') + '，等待评分…');
     tcBusyStart('等待评分…');
-    return tcWait(function () {
+
+    var textReady = tcWait(function () {
         var t = (doc.body && doc.body.innerText) || '';
         return /(得分|本次成绩)\s*(\d{1,3})\s*分/.test(t);
-    }, 180000, 2000).then(function (ok) {
+    }, 180000, 2000);
+
+    return Promise.all([textReady, tcWaitEvalDone(snap, 180000)]).then(function () {
         tcBusyStop();
-        var m = ((doc.body && doc.body.innerText) || '').match(/(得分|本次成绩)\s*(\d{1,3})\s*分/);
-        var score = m ? parseInt(m[2], 10) : null;
+        var ev = tcReadEval();
+        var score = (ev.score != null && tcEvalFresh(ev, snap)) ? ev.score : null;
+        if (score == null) {
+            // 结构化拿不到时才退回文本；文本可能是旧成绩，用快照再校验一次
+            var m = ((doc.body && doc.body.innerText) || '').match(/(得分|本次成绩)\s*(\d{1,3})\s*分/);
+            if (m) {
+                var tScore = parseInt(m[2], 10);
+                score = (snap.lastScore == null || tScore !== snap.lastScore) ? tScore : null;
+            }
+        }
         if (score != null) {
-            tcLog('节点评分：' + score + ' 分', score >= tcCfg('taskChainMinScore', 61) ? 'success' : 'warn');
+            var pl = tcPassLine();
+            tcLog('节点评分：' + score + ' 分（合格线 ' + pl.value + '，来源：' + pl.from + '）', score >= pl.value ? 'success' : 'warn');
             var nk = node.key || String(node.idx);
             st.nodeScores = st.nodeScores || {};
             st.nodeScores[nk] = score;
             // 同步更新已发现节点列表里的分数
-            (st.nodes || []).forEach(function (n) { if (n.key === nk) { n.score = score; n.done = score >= tcCfg('taskChainMinScore', 61); } });
-            st.phase = 'advance';
+            (st.nodes || []).forEach(function (n) { if (n.key === nk) { n.score = score; n.done = score >= pl.value; } });
+            st.phase = (score >= pl.value) ? 'advance' : 'retry';
             st.updatedAt = tcNow();
             tcSaveState(st);
         } else {
-            tcLog('未能解析到分数，请手动确认', 'warn');
+            tcLog('未拿到本轮新成绩（可能仍是上一次的 ' + (snap.lastScore == null ? '—' : snap.lastScore) + ' 分），请手动确认', 'warn');
         }
         return score;
     });
@@ -7497,7 +8116,7 @@ function tcAskAiReport(st, nodes) {
         + '要求：sections 至少 6 个，标题用“一、二、三…”中文序号；每节 2-3 段，每段 80-160 字；'
         + '内容必须来自对话记录与任务说明，不得编造具体测试数字；只输出 JSON，不要代码围栏。';
     var user = '任务链：' + (st.chainTitle || '') + '\n节点：' + nodes.map(function (n) { return n.title; }).join('、') + '\n\n对话记录：\n' + tr.join('\n').slice(0, 12000);
-    return tcChat([{ role: 'system', content: sys }, { role: 'user', content: user }], { temperature: 0.5, maxTokens: 2600 }).then(function (txt) {
+    return tcChat([{ role: 'system', content: sys }, { role: 'user', content: user }], { temperature: 0.5 }).then(function (txt) {
         var obj = tcJsonFromText(txt);
         if (!obj || !Array.isArray(obj.sections) || !obj.sections.length) throw new Error('结构不符');
         return obj;
@@ -7741,6 +8360,11 @@ function tcFallbackDoc(node, st) {
 
 function tcHtmlDecode(s) {
     return String(s || '')
+        .replace(/^\uFEFF/, '')
+        // 数字实体：学习通的附件预览页会把 ( ) ; > < 全部转成 &#40; &#59; 这种形式，
+        // 而且部分位置缺分号（&#40&#41），必须优先解掉，否则代码样例读进来是乱码。
+        .replace(/&#x([0-9a-f]+);?/gi, function (_, h) { return String.fromCharCode(parseInt(h, 16)); })
+        .replace(/&#(\d+);?/g, function (_, d) { return String.fromCharCode(parseInt(d, 10)); })
         .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
         .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
         .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
@@ -7751,10 +8375,21 @@ function tcClassifyAttachmentHtml(raw) {
     raw = String(raw || '');
     if (!raw.trim()) return { kind: 'empty' };
 
+    // 只去掉首尾空行；内部缩进、空行、行尾空格全部保留（代码样例格式有意义）
+    function keepLayout(s) {
+        return String(s || '').replace(/\r\n?/g, '\n').replace(/^\n+/, '').replace(/\n+$/, '');
+    }
+
     var m = raw.match(/<textarea[^>]*>([\s\S]*?)<\/textarea>/i);
     if (m) {
-        var t = tcHtmlDecode(m[1]).trim();
-        if (t) return { kind: 'text', text: t };
+        var t = keepLayout(tcHtmlDecode(m[1]));
+        if (t && t.trim()) return { kind: 'text', text: t };
+    }
+    // textarea 为空时，正文也可能在 <pre> / <code> 里
+    var pre = raw.match(/<(pre|code)[^>]*>([\s\S]*?)<\/\1>/i);
+    if (pre) {
+        var pt = keepLayout(tcHtmlDecode(pre[2].replace(/<[^>]+>/g, '')));
+        if (pt && pt.trim().length >= 2) return { kind: 'text', text: pt };
     }
     // 扫描件：整页图片（fileBox / thumb/N.png）
     if (/fileBox|thumb\/\d+\.(png|jpe?g)/i.test(raw) && /<img/i.test(raw)) {
@@ -7768,7 +8403,7 @@ function tcClassifyAttachmentHtml(raw) {
     }
     // 纯文本响应
     if (raw.indexOf('<') < 0 || (raw.match(/</g) || []).length < 3) {
-        return { kind: 'text', text: raw.trim() };
+        return { kind: 'text', text: keepLayout(raw) };
     }
     return { kind: 'html' };
 }
@@ -7778,12 +8413,42 @@ function tcHttpGet(url) {
         try {
             GM_xmlhttpRequest({
                 method: 'GET', url: url, timeout: 20000,
-                onload: function (x) { resolve(tcClassifyAttachmentHtml((x && x.responseText) || '')); },
-                onerror: function () { resolve({ kind: 'empty' }); },
-                ontimeout: function () { resolve({ kind: 'empty' }); }
+                headers: { 'Referer': location.href, 'Accept': 'text/html,application/xhtml+xml,*/*' },
+                onload: function (x) {
+                    var raw = (x && x.responseText) || '';
+                    var res = tcClassifyAttachmentHtml(raw);
+                    res.status = (x && x.status) || 0;
+                    res.len = raw.length;
+                    res.url = url;
+                    resolve(res);
+                },
+                onerror: function () { resolve({ kind: 'empty', status: 0, len: 0, url: url, err: '网络错误' }); },
+                ontimeout: function () { resolve({ kind: 'empty', status: 0, len: 0, url: url, err: '超时' }); }
             });
-        } catch (e) { resolve({ kind: 'empty' }); }
+        } catch (e) { resolve({ kind: 'empty', status: 0, len: 0, url: url, err: e.message }); }
     });
+}
+
+// 同一个附件换几种预览参数再试：不同文件只有某种 type / download 才会吐正文
+function tcHttpGetVariants(url) {
+    var urls = [url];
+    if (/[?&]type=1\b/.test(url)) {
+        urls.push(url.replace(/([?&])type=1\b/, '$1type=2'));
+    }
+    urls.push(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'download=1');
+
+    var i = 0, last = null;
+    function next() {
+        if (i >= urls.length) return Promise.resolve(last || { kind: 'empty', status: 0, len: 0 });
+        var u = urls[i++];
+        return tcHttpGet(u).then(function (res) {
+            last = res;
+            if (res && res.kind === 'text' && res.text) return res;
+            if (res && res.kind === 'image' && res.pages && res.pages.length) return res;
+            return tcSleep(200).then(next);
+        });
+    }
+    return next();
 }
 
 // 图片下载为 base64 dataURL
@@ -7823,7 +8488,7 @@ function tcVisionReadTemplate(name, pages) {
                 + '每一章应当写什么内容、有哪些格式要求。只输出结构摘要（分条列出），不要复述原文，不要评价。'
         }];
         imgs.forEach(function (u) { content.push({ type: 'image_url', image_url: { url: u, detail: 'high' } }); });
-        return tcChat([{ role: 'user', content: content }], { temperature: 0.2, maxTokens: 1200 })
+        return tcChat([{ role: 'user', content: content }], { temperature: 0.2 })
             .then(function (t) { return String(t || '').trim(); });
     }).catch(function () { return ''; });
 }
@@ -7858,11 +8523,55 @@ function tcAttachmentList() {
     } catch (e) { return []; }
 }
 
-// 拉取附件文本（预览页把内容放在 <textarea> 里），带缓存
+// 附件缓存（v2）：只认「读过且成功」的结果；旧结构（裸数组）与失败结果一律作废重读。
+// 之前把 10 个文件的失败结果缓存下来，之后每次都直接复用，导致永远 0 字。
+function tcAttachCacheGet(st, key) {
+    var c = st && st.attachments && st.attachments[key];
+    if (!c) return null;
+    if (Object.prototype.toString.call(c) === '[object Array]') return null;   // 旧格式
+    if (c.v !== 2 || !c.ok) return null;
+    if (!c.items || !c.items.length) return null;
+    return c.items;
+}
+
+// 读单个附件：文本 / 扫描件 / 失败，逐条日志带 HTTP 状态和长度，便于定位
+function tcFetchAttachment(f) {
+    return tcHttpGetVariants(f.panPreviewUrl).then(function (res) {
+        res = res || { kind: 'empty' };
+        var tag = '[附件] ' + f.name + ' HTTP ' + (res.status || '?') + ' / ' + (res.len || 0) + ' 字';
+        if (res.kind === 'text' && res.text && String(res.text).trim().length >= 2) {
+            var clipped = String(res.text).slice(0, 8000);
+            tcLog(tag + ' → text（' + clipped.length + ' 字）', 'muted');
+            return {
+                name: f.name, fileType: f.fileType || '', kind: 'text',
+                text: clipped, status: res.status || 0, len: clipped.length
+            };
+        }
+        if (res.kind === 'image' && res.pages && res.pages.length) {
+            tcLog(tag + ' → 扫描件 ' + res.pages.length + ' 页，读图中…', 'muted');
+            return tcVisionReadTemplate(f.name, res.pages).then(function (summary) {
+                return {
+                    name: f.name, fileType: f.fileType || '', kind: 'image',
+                    pages: res.pages.length, template: summary || '', status: res.status || 0, len: 0
+                };
+            });
+        }
+        tcLog(tag + ' → ' + (res.kind || 'empty') + (res.err ? '（' + res.err + '）' : '') + '，未提取到正文', 'warn');
+        return { name: f.name, fileType: f.fileType || '', kind: 'failed', status: res.status || 0, len: res.len || 0 };
+    });
+}
+
+// 拉取附件正文（预览页正文在 <textarea> 里，且用数字实体转义），带 v2 缓存
 function tcFetchAttachments(node, st) {
     var key = node.key || String(node.idx);
     st.attachments = st.attachments || {};
-    if (st.attachments[key] && st.attachments[key].length) return Promise.resolve(st.attachments[key]);
+
+    var cached = tcAttachCacheGet(st, key);
+    if (cached) {
+        tcLog('[附件] 复用已读取的 ' + cached.length + ' 个附件', 'muted');
+        return Promise.resolve(cached);
+    }
+
     var list = tcAttachmentList();
     if (!list.length) {
         var u0 = tcFindUploadInfo();
@@ -7877,35 +8586,21 @@ function tcFetchAttachments(node, st) {
     list.forEach(function (f, fi) {
         chain = chain.then(function () {
             tcBusySetLabel('读取题目附件…（第 ' + (fi + 1) + '/' + list.length + ' 个：' + f.name + '）');
-            return tcHttpGet(f.panPreviewUrl).then(function (res) {
-                res = res || { kind: 'empty' };
-                if (res.kind === 'text' && res.text) {
-                    var clipped = res.text.slice(0, 8000);
-                    out.push({ name: f.name, fileType: f.fileType || '', kind: 'text', text: clipped });
-                    tcLog('[附件] ' + f.name + ' 文本 ' + clipped.length + ' 字', 'muted');
-                    return;
-                }
-                if (res.kind === 'image') {
-                    tcLog('[附件] ' + f.name + ' → 扫描件 ' + res.pages.length + ' 页，读图中…', 'muted');
-                    return tcVisionReadTemplate(f.name, res.pages).then(function (summary) {
-                        out.push({
-                            name: f.name, fileType: f.fileType || '', kind: 'image',
-                            pages: res.pages.length, template: summary || ''
-                        });
-                        tcLog('[附件] ' + f.name + (summary
-                            ? ' 模板结构 ' + summary.length + ' 字'
-                            : ' 读图失败，仅按文件名视为模板'), summary ? 'muted' : 'warn');
-                    });
-                }
-                out.push({ name: f.name, fileType: f.fileType || '', kind: 'html' });
-                tcLog('[附件] ' + f.name + ' 无法读取（HTML），仅作占位', 'warn');
-            });
+            return tcFetchAttachment(f).then(function (item) { out.push(item); });
         });
     });
+
     return chain.then(function () {
-        st.attachments[key] = out;
+        var okCount = out.filter(function (x) { return x.kind === 'text' || x.kind === 'image'; }).length;
+        var textLen = out.reduce(function (a, x) { return a + ((x.kind === 'text' && x.text) ? x.text.length : 0); }, 0);
+        st.attachments[key] = {
+            v: 2, ok: okCount > 0, total: list.length, okCount: okCount,
+            textLen: textLen, at: tcNow(), items: out
+        };
         tcSaveState(st);
         tcBusyStop();
+        tcLog('[附件] ' + okCount + '/' + list.length + ' 读取成功，正文共 ' + textLen + ' 字',
+            okCount === list.length ? 'success' : (okCount ? 'warn' : 'error'));
         return out;
     }, function (e) {
         tcBusyStop();
@@ -8091,10 +8786,16 @@ function tcDocContext(node, st) {
     return parts.join('\n\n');
 }
 
+// 【已弃用】旧的「一次性写作」入口，v2.8.0 起由 tcGenerateDocument（规格→计划→单元→自检）取代。
+// 保留仅为兼容历史调用；其中的提示词硬编码了单一课程内容，不要重新接回主流程。
 function tcAskAiDoc(node, st) {
     var desc = (node.desc || '').slice(0, 1200);
     var kind = tcDocKind(desc);
-    var atts = (st && st.attachments && st.attachments[node.key || String(node.idx)]) || [];
+    var atts = (st && st.attachments ? tcAttachCacheGet(st, node.key || String(node.idx)) : null) || [];
+    if (atts.length) {
+        var okN = atts.filter(function (x) { return x.kind === 'text' || x.kind === 'image'; }).length;
+        if (!okN) tcLog('[附件] ' + atts.length + ' 个附件全部读取失败，本次只能凭题目描述写作（内容可能空泛）', 'error');
+    }
     var isFinal = tcIsFinalNode();
     var chainBlock = tcChainContext(st);
     var docCtx = isFinal ? tcDocContext(node, st) : '';
@@ -8248,7 +8949,495 @@ function tcFallbackText(node) {
     return head + '\n\n' + body + '\n\n' + tail;
 }
 
-// 生成 docx：对话节点走结构化报告；上传节点直接收原文写最小 docx
+/* ---------------------------------- 任务规格 / 生成流水线（v2.8.0） ---------------------------------- */
+
+// 评估状态：页面的评估是 SSE 流式，chainEvaluateState 为 idle / submitting / evaluating，
+// 中间结果在 evaluateResultData，最终分数要等流结束后才回填到 uploadInfo。
+function tcEvalState() {
+    var out = { state: 'idle', partial: null, live: null };
+    try {
+        var vm = tcHomeVm();
+        var d = (vm && vm.$data) || {};
+        out.state = String(d.chainEvaluateState || 'idle');
+        out.live = d.evaluateResultData || null;
+        if (out.live && typeof out.live.score === 'number') out.partial = out.live.score;
+    } catch (e) { }
+    return out;
+}
+
+// 当前选中的节点标题（selectedTaskId 是 taskFlowList 的下标）
+function tcCurrentTaskTitle() {
+    try {
+        var vm = tcHomeVm();
+        var d = (vm && vm.$data) || {};
+        var list = d.taskFlowList || [];
+        var idx = d.selectedTaskId;
+        if (list.length && idx != null && list[idx]) return String(list[idx].title || '').trim();
+        return d.uploadInfo && d.uploadInfo.title ? String(d.uploadInfo.title).trim() : '';
+    } catch (e) { return ''; }
+}
+
+// uploadInfo 是否已经切到当前节点：切节点后它会滞后一到两秒，此时读到的是别的节点的分。
+// 传了 title 时只比对节点标题（阻断卡片等场景下 selectedTaskId 可能已不在该节点）。
+function tcUploadInfoReady(title) {
+    try {
+        var vm = tcHomeVm();
+        var d = (vm && vm.$data) || {};
+        var u = d.uploadInfo;
+        if (!u) return false;
+        var cur = title ? String(title).trim() : tcCurrentTaskTitle();
+        if (!cur) return true;
+        var t = String(u.title || '').trim();
+        return t.length > 0 && t === cur;
+    } catch (e) { return true; }
+}
+
+// 评估快照：点「开始评估」之前先取一次，用来判断后面拿到的是不是「新」结果。
+// nodeTitle：按节点标题判就绪（阻断卡片等场景下 selectedTaskId 可能已不在该节点）。
+function tcEvalSnapshot(nodeTitle) {
+    var s = { ready: true, state: 'idle', records: 0, evaluated: 0, lastUuid: '', lastScore: null, lastCount: null };
+    try {
+        var vm = tcHomeVm();
+        var d = (vm && vm.$data) || {};
+        s.state = String(d.chainEvaluateState || 'idle');
+        if (!tcUploadInfoReady(nodeTitle)) { s.ready = false; return s; }
+        var recs = ((d.uploadInfo && d.uploadInfo.answerRecords) || []);
+        s.records = recs.length;
+        var evs = recs.filter(function (r) { return Number(r.status) === 2; });
+        s.evaluated = evs.length;
+        if (evs.length) {
+            // 按 count（平台第几次作答）取最新，绝不依赖数组顺序
+            var best = evs[0];
+            for (var k = 1; k < evs.length; k++) {
+                var bc = Number(best.count), cc = Number(evs[k].count);
+                if (!isFinite(bc)) bc = -1;
+                if (!isFinite(cc)) cc = -1;
+                if (cc >= bc) best = evs[k];
+            }
+            s.lastUuid = best.recordUuid || '';
+            var cn = Number(best.count);
+            s.lastCount = isFinite(cn) ? cn : null;
+            var sc = parseFloat(best.score);
+            if (isFinite(sc)) s.lastScore = sc;
+        }
+    } catch (e) { }
+    return s;
+}
+
+// 读成绩：评估中一律返回 pending（此时 answerScore 里还是上一次的分）
+function tcReadEval(opt) {
+    opt = opt || {};
+    var st = tcEvalState();
+    var out = {
+        score: null, result: null, tip: '',
+        pending: false, streaming: false, notReady: false,
+        partial: st.partial, state: st.state, recordUuid: '', count: null, from: ''
+    };
+    if (st.state === 'submitting' || st.state === 'evaluating') {
+        out.pending = true;
+        out.streaming = true;
+        return out;
+    }
+    if (!tcUploadInfoReady(opt.nodeTitle)) {
+        // 切节点后 uploadInfo 还没刷新，此时的分属于别的节点
+        out.pending = true;
+        out.notReady = true;
+        return out;
+    }
+
+    var snap = tcEvalSnapshot(opt.nodeTitle);
+    if (snap.lastScore != null) {
+        out.score = snap.lastScore;
+        out.recordUuid = snap.lastUuid;
+        out.count = snap.lastCount;
+        out.from = '记录';
+    }
+    var u = {};
+    try { u = tcFindUploadInfo() || {}; } catch (e) { }
+    if (out.score == null && u.answerScore !== '' && u.answerScore != null) {
+        var s0 = parseFloat(u.answerScore);
+        if (isFinite(s0)) { out.score = s0; out.from = 'answerScore'; }
+    }
+    if (out.score == null && st.partial != null && st.partial > 0) {
+        out.score = st.partial; out.from = '评估结果';
+    }
+    // 评语只在与分数一致时采用：uploadInfo.evaluateResult 会滞后一整轮
+    var res = (u.evaluateResult && typeof u.evaluateResult === 'object') ? u.evaluateResult : null;
+    if (res && out.score != null) {
+        var rs = parseFloat(res.score);
+        if (!isFinite(rs) || Math.abs(rs - out.score) < 0.01) out.result = res;
+    }
+    if (!out.result && st.live && out.score != null) {
+        var ls = parseFloat(st.live.score);
+        if (isFinite(ls) && Math.abs(ls - out.score) < 0.01) out.result = st.live;
+    }
+    out.tip = out.result ? String(out.result.scoreTip || '') : '';
+    if (out.score == null) {
+        var m = ((document.body && document.body.innerText) || '').match(/(?:本次成绩|得分)\s*[:：]?\s*(\d{1,3}(?:\.\d+)?)/);
+        if (m) { out.score = parseFloat(m[1]); out.from = '文本'; }
+    }
+    return out;
+}
+
+// 等这一轮评估真正结束：主信号是 state 从 submitting/evaluating 回到 idle
+function tcWaitEvalDone(snap, timeoutMs) {
+    snap = snap || tcEvalSnapshot();
+    var sawBusy = false;
+    return tcWait(function () {
+        var cur = tcEvalSnapshot();
+        if (cur.state === 'submitting' || cur.state === 'evaluating') {
+            sawBusy = true;
+            var p = tcEvalState().partial;
+            tcBusySetLabel(p != null && p > 0 ? ('评估中…（当前 ' + p + ' 分）') : '评估中…');
+            return false;
+        }
+        if (sawBusy) return cur.ready !== false;
+        if (cur.evaluated > snap.evaluated) return true;
+        if (cur.lastUuid && cur.lastUuid !== snap.lastUuid) return true;
+        if (snap.lastScore != null && cur.lastScore != null && cur.lastScore !== snap.lastScore) return true;
+        return false;
+    }, timeoutMs || 240000, 1500).then(function (ok) { return !!ok; });
+}
+
+// 流结束后页面约 5s 才回填 uploadInfo，这里再等一下评语/新分数
+function tcWaitEvalResult(baseScore) {
+    return tcWait(function () {
+        var ev = tcReadEval();
+        if (ev.streaming || ev.score == null) return false;
+        if (ev.result) return true;
+        return baseScore != null && ev.score !== baseScore;
+    }, 20000, 1000);
+}
+
+// 是否真的拿到了本轮的新成绩（而不是上一次的）
+function tcEvalFresh(ev, snap) {
+    if (!ev || ev.score == null) return false;
+    if (!snap || snap.lastScore == null) return true;
+    if (ev.recordUuid && ev.recordUuid !== snap.lastUuid) return true;
+    return Math.abs(ev.score - snap.lastScore) > 0.001;
+}
+
+// 页面自己的合格线（忽略用户设置）：用于识别「平台已放行、但用户标准更严」的节点
+function tcPagePassLine() {
+    var best = null;
+    try {
+        var rows = document.querySelectorAll('.unlock-condition-row');
+        for (var i = 0; i < rows.length; i++) {
+            var el = rows[i].querySelector('.unlock-rule');
+            var rule = el ? (el.innerText || el.textContent || '') : (rows[i].innerText || '');
+            var m = String(rule).match(/(\d{1,3})\s*[≤<]\s*总分/);
+            if (!m) continue;
+            var v = parseInt(m[1], 10);
+            if (v > 0 && (best === null || v < best)) best = v;
+        }
+    } catch (e) { }
+    return best;
+}
+
+// 合格线：设置 > 页面 > 默认。返回 { value, from }，from 用于日志溯源。
+// 只有用户真正改过设置（localStorage 里存在该键）才以设置为准，
+// 没改过时跟随页面「解锁下一节点条件」，换课程不用手动调。
+function tcPassLine() {
+    var saved = null;
+    try { saved = localStorage.getItem('GPTJsSetting.taskChainMinScore'); } catch (e) { }
+    if (saved !== null && saved !== undefined && saved !== '' && isFinite(parseFloat(saved))) {
+        return { value: parseFloat(saved), from: '设置' };
+    }
+
+    var best = tcPagePassLine();
+    if (best !== null) return { value: best, from: '页面' };
+
+    return { value: tcCfg('taskChainMinScore', 61), from: '默认' };
+}
+
+// 把平台评语拆成可执行的缺陷项。
+// expectScore：本轮分数；评语若属于上一轮（分数不一致），一律不采用，避免"按上次批语改这次稿"。
+function tcEvalDefects(res, expectScore) {
+    var out = [];
+    if (!res) return out;
+    if (expectScore != null && res.score != null && isFinite(parseFloat(res.score))) {
+        if (Math.abs(parseFloat(res.score) - expectScore) > 0.01) {
+            tcLog('[评估] 评语分数（' + res.score + '）与本次（' + expectScore + '）不一致，视为上一轮评语，不采用', 'warn');
+            return out;
+        }
+    }
+    (res.summaryItems || []).forEach(function (it) {
+        if (!it) return;
+        var head = '【' + (it.title || '评分项') + '】';
+        var sc = (it.score != null ? '（' + it.score + ' 分）' : '');
+        out.push(head + sc + String(it.content || '').slice(0, 300));
+    });
+    if (res.disadvantages) out.push('【缺陷】' + String(res.disadvantages).slice(0, 400));
+    (res.suggestions || []).forEach(function (s) { out.push('【建议】' + String(s).slice(0, 240)); });
+    return out.slice(0, 10);
+}
+
+// 附件配对：testN.txt ↔ testN_out.txt 归成 {input, expected}
+function tcSpecMaterials(node, st) {
+    var atts = (st && st.attachments ? tcAttachCacheGet(st, node.key || String(node.idx)) : null) || [];
+    var pairs = [], loose = [], map = {};
+    atts.forEach(function (a) {
+        if (!a) return;
+        if (a.kind !== 'text' || !a.text) {
+            loose.push({ name: a.name || '附件', kind: a.kind || 'unknown' });
+            return;
+        }
+        var base = String(a.name || '').replace(/\.[^.]+$/, '');
+        var isOut = /(^|[_\-])(out|expected|stdout|answer)$/i.test(base);
+        var key = base.replace(/[_\-]?(out|expected|stdout|answer)$/i, '') || base;
+        if (!map[key]) map[key] = { name: key, inName: '', outName: '', input: '', expected: '' };
+        if (isOut) {
+            map[key].expected = String(a.text);
+            map[key].outName = String(a.name || '');
+        } else {
+            map[key].input = String(a.text);
+            map[key].inName = String(a.name || '');
+        }
+    });
+    Object.keys(map).forEach(function (k) {
+        var p = map[k];
+        if (p.input || p.expected) pairs.push(p);
+    });
+    return { pairs: pairs, loose: loose };
+}
+
+// 任务契约：交付物类型 / 必须项 / 样例对 / 合格线 / 上一轮缺陷
+function tcTaskSpec(node, st) {
+    var u = {};
+    try { u = tcFindUploadInfo() || {}; } catch (e) { }
+    var desc = String(u.requirement || node.desc || '').replace(/\s+/g, ' ').trim();
+    var card = (u.fileCards && u.fileCards[0]) || {};
+    var rule = (card.rule || (u.rules && u.rules[0]) || {});
+    var mat = tcSpecMaterials(node, st);
+    var key = node.key || String(node.idx);
+    var kind = tcDocKind(desc + ' ' + (card.cardTitle || '') + ' ' + (node.title || ''));
+
+    var must = [];
+    desc.split(/[；;。\n]/).forEach(function (s) {
+        s = s.replace(/\s+/g, ' ').trim();
+        if (s.length >= 6 && must.indexOf(s) < 0) must.push(s);
+    });
+    if (card.cardTitle && must.indexOf('主题：' + card.cardTitle) < 0) must.push('主题：' + card.cardTitle);
+    if (rule.extensions && rule.extensions.length) {
+        must.push('交付格式：' + rule.extensions.join('/') + '，最多 ' + (rule.maxCount || 1) + ' 个文件');
+    }
+    var rep = (st.repair && st.repair[key]) || null;
+    var pl = tcPassLine();
+
+    // 评估新鲜度对齐：平台上有比 st.repair 更新的作答记录时，用最新那次
+    try {
+        var live = tcReadEval({ nodeTitle: node.title });
+        if (live && live.score != null) {
+            var liveCount = (live.count == null) ? -1 : Number(live.count);
+            var repCount = (rep && rep.count != null) ? Number(rep.count) : -1;
+            var newer = !rep || liveCount > repCount
+                || (liveCount === repCount && Math.abs(live.score - rep.score) > 0.01);
+            if (newer) {
+                rep = {
+                    score: live.score,
+                    result: live.result || (rep && rep.result) || null,
+                    recordUuid: live.recordUuid || '',
+                    count: live.count == null ? null : live.count,
+                    at: tcNow(),
+                    round: rep ? rep.round : 0,
+                    history: (rep && rep.history) || []
+                };
+                tcLog('[评估] 已切到最新一次作答的评估（第 ' + (live.count == null ? '?' : live.count)
+                    + ' 次，' + live.score + ' 分）', 'info');
+            }
+        }
+    } catch (e) { }
+
+    var prevDoc = (st.docs && st.docs[key]) || null;
+    return {
+        key: key,
+        title: node.title || u.title || '作业',
+        kind: kind,
+        requirement: desc,
+        cardTitle: card.cardTitle || '',
+        must: must.slice(0, 16),
+        pairs: mat.pairs,
+        loose: mat.loose,
+        passLine: pl.value,
+        passFrom: pl.from,
+        repair: rep,
+        thread: (st.threads && st.threads[key]) || null,
+        prevText: (prevDoc && prevDoc.text) ? String(prevDoc.text) : '',
+        evalHistory: (rep && rep.history) || []
+    };
+}
+
+// 把网站上一轮的 AI 评估整成提示词里的一段「必须逐条修复」
+function tcRepairBlock(spec) {
+    var rep = spec.repair;
+    if (!rep) return '';
+    var r = rep.result || null;
+    var lines = [];
+    lines.push('【上一轮平台 AI 评估（同一道题的上一次提交，必须逐条修复）】');
+    lines.push('分数：' + (rep.score != null ? rep.score : '—') + '（合格线 ' + spec.passLine + '）');
+    if (r && r.summaryItems && r.summaryItems.length) {
+        lines.push('分维度：' + r.summaryItems.map(function (it) {
+            return (it.title || '') + ' ' + (it.score != null ? it.score : '—');
+        }).join('；'));
+    }
+    if (r && r.disadvantages) {
+        lines.push('不足之处：');
+        String(r.disadvantages).split(/\n+/).forEach(function (ln) {
+            if (ln.trim()) lines.push(ln.trim());
+        });
+    } else if (rep.defects && rep.defects.length) {
+        lines.push('不足之处：');
+        rep.defects.forEach(function (d) { lines.push('- ' + d); });
+    }
+    if (r && r.suggestions && r.suggestions.length) {
+        lines.push('改进建议：');
+        r.suggestions.forEach(function (s, i) { lines.push((i + 1) + '. ' + String(s).trim()); });
+    }
+    if (spec.evalHistory && spec.evalHistory.length > 1) {
+        lines.push('历史轨迹：' + spec.evalHistory.map(function (h) {
+            return '第' + (h.count == null ? '?' : h.count) + '次 ' + (h.score == null ? '—' : h.score);
+        }).join(' → '));
+    }
+    lines.push('要求：新版本必须逐条解决上述问题，不得重复上一版的说法；不要声称“已通过检查”或“评分达标”。');
+    return lines.join('\n');
+}
+
+// 单次生成：题目要求 + 附件样例 + 上一轮平台评估（不再有"计划/自检"环节）
+// 代码围栏语言
+function tcFileLang(name) {
+    var n = String(name || '').toLowerCase();
+    if (/\.(c|h)$/.test(n)) return 'c';
+    if (/\.(cpp|cc|cxx|hpp)$/.test(n)) return 'cpp';
+    if (/\.py$/.test(n)) return 'python';
+    if (/\.java$/.test(n)) return 'java';
+    if (/\.(js|ts)$/.test(n)) return 'js';
+    if (/\.(md|markdown)$/.test(n)) return 'markdown';
+    if (/\.json$/.test(n)) return 'json';
+    return 'text';
+}
+
+// 用代码围栏包原文：缩进/空行原样保留；原文里已有 ``` 时自动加长围栏
+function tcFence(text, lang) {
+    var t = String(text == null ? '' : text).replace(/\r\n?/g, '\n');
+    var fence = '```';
+    while (t.indexOf(fence) >= 0) fence += '`';
+    return fence + (lang || 'text') + '\n' + t + '\n' + fence;
+}
+
+// 生成：同一节点沿用同一条对话；首轮带材料，之后带上一版输出 + 新一轮平台评估
+function tcGenDocOnce(spec) {
+    var budget = 24000;
+    var blocks = [];
+    spec.pairs.slice(0, 6).forEach(function (p) {
+        if (budget <= 500) return;
+        var inText = String(p.input || '');
+        var inPart = inText.slice(0, 2000);
+        budget -= inPart.length;
+        var blk = '### 附件：' + (p.inName || (p.name + '.txt')) + '（输入样例）\n'
+            + tcFence(inPart, tcFileLang(p.inName || p.name));
+        var expText = String(p.expected || '');
+        if (expText && budget > 500) {
+            var expPart = expText.slice(0, 3000);
+            budget -= expPart.length;
+            blk += '\n\n### 附件：' + (p.outName || (p.name + '_out.txt')) + '（期望输出）\n'
+                + tcFence(expPart, 'text');
+        }
+        blocks.push(blk);
+    });
+    var samples = blocks.join('\n\n');
+
+    var sys = '你是课程助教，直接产出可直接提交的内容。只输出内容本身，不要解释、不要开场白、不要最外层代码围栏。';
+    var rep0 = tcRepairBlock(spec);
+    var firstUser = '任务：' + spec.title
+        + '\n题目要求：' + spec.requirement
+        + (spec.must.length ? '\n必须满足：\n- ' + spec.must.slice(0, 10).join('\n- ') : '')
+        + (rep0 ? '\n\n' + rep0 : '')
+        + (samples ? '\n\n【附件原文（Markdown 代码块）】\n'
+            + '代码块内是文件原文：缩进、空行、列对齐、标点都有含义，输出必须遵循同样的格式，不要重排。\n\n'
+            + samples : '')
+        + (spec.kind === 'code'
+            ? '\n\n只输出可编译的完整源码，从 #include 开始到文件结尾。'
+            : '\n\n只输出正文，自然段，不要 Markdown 记号。');
+
+    var msgs;
+    if (spec.thread && spec.thread.length >= 2) {
+        // 同一对话：继续追加「上一版输出 + 新一轮评估」
+        msgs = spec.thread.slice();
+        var lastA = null;
+        for (var i = msgs.length - 1; i >= 0; i--) {
+            if (msgs[i].role === 'assistant') { lastA = msgs[i]; break; }
+        }
+        if (spec.prevText && (!lastA || String(lastA.content) !== spec.prevText)) {
+            msgs.push({ role: 'assistant', content: spec.prevText });
+        }
+        var repair = tcRepairBlock(spec);
+        msgs.push({
+            role: 'user',
+            content: '【同一对话的下一轮】你上一版的提交已被平台重新评估：\n'
+                + (repair || '（本次未取到新评语，请基于题目要求继续改进上一版）')
+                + '\n\n请对照你上一版的输出逐条改进，输出完整的新版内容（不是修改说明）。'
+        });
+    } else {
+        msgs = [{ role: 'system', content: sys }, { role: 'user', content: firstUser }];
+    }
+    return tcChat(msgs, { temperature: 0.5, _tag: 'doc-gen' }).then(function (t) {
+        return { text: String(t || ''), messages: msgs };
+    });
+}
+
+// 对话太长时裁剪：保留 system + 首轮 user + 最近一版 assistant + 本轮 user
+function tcTrimThread(msgs) {
+    msgs = (msgs || []).filter(Boolean);
+    var chars = 0;
+    msgs.forEach(function (m) { chars += String(m.content || '').length; });
+    if (msgs.length <= 8 && chars <= 120000) return msgs;
+    var keep = [];
+    if (msgs[0] && msgs[0].role === 'system') keep.push(msgs[0]);
+    var firstUser = null;
+    for (var i = 0; i < msgs.length; i++) {
+        if (msgs[i].role === 'user') { firstUser = msgs[i]; break; }
+    }
+    if (firstUser) keep.push(firstUser);
+    var lastA = null, lastU = null;
+    for (var j = msgs.length - 1; j >= 0; j--) {
+        if (!lastA && msgs[j].role === 'assistant') lastA = msgs[j];
+        if (!lastU && msgs[j].role === 'user') lastU = msgs[j];
+        if (lastA && lastU) break;
+    }
+    if (lastA) keep.push(lastA);
+    if (lastU && lastU !== firstUser) keep.push(lastU);
+    return keep;
+}
+
+// 生成：同一节点沿用同一条 AI 对话 → docx 管线
+function tcGenerateDocument(node, st) {
+    var spec = tcTaskSpec(node, st);
+    tcLog('[生成] ' + spec.title + ' · ' + (spec.kind === 'code' ? '代码' : '文档')
+        + ' · 样例 ' + spec.pairs.length + ' 组 · 合格线 ' + spec.passLine + '（' + spec.passFrom + '）'
+        + (spec.repair ? ' · 带上一轮平台评估（' + (spec.repair.score == null ? '—' : spec.repair.score) + ' 分）' : '')
+        + (spec.thread && spec.thread.length >= 2 ? ' · 延续同一对话（已 ' + spec.thread.length + ' 条消息）' : ' · 新对话'), 'info');
+
+    return tcGenDocOnce(spec).then(function (r) {
+        var text = r.text;
+        // 把这一轮输出并回同一条对话，下一轮继续用
+        try {
+            st.threads = st.threads || {};
+            var th = (spec.thread && spec.thread.length >= 2) ? spec.thread.slice() : (r.messages || []).slice();
+            th.push({ role: 'assistant', content: text });
+            st.threads[spec.key] = tcTrimThread(th);
+            tcSaveState(st);
+        } catch (e) { }
+        return tcDocxFromText(text, node, st, spec.kind).then(function (doc) {
+            return {
+                blob: doc.blob, raw: text, kind: spec.kind,
+                model: { title: node.title, sections: [] },
+                source: 'ai', stats: doc, spec: spec
+            };
+        });
+    });
+}
+
+// 生成 docx：对话节点走结构化报告；上传节点走「材料 + 上一轮平台评估」单次生成
 function tcMakeDocxBlob(node, st) {
     var tr = (st.transcripts && st.transcripts[node.key]) || [];
     if (node.type !== 'upload' && tr.length) {
@@ -8256,12 +9445,8 @@ function tcMakeDocxBlob(node, st) {
             return tcDocxFromModel(model, st, node);
         });
     }
-    return tcAskAiDoc(node, st).then(function (r) {
-        return tcDocxFromText(r.text, node, st, r.kind).then(function (doc) {
-            return { blob: doc.blob, raw: r.text, kind: r.kind, model: { title: node.title, sections: [] }, source: 'ai', stats: doc };
-        });
-    }).catch(function (e) {
-        tcLog('AI 写作失败（' + ((e && (e.msg || e.message)) || e) + '），用题目描述兜底', 'warn');
+    return tcGenerateDocument(node, st).catch(function (e) {
+        tcLog('生成失败（' + ((e && (e.msg || e.message)) || e) + '），用题目描述兜底', 'warn');
         var text = tcFallbackText(node);
         return tcDocxFromText(text, node, st, 'doc').then(function (doc) {
             return { blob: doc.blob, raw: text, kind: 'doc', model: { title: node.title, sections: [] }, source: 'template', stats: doc };
@@ -8336,6 +9521,69 @@ function tcPickerUploadDone() {
         var ok = s.list.some(function (i) { return i && (i.status === 2 || i.status === 3); });
         if (!busy && ok) return true;
     }
+    return false;
+}
+
+// 注入前拍快照：记住弹窗里已有的条目与「上传成功」文本，避免把上一次的结果当本次
+function tcPickerSnapshot() {
+    var s = tcPickerState();
+    var list = (s && s.list) || [];
+    var d = tcPickerDoc();
+    return {
+        keys: list.map(function (i) { return String((i && (i.fileId || i.id || i.name)) || ''); }),
+        hadSuccessText: /上传成功|上传完成/.test(((d && d.body && d.body.innerText) || ''))
+    };
+}
+
+// 「这次注入的文件」是否真的传完：新条目 + 完成态 + 无进行中；文本只在原来是空的时候才算信号
+function tcPickerNewDone(snap) {
+    var s = tcPickerState();
+    if (s && s.list) {
+        var list = s.list;
+        var busy = list.some(function (i) {
+            return i && (i.status === 1 || (i.percent != null && i.percent < 100));
+        });
+        if (busy) return false;
+        var okNew = list.some(function (i) {
+            if (!i) return false;
+            var key = String(i.fileId || i.id || i.name || '');
+            var finished = (i.status === 2 || i.status === 3) || (i.percent != null && i.percent >= 100);
+            return snap.keys.indexOf(key) < 0 && finished;
+        });
+        if (okNew) return true;
+    }
+    var d = tcPickerDoc();
+    var txt = (d && d.body && d.body.innerText) || '';
+    return !snap.hadSuccessText && /上传成功|上传完成/.test(txt);
+}
+
+// 平台侧是否真的记录了刚上传的文件（fileCards[].files 或 uploadInfo.files）
+function tcUploadRecorded(node) {
+    var u = {};
+    try { u = tcFindUploadInfo() || {}; } catch (e) { }
+    if (node && node.title && String(u.title || '').trim() !== String(node.title).trim()) return false;
+    var n = 0;
+    (u.fileCards || []).forEach(function (c) {
+        if (c && c.files) n += c.files.length;
+    });
+    if (n > 0) return true;
+    return ((u.files || []).length > 0);
+}
+
+// 上传弹窗是否真的关闭（iframe 被移除、隐藏或链页开关置 false 都算）
+function tcPickerClosed() {
+    var f = document.querySelector('iframe.file-picker-iframe') || document.querySelector('iframe[src*="attCommon"]');
+    if (!f) return true;
+    try {
+        var r = f.getBoundingClientRect();
+        if (!r || r.width < 5 || r.height < 5) return true;
+        var cs = getComputedStyle(f);
+        if (cs.display === 'none' || cs.visibility === 'hidden') return true;
+    } catch (e) { }
+    try {
+        var vm = tcHomeVm();
+        if (vm && vm.$data && vm.$data.showFilePickerIframe === false) return true;
+    } catch (e) { }
     return false;
 }
 
@@ -8614,58 +9862,167 @@ function tcUploadNode(node, entered) {
         return tcWait(function () { return tcPickerInput() ? true : false; }, 25000, 500).then(function () { return blob; });
     }).then(function (blob) {
         if (!tcPickerInput()) throw new Error('上传弹窗未就绪');
+        var snap = tcPickerSnapshot();
         if (!blob) {
             tcLog('请手动在弹窗中选择文档，脚本会继续处理上传与评估', 'warn');
             tcUpdateStatusBar('任务链：请手动选择文档（选择后自动继续）');
-            return 'manual';
+            return { mode: 'manual', snap: snap };
         }
-        return tcInjectDoc(node, st, blob);
-    }).then(function (mode) {
+        return tcInjectDoc(node, st, blob).then(function (mode) { return { mode: mode, snap: snap }; });
+    }).then(function (r) {
+        var mode = r.mode, snap = r.snap;
         var timeout = mode === 'manual' ? 600000 : 120000;
         tcBusyStart('等待文件上传…');
-        return tcWait(function () { return tcPickerUploadDone(); }, timeout, 1000).then(function (ok) {
+        var hits = 0, t0 = tcNow();
+        // 连续两次「新条目已完成」才算上传完，避免把上一次残留/刚开始的进度当成功
+        return tcWait(function () {
+            var ok = tcPickerNewDone(snap);
+            hits = ok ? hits + 1 : 0;
+            if (hits === 1) tcLog('[上传] 检测到完成态，再确认一次…', 'muted');
+            return hits >= 2;
+        }, timeout, 1000).then(function (ok) {
             tcBusyStop();
             if (!ok) {
                 var s2 = tcPickerState();
-                tcLog('上传未完成（showUploadBtn=' + (s2 ? s2.showUploadBtn : '?') + '，列表=' + (s2 ? s2.uploads : '?') + '），请手动检查弹窗', 'error');
+                var list2 = (s2 && s2.list) || [];
+                var busyN = list2.filter(function (i) {
+                    return i && (i.status === 1 || (i.percent != null && i.percent < 100));
+                }).length;
+                var pct = (list2.length && list2[0].percent != null) ? list2[0].percent : '?';
+                tcLog('上传未完成（列表=' + (s2 ? s2.uploads : '?') + '，进行中=' + busyN + '，percent=' + pct + '），请手动检查弹窗', 'error');
                 throw new Error('上传未完成');
             }
-            tcLog('文件已上传成功', 'success');
+            tcLog('文件已上传成功（' + ((tcNow() - t0) / 1000).toFixed(1) + 's）', 'success');
+            return true;
+        });
+    }).then(function () {
+        // 等「确定」可用 → 点击 → 必须看到弹窗关闭；不关就重试一次，仍不关则报错，绝不带着半截文件去评估
+        return tcWait(function () {
             var pd = tcPickerDoc();
-            var sure = pd && pd.querySelector('p.sure');
-            if (sure) { tcClick(sure); tcLog('已点击「确定」'); }
-            return tcSleep(2000);
+            var b = pd && pd.querySelector('p.sure');
+            if (!b) return false;
+            var dis = /disabled/i.test(String(b.className)) || b.getAttribute('aria-disabled') === 'true';
+            return !dis;
+        }, 10000, 300).then(function () {
+            var pd = tcPickerDoc();
+            var b = pd && pd.querySelector('p.sure');
+            if (!b) throw new Error('未找到「确定」按钮');
+            tcClick(b);
+            tcLog('已点击「确定」');
+            return tcWait(function () { return tcPickerClosed(); }, 8000, 400);
+        }).then(function (closed) {
+            if (closed) { tcLog('[上传] 弹窗已关闭', 'muted'); return true; }
+            tcLog('[上传] 点了「确定」但弹窗仍在，可能文件尚未落库；再点一次', 'warn');
+            var pd2 = tcPickerDoc();
+            var b2 = pd2 && pd2.querySelector('p.sure');
+            if (b2) tcClick(b2);
+            return tcWait(function () { return tcPickerClosed(); }, 8000, 400);
+        }).then(function (closed2) {
+            if (!closed2) throw new Error('上传弹窗未关闭（文件可能未真正上传）');
+            return tcSleep(1200);
+        });
+    }).then(function () {
+        // 弹窗关了不等于平台记住了文件：核对 uploadInfo 里的文件记录
+        tcBusyStart('核对上传记录…');
+        return tcWait(function () { return tcUploadRecorded(node); }, 12000, 800).then(function (ok) {
+            tcBusyStop();
+            var u = {};
+            try { u = tcFindUploadInfo() || {}; } catch (e) { }
+            var names = [];
+            (u.fileCards || []).forEach(function (c) {
+                (c && c.files || []).forEach(function (f) { names.push(f.name || '?'); });
+            });
+            (u.files || []).forEach(function (f) { names.push(f.name || '?'); });
+            if (!ok) {
+                tcLog('[上传] 平台侧没有文件记录（fileCards.files=0），停止，不点开始评估', 'error');
+                throw new Error('平台未记录上传文件');
+            }
+            tcLog('[上传] 平台已记录文件：' + names.join('、') + '（' + names.length + ' 个）', 'success');
+            return true;
         });
     }).then(function () {
         return tcWait(function () {
             return tcFindByText(document, '开始评估', { selector: 'button,div,span,a' }) ? true : false;
         }, 20000, 500);
-    }).then(function (ok) {
+    }).then(function () {
+        // 点之前先取快照：此刻 answerScore 里是上一次的分，绝不能当本轮结果
+        var snap = tcEvalSnapshot();
+        var baseScore = tcReadEval().score;
         tcBusyStart('等待评估结果…');
         var evalBtn = tcFindByText(document, '开始评估', { selector: 'button,div,span,a' });
-        if (evalBtn) { tcClick(evalBtn); tcLog('已点击「开始评估」'); }
-        else tcLog('未找到「开始评估」按钮，仍尝试读取评分', 'warn');
-        return tcWait(function () {
-            var t = document.body.innerText || '';
-            return /得分\s*\d{1,3}\s*分/.test(t);
-        }, 240000, 3000).then(function (ok2) {
-            tcBusyStop();
-            var m = (document.body.innerText || '').match(/得分\s*(\d{1,3})\s*分/);
-            var score = m ? parseInt(m[1], 10) : null;
-            if (score != null) {
-                tcLog('上传节点评分：' + score + ' 分', 'success');
-                var nk = node.key || String(node.idx);
-                st.nodeScores = st.nodeScores || {};
-                st.nodeScores[nk] = score;
-                (st.nodes || []).forEach(function (n) { if (n.key === nk) { n.score = score; n.done = score >= tcCfg('taskChainMinScore', 61); } });
-            } else {
-                tcLog('未解析到评分，请在页面确认', 'warn');
-            }
-            st.phase = 'advance';
-            st.updatedAt = tcNow();
-            tcSaveState(st);
-            return score;
+        if (evalBtn) {
+            tcClick(evalBtn);
+            tcLog('已点击「开始评估」（页面当前 ' + (baseScore == null ? '无' : baseScore + ' 分') + ' 是此前成绩，等新结果）');
+        } else {
+            tcLog('未找到「开始评估」按钮，仍尝试读取评分', 'warn');
+        }
+        return tcWaitEvalDone(snap).then(function (done) {
+            if (!done) tcLog('[评估] 240s 内未看到评估流结束，按当前页面结果处理', 'warn');
+            return tcWaitEvalResult(baseScore).then(function () { return snap; });
         });
+    }).then(function (snap) {
+        tcBusyStop();
+        var ev = tcReadEval();
+        var score = ev.score;
+        var fresh = tcEvalFresh(ev, snap);
+        var nk = node.key || String(node.idx);
+        var pl = tcPassLine();
+        var pass = pl.value;
+
+        if (score == null) {
+            tcLog('评估结果未返回，请在页面确认', 'warn');
+        } else if (!fresh) {
+            // 拿到的还是上一次评估的结果（流没跑完 / 评估失败）→ 不写分数、不记重做
+            tcLog('[评估] 仍是上一次的成绩 ' + score + '，本轮验收跳过，请人工确认', 'warn');
+        } else {
+            tcLog('[评估] 完成：新成绩 ' + score + ' 分' + (ev.recordUuid ? '（记录 ' + String(ev.recordUuid).slice(0, 8) + '）' : ''), 'success');
+            st.nodeScores = st.nodeScores || {};
+            st.scoreHistory = st.scoreHistory || {};
+            st.scoreHistory[nk] = st.scoreHistory[nk] || [];
+            st.nodeScores[nk] = score;
+            st.scoreHistory[nk].push(score);
+            (st.nodes || []).forEach(function (n) {
+                if (n.key === nk) { n.score = score; n.done = score >= pass; }
+            });
+        }
+
+        if (score == null || !fresh) {
+            // 没有可信的新成绩：不改 phase，交给链循环下一轮重试/停下
+        } else if (score < pass) {
+            // 验收失败：把平台评语存成下一轮的硬约束，重练时带着改
+            st.repair = st.repair || {};
+            var prev = st.repair[nk];
+            var round = prev ? (prev.round + 1) : 0;
+            var hist = (prev && prev.history) ? prev.history.slice() : [];
+            hist.push({
+                score: score,
+                count: (ev.count == null ? null : ev.count),
+                suggestions: (ev.result && ev.result.suggestions) || [],
+                at: tcNow()
+            });
+            st.repair[nk] = {
+                round: round, score: score, at: tcNow(),
+                result: ev.result || null,
+                recordUuid: ev.recordUuid || '',
+                count: ev.count == null ? null : ev.count,
+                history: hist.slice(-8),
+                defects: tcEvalDefects(ev.result, score),
+                rubric: (ev.result && ev.result.summaryItems) || []
+            };
+            tcLog('[验收] ' + score + ' < ' + pass + '（合格线来自' + pl.from + '，第 '
+                + (ev.count == null ? '?' : ev.count) + ' 次作答），记录 '
+                + st.repair[nk].defects.length + ' 条缺陷，下一轮按评语重做', 'warn');
+        } else {
+            if (st.repair) delete st.repair[nk];
+            if (st.threads) delete st.threads[nk];
+            tcLog('[验收] ' + score + ' ≥ ' + pass + '（合格线来自' + pl.from + '），通过', 'success');
+        }
+
+        // 只有拿到可信的新成绩才推进；未达标记为 retry，刷新后要用户确认才继续
+        if (score != null && fresh) st.phase = (score >= pass) ? 'advance' : 'retry';
+        st.updatedAt = tcNow();
+        tcSaveState(st);
+        return score;
     });
 }
 
@@ -8700,6 +10057,203 @@ function tcDetectInsideNode() {
     return null;
 }
 
+// 选下一个要处理的节点；blocked = 有节点不达标 —— 不许越过它
+// reason='advanced'：平台已按自己的线放行、卡片没有重练入口，但没达到用户的合格分
+function tcPickNode(nodes, st, maxRetry, pass) {
+    st = st || {};
+    if (pass == null) pass = (typeof tcPassLine === 'function') ? tcPassLine().value : 61;
+    for (var i = 0; i < (nodes || []).length; i++) {
+        var nd = nodes[i];
+        if (!nd) continue;
+        var key = nd.key || String(nd.idx);
+        if (nd.done) continue;
+
+        var sc = (nd.score != null) ? nd.score : ((st.nodeScores || {})[key]);
+
+        // 跳过/结束记录必须与「当时的分数」绑定：重做后分数变了，旧记录自动作废
+        var sk = (st.skipped && st.skipped[key]) || (st.dismissed && st.dismissed[key]) || null;
+        if (sk) {
+            var skScore = (typeof sk === 'object') ? sk.score : null;
+            var same = (skScore != null && sc != null && Math.abs(skScore - sc) < 0.01);
+            if (skScore == null) {
+                if (st.skipped) delete st.skipped[key];
+                if (st.dismissed) delete st.dismissed[key];
+                if (typeof tcLog === 'function') tcLog('[链] 跳过/忽略记录无分数依据（旧版本），已作废：' + nd.title, 'warn');
+            } else if (same) {
+                continue;                       // 还是同一次的分数，维持跳过
+            } else {
+                if (st.skipped) delete st.skipped[key];
+                if (st.dismissed) delete st.dismissed[key];
+                if (typeof tcLog === 'function') tcLog('[链] 跳过/忽略记录已失效（' + skScore + ' → ' + sc + '），重新判定：' + nd.title, 'info');
+            }
+        }
+
+        if (nd.platformDone && sc != null && sc < pass) {
+            return { node: null, blocked: nd, reason: 'advanced', score: sc };
+        }
+        if (!(nd.enter || nd.retry)) continue;
+        var att = (st.attempts && st.attempts[key]) || 0;
+        if (!nd.enter && nd.retry && att >= maxRetry) {
+            return { node: null, blocked: nd, reason: 'retry', score: sc };
+        }
+        return { node: nd, blocked: null };
+    }
+    return { node: null, blocked: null };
+}
+
+// 不达标：停下来让用户选（再练 / 跳过 / 结束），不自动跳过
+// reason='advanced' 时平台已放行、没有重练入口，只能选择接受或结束
+// 记录网站自己的 AI 评估（不足 + 改进建议）到 st.repair，供下一轮生成逐条修复。
+// 不跳转：跳转会把任务链页面顶掉（buildRetryEvaluateUrl 指向的是"重新评估"页，不是重练页）。
+function tcCaptureEvalForRepair(node, st) {
+    var key = node.key || String(node.idx);
+    // 按「这个节点的标题」读，避免 selectedTaskId 已切走时判成未就绪、退回旧分
+    var ev = tcReadEval({ nodeTitle: node.title });
+    if (ev.score == null) {
+        // 读不到就明确失败，绝不拿 st.nodeScores 的旧分 + 空评语冒充一次记录
+        tcLog('[评估] 读取失败（' + (ev.notReady ? '页面数据未就绪' : (ev.streaming ? '评估仍在进行' : '无已评估记录'))
+            + '），本次不写入评语；请稍后再点「重做本节点」', 'error');
+        tcUpdateStatusBar('任务链：评估读取失败，请重试「重做本节点」');
+        _tcRunning = false;
+        return;
+    }
+    var prev = (st.repair && st.repair[key]) || null;
+    var round = prev ? (prev.round + 1) : 0;
+    var score = ev.score;
+    var result = ev.result || null;
+
+    st.repair = st.repair || {};
+    var hist = (prev && prev.history) ? prev.history.slice() : [];
+    hist.push({
+        score: score,
+        count: (ev.count == null ? null : ev.count),
+        suggestions: (result && result.suggestions) || [],
+        at: tcNow()
+    });
+    st.repair[key] = {
+        round: round,
+        score: score,
+        at: tcNow(),
+        result: result,
+        recordUuid: ev.recordUuid || '',
+        count: ev.count == null ? null : ev.count,
+        history: hist.slice(-8),
+        defects: tcEvalDefects(result, score)
+    };
+    if (st.blocked) delete st.blocked[key];
+    if (st.dismissed) delete st.dismissed[key];
+    st.attempts = st.attempts || {};
+    st.attempts[key] = 0;
+    st.phase = 'idle';
+    st.updatedAt = tcNow();
+    tcSaveState(st);
+
+    var dims = (result && result.summaryItems || []).map(function (it) {
+        return (it.title || '') + (it.score != null ? ' ' + it.score : '');
+    }).join(' / ');
+    var disN = 0;
+    if (result && result.disadvantages) {
+        disN = String(result.disadvantages).split(/\n+/).filter(function (x) { return x.trim(); }).length;
+    }
+    var sugN = (result && result.suggestions) ? result.suggestions.length : 0;
+
+    tcLog('[链] 已记录平台 AI 评估：' + (score == null ? '—' : score) + ' 分'
+        + '（第 ' + (ev.count == null ? '?' : ev.count) + ' 次作答）'
+        + (dims ? '（' + dims + '）' : '')
+        + '，' + disN + ' 条不足、' + sugN + ' 条建议'
+        + (round ? '（第 ' + (round + 1) + ' 次重做）' : ''), 'success');
+
+    // 开发者调试：把网站评估原样留一份
+    tcDbgPush('site-eval', {
+        node: node.title,
+        score: score,
+        dimensions: (result && result.summaryItems) || [],
+        disadvantages: (result && result.disadvantages) || '',
+        suggestions: (result && result.suggestions) || [],
+        raw: result
+    });
+
+    // 只提示、不动页面：自动点「重新练习」会把当前的作答/上传记录重置掉
+    tcLog('[链] 请在页面点「重新练习」，完成后刷新本页；下一轮生成会带上这份评估逐条修复（脚本不会自动点）', 'warn');
+    tcUpdateStatusBar('任务链：请手动点「重新练习」后刷新本页（已记录平台评估）');
+
+    _tcRunning = false;
+    tcLockRelease();
+}
+
+function tcStopBlocked(node, st, maxRetry, reason, scoreIn) {
+    var key = node.key || String(node.idx);
+    var att = (st.attempts && st.attempts[key]) || 0;
+    var score = (scoreIn != null) ? scoreIn
+        : ((node.score != null) ? node.score : ((st.nodeScores || {})[key]));
+    var pass = tcPassLine();
+    var advanced = reason === 'advanced';
+    var pageLine = tcPagePassLine();
+
+    st.blocked = st.blocked || {};
+    st.blocked[key] = {
+        score: score == null ? null : score, pass: pass.value,
+        attempts: att, reason: reason || 'retry', at: tcNow()
+    };
+    st.phase = 'blocked';
+    st.updatedAt = tcNow();
+    tcSaveState(st);
+
+    _tcRunning = false;
+    tcLockRelease();
+
+    var note;
+    if (advanced) {
+        note = '「' + node.title + '」得分 ' + (score == null ? '—' : score) + ' < 你的合格分 ' + pass.value
+            + '，但平台已按' + (pageLine == null ? '自己的合格线' : ' ' + pageLine + ' 分') + '放行（卡片没有重练入口），'
+            + '已解锁后续节点。脚本停在这里，不会自动进入后面的节点。';
+    } else {
+        note = '「' + node.title + '」得分 ' + (score == null ? '—' : score) + ' < ' + pass.value
+            + '，重练 ' + att + '/' + maxRetry + ' 已用完。按你的选择继续，脚本不会自己越过它。';
+    }
+
+    tcLog('[链] ' + (advanced ? '平台已放行但未达你的合格分' : '重练次数已用完') + '：'
+        + node.title + ' ' + (score == null ? '未达标' : score + ' < ' + pass.value)
+        + ' → 停止，等你选择（不自动跳过）', 'error');
+    tcUpdateStatusBar('任务链：已停止 · 「' + node.title + '」'
+        + (score == null ? '未达标' : score + ' < ' + pass.value));
+
+    return tcPanelAsk('blocked', {
+        node: node, score: score, pass: pass.value, note: note, reason: reason || 'retry',
+        attempts: att, maxRetry: maxRetry, nodes: [node], st: st
+    }).then(function (d) {
+        if (d && d.action === 'retry') {
+            st.attempts = st.attempts || {};
+            st.attempts[key] = 0;
+            delete st.blocked[key];
+            st.phase = 'idle';
+            tcSaveState(st);
+            tcLog('[链] 按你的选择再练一次（重练计数已清零）', 'warn');
+            tcChainLoop('chain');
+        } else if (d && d.action === 'retry-vm') {
+            // 记录网站自己的 AI 评估（不足 + 建议），不跳转；由用户手动点「重新练习」
+            tcCaptureEvalForRepair(node, st);
+        } else if (d && d.action === 'skip') {
+            st.skipped = st.skipped || {};
+            // 绑定本次分数：以后重做导致分数变化时，这条跳过会自动失效
+            st.skipped[key] = { score: (score == null ? null : score), pass: pass.value, at: tcNow() };
+            st.phase = 'idle';
+            tcSaveState(st);
+            tcLog('[链] 按你的选择' + (advanced ? '接受该分数' : '跳过') + '「' + node.title + '」' + (advanced ? '并继续' : '，继续后面的节点'), 'warn');
+            tcChainLoop('chain');
+        } else {
+            // 「结束」要记住这次决定：刷新后不再弹同一张卡，否则就是死循环
+            st.dismissed = st.dismissed || {};
+            st.dismissed[key] = { score: (score == null ? null : score), pass: pass.value, at: tcNow() };
+            st.phase = 'idle';
+            tcSaveState(st);
+            tcLog('[链] 已结束并记住：节点「' + node.title + '」未达标（'
+                + (score == null ? '—' : score) + ' < ' + pass.value
+                + '），刷新后不再提示；可点状态条「重新检测未达标节点」恢复', 'warn');
+        }
+    });
+}
+
 function tcChainLoop(mode) {
     if (_tcRunning) return;
     _tcRunning = true;
@@ -8714,6 +10268,10 @@ function tcChainLoop(mode) {
             st.phase = 'done';
             tcSaveState(st);
             tcUpdateStatusBar('任务链：已完成（共发现 ' + ((st.nodes || []).length) + ' 个节点）');
+            var skippedNames = Object.keys(st.skipped || {});
+            if (skippedNames.length) {
+                tcLog('[链] 注意：有 ' + skippedNames.length + ' 个未达标节点被跳过（' + skippedNames.join('、') + '）', 'warn');
+            }
             _tcRunning = false;
             tcLockRelease();
             return;
@@ -8731,16 +10289,33 @@ function tcChainLoop(mode) {
 
         var cur = null;
         var maxRetry = tcCfg('taskChainMaxRetry', 2);
-        for (var i = 0; i < nodes.length; i++) {
-            var nd = nodes[i];
-            if (nd.done || !(nd.enter || nd.retry)) continue;
-            var att = (st.attempts && st.attempts[nd.key || String(nd.idx)]) || 0;
-            if (!nd.enter && nd.retry && att >= maxRetry) {
-                tcLog('节点「' + nd.title + '」重练已达上限（' + att + ' 次），跳过', 'warn');
-                continue;
+        var passInfo = tcPassLine();
+
+        // 平台把节点重置成「可重新进入」时，旧的跳过/重练计数必须一并清掉，
+        // 否则重做后会被上一轮的记录挡住（enter=false 的“重新练习”状态不清，计数仍有效）
+        var stChanged = false;
+        nodes.forEach(function (n) {
+            var k = n.key || String(n.idx);
+            if (n.enter && !n.platformDone && !n.done) {
+                var had = false;
+                if (st.skipped && st.skipped[k]) { delete st.skipped[k]; had = true; }
+                if (st.dismissed && st.dismissed[k]) { delete st.dismissed[k]; had = true; }
+                if (st.attempts && st.attempts[k]) { delete st.attempts[k]; had = true; }
+                if (st.blocked && st.blocked[k]) { delete st.blocked[k]; had = true; }
+                if (had) {
+                    stChanged = true;
+                    tcLog('[链] 节点「' + n.title + '」已重置，清除旧的跳过/重试记录', 'info');
+                }
             }
-            cur = nd;
-            break;
+        });
+        if (stChanged) tcSaveState(st);
+
+        var pick = tcPickNode(nodes, st, maxRetry, passInfo.value);
+        tcSaveState(st);                  // tcPickNode 可能顺手作废了过期跳过
+        cur = pick.node;
+        if (pick.blocked) {
+            // 不达标（重练用完 / 平台已放行但没到你的线）：必须停下来问，绝不越过
+            return tcStopBlocked(pick.blocked, st, maxRetry, pick.reason, pick.score);
         }
         if (cur && !cur.enter && cur.retry) {
             st.attempts = st.attempts || {};
@@ -8813,6 +10388,15 @@ function tcUpdateStatusBar(text) {
         if (el) el.textContent = text;
         var bar = document.getElementById('tcBar');
         if (bar) bar.style.display = 'block';
+        // 有「跳过/忽略/阻断」记录时才露出「重新检测」入口
+        var re = document.getElementById('tcRecheckBtn');
+        if (re) {
+            var st = tcState();
+            var n = Object.keys(st.skipped || {}).length
+                + Object.keys(st.dismissed || {}).length
+                + Object.keys(st.blocked || {}).length;
+            re.style.display = n > 0 ? 'inline-block' : 'none';
+        }
     } catch (e) { }
 }
 
@@ -8913,7 +10497,8 @@ function tcEnsureControls() {
         wrap.style.cssText = 'display:none;margin:8px 0;padding:8px 10px;border-radius:12px;background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.25);font-size:12px;color:#1e3a8a;';
         wrap.innerHTML = '<div id="tcBarText" style="margin-bottom:6px;">任务链：待启动</div>'
             + '<button id="tcPauseBtn" style="margin-right:6px;padding:4px 10px;border-radius:9px;border:1px solid rgba(37,99,235,.35);background:#fff;color:#1e3a8a;cursor:pointer;font-size:12px;">⏸ 暂停</button>'
-            + '<button id="tcStopBtn" style="padding:4px 10px;border-radius:9px;border:1px solid rgba(220,38,38,.35);background:#fff;color:#b91c1c;cursor:pointer;font-size:12px;">⏹ 停止</button>';
+            + '<button id="tcStopBtn" style="margin-right:6px;padding:4px 10px;border-radius:9px;border:1px solid rgba(220,38,38,.35);background:#fff;color:#b91c1c;cursor:pointer;font-size:12px;">⏹ 停止</button>'
+            + '<button id="tcRecheckBtn" style="display:none;padding:4px 10px;border-radius:9px;border:1px solid rgba(202,138,4,.45);background:#fff;color:#a16207;cursor:pointer;font-size:12px;">↻ 重新检测未达标节点</button>';
         // 状态条放在日志区正上方（设置区之后），不再贴到浮窗顶部
         var logEl = document.getElementById('ne-21log');
         if (logEl && logEl.parentNode === box) box.insertBefore(wrap, logEl);
@@ -8928,6 +10513,20 @@ function tcEnsureControls() {
             tcBusyReset();
             tcLockRelease();
             tcLog('已停止任务链，可刷新页面重新开始', 'warn');
+        });
+        document.getElementById('tcRecheckBtn').addEventListener('click', function () {
+            // 清空「已跳过 / 已结束」与重练计数，重新跑一遍未达标判定
+            var st = tcState();
+            var n = 0;
+            ['skipped', 'dismissed', 'blocked'].forEach(function (k) {
+                if (st[k]) { n += Object.keys(st[k]).length; st[k] = {}; }
+            });
+            st.attempts = {};
+            st.phase = 'idle';
+            tcSaveState(st);
+            tcLog('[链] 已清空 ' + n + ' 条跳过/忽略记录，重新检测未达标节点', 'warn');
+            tcUpdateStatusBar('任务链：重新检测中…');
+            tcChainLoop('chain');
         });
         wrap.style.display = 'block';
     } catch (e) { }
@@ -8967,8 +10566,8 @@ function tcBoot(mode) {
 
         var ask;
         if (pending && st.phase === 'advance') {
-            // 刚完成一个节点、刷新后继续下一个：不再打扰
-            tcLog('继续执行下一个节点', 'info');
+            // 刚完成一个节点、刷新后继续下一个：不再打扰（只有达标才会是 advance）
+            tcLog('继续执行任务链（上次节点已评估达标）', 'info');
             ask = Promise.resolve({ action: 'chain' });
         } else if (pending && !remembered) {
             ask = tcPanelAsk('resume', { nodes: nodes, st: st }).then(function (d) {
