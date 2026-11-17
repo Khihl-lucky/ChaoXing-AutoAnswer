@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                AI学习通助手（DeepSeek 原生多模态）
 // @version             2.7.0
-// @description         【更新测试用：2.7.0 → 2.8.0，勿作日常使用】基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.8.0 任务链改为「同一对话重做 + 平台评估驱动改进」，附件按 Markdown 原文注入、上传/评估双校验，新增开发者调试面板，用户自行填写API密钥免费使用
+// @description         【更新测试用：2.7.0 → 2.8.1，勿作日常使用】基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.8.1 修复PPT页面误报「未完成任务点」、任务链同一对话重做与平台评估驱动改进，附件按 Markdown 原文注入、上传/评估双校验，新增开发者调试面板，用户自行填写API密钥免费使用
 // @author              Khihl & DeepSeek Harness
 // @originalAuthor      Ne-21
 // @match               *://*.chaoxing.com/*
@@ -272,9 +272,7 @@ if (_l.hostname == 'i.mooc.chaoxing.com' || _l.hostname == "i.chaoxing.com") {
                 if (taskType === 'document' || taskType === 'read') {
                     try {
                         var domEl = _domList && _domList[0]
-                        if (domEl && domEl.length > 0 && domEl[0].parentElement) {
-                            domEl[0].parentElement.classList.add('ans-job-finished')
-                        }
+                        markTaskFinished(domEl && domEl[0])
                     } catch (_) { /* ignore */ }
                 }
                 switchMission()
@@ -1620,7 +1618,7 @@ function showBox() {
 
     // ===== 更新检查（v2.7.0） =====
     var NE21_LOCAL_VER = (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) || '2.8.0';
-    var NE21_BUILD = '20261028T1845';
+    var NE21_BUILD = '20261117T2120';
     try { window.__ne21Ver = NE21_LOCAL_VER; window.__ne21Build = NE21_BUILD; } catch (e) { }
     var NE21_THROTTLE = 30 * 60 * 1000;   // 自动检查最小间隔：30 分钟
     var NE21_RAW_URL = 'https://raw.githubusercontent.com/Khihl-lucky/ChaoXing-AutoAnswer/main/chaoxing-autoanswer.user.js';
@@ -2090,38 +2088,58 @@ function autoLogin() {
 }
 
 // 检测当前页面是否还有未完成的任务点（DOM 层面未标记 ans-job-finished）
+// 把「已完成」标记打到任务容器上（.ans-attach-ct），而不是 iframe 的直接父节点。
+// 学习通页面里 iframe 外面常还有一层 wrapper，直接 parentElement 打标会让
+// hasUnfinishedTaskPoints 永远看不到这个类，从而误报"还有未完成任务点"。
+function markTaskFinished(el) {
+    try {
+        var node = el && el.jquery ? el[0] : el;
+        if (!node) return;
+        var box = node.closest ? node.closest('.ans-attach-ct') : null;
+        if (!box && node.parentElement) {
+            box = node.parentElement.closest ? node.parentElement.closest('.ans-attach-ct') : node.parentElement;
+        }
+        if (box) box.classList.add('ans-job-finished');
+    } catch (e) { /* ignore */ }
+}
+
 function hasUnfinishedTaskPoints() {
     try {
         var containers = document.querySelectorAll('.wrap .ans-cc .ans-attach-ct');
         if (!containers || containers.length === 0) return false;
-        // 只检测视频和测验类任务点（PPT/文档类不参与检测，避免页面切换时无限循环）
+        // 只检测视频/测验/直播类任务点（PPT、文档、阅读不参与，避免页面切换时误报）
         var taskTypes = ['video', 'workid', 'live', 'insertaudio'];
         var rawParams = getTaskParams();
         if (!rawParams || rawParams === '$mArg') return false;
         var params = $.parseJSON(rawParams);
         if (!params || !params['attachments']) return false;
         var attachments = params['attachments'];
+
+        // 容器与 attachments 是「按顺序一一对应」的，cIdx 必须对每个附件都前进；
+        // 之前只在被检测的类型上前进，页面里只要有 PPT/文档排在前面，后面的视频
+        // 就会去查前面那个文档容器，永远没有 ans-job-finished → 误报未完成。
         var cIdx = 0;
         for (var i = 0; i < attachments.length; i++) {
-            var type = attachments[i]['type'];
-            if (type === undefined && attachments[i]['property']) {
-                type = attachments[i]['property']['module'];
+            var att = attachments[i];
+            var container = containers[cIdx];
+            if (!container) break;
+            var iframes = container.querySelectorAll('iframe');
+            var step = Math.max(iframes.length, 1);
+
+            var type = att['type'];
+            if (type === undefined && att['property']) type = att['property']['module'];
+
+            // job 字段不存在 = 平台判定该任务点已完成（各 misson 也是据此跳过的）。
+            // 这种情况下无论如何都不该算"未完成"。
+            var pending = att['job'] !== undefined && att['job'] !== null;
+
+            if (taskTypes.indexOf(type) !== -1
+                && pending
+                && !(isTaskMode() && att['jobid'] == undefined)
+                && !container.classList.contains('ans-job-finished')) {
+                return true;
             }
-            // 只检查需要处理的任务类型
-            if (taskTypes.indexOf(type) === -1) continue;
-            if (cIdx < containers.length) {
-                var container = containers[cIdx];
-                var iframes = container.querySelectorAll('iframe');
-                cIdx += Math.max(iframes.length, 1);
-                // 任务模式下，没有 jobid 的任务会被各 misson 函数跳过，不应计入未完成
-                if (isTaskMode() && attachments[i]['jobid'] == undefined) continue;
-                // 讨论区任务不参与未完成检测（服务端不会实时刷新 ans-job-finished）
-                if (type === 'insertbbs') continue;
-                // DOM 层面未标记完成 → 视为未完成
-                if (!container.classList.contains('ans-job-finished')) {
-                    return true;
-                }
-            }
+            cIdx += step;
         }
     } catch (e) { /* ignore */ }
     return false;
@@ -2325,6 +2343,11 @@ function missonStart() {
         _type = _mlist[0]['property']["module"]
     }
     var _taskName = _task.property && (_task.property.name || _task.property.title) || '未知'
+    // 平台已判定完成（无 job）或任务模式下非任务点：先把容器标记完成，
+    // 避免 toNext → hasUnfinishedTaskPoints 再次误报（PPT 页面最常见）
+    if (_task['job'] == undefined || (isTaskMode() && _task['jobid'] == undefined)) {
+        markTaskFinished(_dom)
+    }
     switch (_type) {
         case "video":
             if (_mlist[0]['property']['module'] == 'insertvideo') {
@@ -2614,7 +2637,8 @@ function checkJobFinished(iframeDom, taskName, attempt, maxAttempts) {
     setTimeout(function() {
         try {
             var parentEl = iframeDom.parentElement;
-            if (parentEl && parentEl.classList.contains('ans-job-finished')) {
+            var box = (iframeDom.closest && iframeDom.closest('.ans-attach-ct')) || parentEl;
+            if (box && box.classList.contains('ans-job-finished')) {
                 logger(_logP.VID + '[完成] ' + taskName + ' 任务点已完成。', 'success');
                 switchMission();
             } else {
@@ -2867,9 +2891,7 @@ function missonDoucument(dom, obj) {
     // 任务完成后刷新 DOM 状态：标记 ans-job-finished
     function markDomFinished() {
         try {
-            if (docIframe && docIframe.parentElement) {
-                docIframe.parentElement.classList.add('ans-job-finished')
-            }
+            markTaskFinished(docIframe);
         } catch (_) { /* ignore */ }
     }
 
@@ -3034,9 +3056,7 @@ function missonRead(dom, obj) {
     // 任务完成后刷新 DOM 状态
     function markDomFinished() {
         try {
-            if (readIframe && readIframe.parentElement) {
-                readIframe.parentElement.classList.add('ans-job-finished')
-            }
+            markTaskFinished(readIframe);
         } catch (_) { /* ignore */ }
     }
 
