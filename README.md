@@ -245,26 +245,6 @@
 
 打开超星学习通课程页面，脚本会自动检测任务点并开始处理。日志会实时显示在浮窗面板中。
 
-## 更新系统测试
-
-仓库里额外放了一份**低版本**脚本，专门用来验证「安装旧版 → 油猴检查更新 → 升级到新版」这条链路：
-
-| 文件 | 版本 | 用途 |
-|---|---|---|
-| `chaoxing-autoanswer.user.js` | 2.8.0 | 日常安装的主脚本 |
-| `chaoxing-autoanswer.update-test.user.js` | **2.7.0** | 仅用于测试更新，`@updateURL` 指向主脚本 |
-
-测试步骤：
-
-1. 先安装低版本（与主脚本 `@name` 相同，会覆盖安装同一个脚本）：
-   `https://raw.githubusercontent.com/Khihl-lucky/ChaoXing-AutoAnswer/main/chaoxing-autoanswer.update-test.user.js`
-2. 打开任意学习通页面，浮窗标题栏的版本号显示 `v2.7.0`；
-3. 点击版本号（或 Tampermonkey 面板里的「检查更新」）→ 应提示 **发现新版本 v2.8.0**；
-4. 点「立即更新」，油猴拉取主脚本并覆盖安装，版本号变为 `v2.8.0`；
-5. 若想复测，卸载后重新安装低版本即可。
-
-> 注意：两个文件 `@name` 相同，正常安装时会互相覆盖，不会并存；测试完请重新安装主脚本。
-
 ## 配置项说明
 
 ### DeepSeek 配置
@@ -351,9 +331,8 @@
 
 ```
 学习通脚本/
-├── chaoxing-autoanswer.user.js             # 主脚本（~10700行，油猴可直接安装）
-├── chaoxing-autoanswer.update-test.user.js # 更新系统测试用（@version 2.7.0，仅用于验证升级流程）
-└── README.md                               # 项目文档
+├── chaoxing-autoanswer.user.js   # 主脚本（~10700行，油猴可直接安装）
+└── README.md                     # 项目文档
 ```
 
 ## 技术亮点
