@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                AI学习通助手（DeepSeek 原生多模态）
-// @version             2.8.1
-// @description         基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.8.1 修复PPT页面误报「未完成任务点」、任务链同一对话重做与平台评估驱动改进，附件按 Markdown 原文注入、上传/评估双校验，新增开发者调试面板，用户自行填写API密钥免费使用
+// @version             2.8.2
+// @description         基于DeepSeek的学习通自动答题助手，deepseek-flash原生视觉识别图片题；v2.8.2 修复阅读理解/完形填空复合题被整块跳过、增加提交前未作答守卫；任务链同一对话重做与平台评估驱动，附件按 Markdown 原文注入，用户自行填写API密钥免费使用
 // @author              Khihl & DeepSeek Harness
 // @originalAuthor      Ne-21
 // @match               *://*.chaoxing.com/*
@@ -1618,7 +1618,7 @@ function showBox() {
 
     // ===== 更新检查（v2.7.0） =====
     var NE21_LOCAL_VER = (typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) || '2.8.0';
-    var NE21_BUILD = '20261117T2120';
+    var NE21_BUILD = '20261118T1800';
     try { window.__ne21Ver = NE21_LOCAL_VER; window.__ne21Build = NE21_BUILD; } catch (e) { }
     var NE21_THROTTLE = 30 * 60 * 1000;   // 自动检查最小间隔：30 分钟
     var NE21_RAW_URL = 'https://raw.githubusercontent.com/Khihl-lucky/ChaoXing-AutoAnswer/main/chaoxing-autoanswer.user.js';
@@ -3595,12 +3595,29 @@ function doPhoneWork($dom) {
     $subBtn = $cy.find('.zquestions .zsubmit .btn-ok-bottom')
     $okBtn = $dom.find('#okBtn')
     $saveBtn = $cy.find('.zquestions .zsubmit .btn-save')
-    let TimuList = $cy.find('.zquestions .Py-mian1')
-    startDoPhoneTimu(0, TimuList)
+    let $raw = $cy.find('.zquestions .Py-mian1')
+    // 阅读理解等复合题会被展开成子题，父题不再单独作答
+    let _leaves = tcFlattenQuestions($raw)
+    if (!_leaves.length) {
+        $raw.each(function () { _leaves.push({ $el: $(this), parentText: '' }) })
+    }
+    startDoPhoneTimu(0, _leaves)
 }
 
 function startDoPhoneTimu(index, TimuList) {
     if (index == TimuList.length) {
+        // 提交/保存前校验：仍有未作答的题就不点任何按钮
+        var _miss = tcUnansweredCount(TimuList)
+        if (_miss.count > 0) {
+            var _force = localStorage.getItem('GPTJsSetting.force') === 'true'
+            var _list = _miss.idx.slice(0, 20).join('、')
+            if (!_force) {
+                logger(_logP.QUIZ + '[守卫] 仍有 ' + _miss.count + ' 题未作答（第' + _list + '题），已停止自动提交/保存，请人工处理。', 'warn')
+                try { tcUpdateStatusBar('测验：尚有 ' + _miss.count + ' 题未作答，已停止自动提交') } catch (e) { }
+                return
+            }
+            logger(_logP.QUIZ + '[警告] 仍有 ' + _miss.count + ' 题未作答（第' + _list + '题），但你开启了强制提交，继续提交。', 'warn')
+        }
         if (localStorage.getItem('GPTJsSetting.sub') === 'true') {
             logger(_logP.QUIZ + '[信息] 所有题目处理完成，开始自动提交。', 'info')
             setTimeout(() => {
@@ -3639,11 +3656,17 @@ function startDoPhoneTimu(index, TimuList) {
         }
         return
     }
-    // 获取当前题目所属的window对象 (可能是iframe)
-    let contextWindow = TimuList[index] ? (TimuList[index].ownerDocument.defaultView || unsafeWindow) : unsafeWindow;
-    let questionFull = $(TimuList[index]).find('.Py-m1-title').html()
+    // 叶子题：支持被展开的子题（{ $el, parentText }），也兼容直接传 DOM
+    let _leaf = (TimuList[index] && TimuList[index].$el) ? TimuList[index] : { $el: $(TimuList[index]), parentText: '' };
+    let _item$ = _leaf.$el;
+    let _parentText = _leaf.parentText || '';
+    let contextWindow = _item$[0] ? (_item$[0].ownerDocument.defaultView || unsafeWindow) : unsafeWindow;
+    let _titleEl = _item$.find('.Py-m1-title').first();
+    let questionFull = _titleEl.length ? _titleEl.html() : (_item$.find('.mark_name').first().html() || '');
+    if (!questionFull) questionFull = '[题目]' + _item$.text();
     let _question = tidyQuestion(questionFull).replace(/.*?\[.*?题\]\s*\n\s*/, '').trim()
-    let typeName = questionFull.match(/.*?\[(.*?)]|$/)[1];
+    if (_parentText) _question = '【阅读材料】' + _parentText + '\n' + _question;
+    let typeName = (questionFull.match(/.*?\[(.*?)]|$/) || [])[1];
     let _type = ({
         单选题: 0, 单项选择题: 0, 单选: 0, 选择题: 0,
         多选题: 1, 多项选择题: 1, 多选: 1,
@@ -3654,6 +3677,12 @@ function startDoPhoneTimu(index, TimuList) {
         写作题: 5,
         翻译题: 6
     })[typeName]
+    // DOM 优先：有选项就按单选/多选处理，标题只是兜底（阅读理解的子题就靠这一步）
+    let _domType = tcDetectType(_item$, _type);
+    if (_domType !== undefined && _domType !== _type) {
+        logger(_logP.QUIZ + '[类型] 第' + (index + 1) + '题 标题为「' + (typeName || '未知') + '」，按 DOM 判为 ' + _domType + '。', 'info');
+        _type = _domType;
+    }
     let _a = []
     let _answerTmpArr
     var check_answer_flag = 0;
@@ -3663,8 +3692,8 @@ function startDoPhoneTimu(index, TimuList) {
         logger(_logP.QUIZ + '[信息] 尝试自动识别题型：' + typeName + '。', 'info');
 
         // 检查选项列表特征
-        let singleChoiceList = $(TimuList[index]).find('.answerList.singleChoice li');
-        let multiChoiceList = $(TimuList[index]).find('.answerList.multiChoice li');
+        let singleChoiceList = _item$.find('.answerList.singleChoice li');
+        let multiChoiceList = _item$.find('.answerList.multiChoice li');
 
         if (singleChoiceList && singleChoiceList.length > 0) {
             _type = 0; // 单选题
@@ -3674,20 +3703,20 @@ function startDoPhoneTimu(index, TimuList) {
             logger(_logP.QUIZ + '[信息] 自动识别为多选题。', 'info');
         } else {
             // 检查是否为填空题
-            let tkList = $(TimuList[index]).find('.blankList2 input');
+            let tkList = _item$.find('.blankList2 input');
             if (tkList && tkList.length > 0) {
                 _type = 2; // 填空题
                 logger(_logP.QUIZ + '[信息] 自动识别为填空题。', 'info');
             } else {
                 // 判断题等其他情况
-                let panduanList = $(TimuList[index]).find('.answerList.panduan li');
+                let panduanList = _item$.find('.answerList.panduan li');
                 if (panduanList && panduanList.length > 0) {
                     _type = 3; // 判断题
                     logger(_logP.QUIZ + '[信息] 自动识别为判断题。', 'info');
                 } else {
                     // 检查是否为简答题或材料题
-                    let textareaList = $(TimuList[index]).find('textarea');
-                    let editorList = $(TimuList[index]).find('.edui-editor');
+                    let textareaList = _item$.find('textarea');
+                    let editorList = _item$.find('.edui-editor');
 
                     if ((textareaList && textareaList.length > 0) || (editorList && editorList.length > 0)) {
                         _type = 4; // 简答题
@@ -3702,7 +3731,7 @@ function startDoPhoneTimu(index, TimuList) {
     switch (_type) {
         case 0: {
             //遍历选项列表
-            _answerTmpArr = $(TimuList[index]).find('.answerList.singleChoice li')
+            _answerTmpArr = _item$.find('.answerList.singleChoice li')
             let mergedAnswers = [];
             let cleanOptions = [];
             _answerTmpArr.each(function () {
@@ -3731,7 +3760,7 @@ function startDoPhoneTimu(index, TimuList) {
             }
             if (check_answer_flag == 0) {
                 getAnswer(_type, _question).then((agrs) => {
-                    _answerTmpArr = $(TimuList[index]).find('.answerList.singleChoice li')
+                    _answerTmpArr = _item$.find('.answerList.singleChoice li')
                     _a = cleanOptions.slice()
                     let _i = matchAnswerToOptions(_a, agrs)
                     if (_i == -1) {
@@ -3754,7 +3783,7 @@ function startDoPhoneTimu(index, TimuList) {
             break
         case 1: {
             //遍历选项列表
-            _answerTmpArr = $(TimuList[index]).find('.answerList.multiChoice li')
+            _answerTmpArr = _item$.find('.answerList.multiChoice li')
             let mergedAnswers = [];
             let cleanMultiOptions = [];
             _answerTmpArr.each(function () {
@@ -3788,7 +3817,7 @@ function startDoPhoneTimu(index, TimuList) {
                         localStorage.setItem('GPTJsSetting.sub', false)
                         setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, setting.time)
                     } else {
-                        _answerTmpArr = $(TimuList[index]).find('.answerList.multiChoice li')
+                        _answerTmpArr = _item$.find('.answerList.multiChoice li')
                         let _multiOptions = cleanMultiOptions.slice()
                         let _matchedAny = false
                         $.each(_answerTmpArr, (i, t) => {
@@ -3833,13 +3862,13 @@ function startDoPhoneTimu(index, TimuList) {
             break
         case 2: {
             // 填空题处理 - 使用全局editors数组 (ExtJS)
-            let tkList = $(TimuList[index]).find('.blankList2 input')
+            let tkList = _item$.find('.blankList2 input')
             // 使用属性选择器匹配包含editorIndex的元素
-            let tkEditorBlocks = $(TimuList[index]).find('[data-editorindex]')
+            let tkEditorBlocks = _item$.find('[data-editorindex]')
 
             // 检查是否使用UEditor编辑器（手机页面）
             if (tkEditorBlocks && tkEditorBlocks.length > 0) {
-                let firstTextarea = $(TimuList[index]).find('textarea[name^="answer"]')
+                let firstTextarea = _item$.find('textarea[name^="answer"]')
                 if (firstTextarea.length > 0 && $(firstTextarea[0]).val() && $(firstTextarea[0]).val().trim() !== '' && !isRedoMode()) {
                     logger(_logP.QUIZ + '[跳过] 此题已作答。', 'skip');
                     setTimeout(() => { startDoPhoneTimu(index + 1, TimuList) }, 30);
@@ -3855,7 +3884,7 @@ function startDoPhoneTimu(index, TimuList) {
                         return
                     }
                     let answers = agrs.split('|')
-                    let editorBlocks = $(TimuList[index]).find('[data-editorindex]')
+                    let editorBlocks = _item$.find('[data-editorindex]')
 
                     $.each(editorBlocks, (i, block) => {
                         let editorIndex = $(block).attr('data-editorindex')
@@ -3929,7 +3958,7 @@ function startDoPhoneTimu(index, TimuList) {
                         return
                     }
                     let answers = agrs.split('|')
-                    let inputList = $(TimuList[index]).find('.blankList2 input')
+                    let inputList = _item$.find('.blankList2 input')
                     $.each(inputList, (i, t) => {
                         setTimeout(() => {
                             $(t).val(answers[i] || answers[0] || agrs)
@@ -3951,7 +3980,7 @@ function startDoPhoneTimu(index, TimuList) {
             break
         }
         case 3: {
-            _answerTmpArr = $(TimuList[index]).find('.answerList.panduan li')
+            _answerTmpArr = _item$.find('.answerList.panduan li')
             $.each(_answerTmpArr, (i, t) => {
                 _a.push($(t).text().trim())
             })
@@ -4003,8 +4032,8 @@ function startDoPhoneTimu(index, TimuList) {
             _question = buildPrompt({ type: '简答题或材料题', question: _question })
 
             // 查找可能的编辑器区域（通过data-editorindex）
-            let jdEditorBlocks = $(TimuList[index]).find('[data-editorindex]')
-            let jdTextareas = $(TimuList[index]).find('textarea[name^="answer"]')
+            let jdEditorBlocks = _item$.find('[data-editorindex]')
+            let jdTextareas = _item$.find('textarea[name^="answer"]')
 
             // 检查是否已作答
             let jdIsAnswered = false
@@ -4386,15 +4415,29 @@ function getElement(parent, selector, timeout = 0) {
 function missonHomeWork() {
     logger(_logP.HW + '[启动] 开始处理作业。', 'hili')
     let $_homeworktable = $('.mark_table').find('form')
-    let TimuList = $_homeworktable.find('.questionLi')
-    doHomeWork(0, TimuList)
+    let $raw = $_homeworktable.find('.questionLi')
+    // 复合题展开为子题，父题不单独作答
+    let _leaves = tcFlattenQuestions($raw)
+    if (!_leaves.length) {
+        $raw.each(function () { _leaves.push({ $el: $(this), parentText: '' }) })
+    }
+    doHomeWork(0, _leaves)
 }
 
 function doHomeWork(index, TiMuList) {
     if (index == TiMuList.length) {
+        var _miss = tcUnansweredCount(TiMuList)
+        if (_miss.count > 0) {
+            logger(_logP.HW + '[守卫] 仍有 ' + _miss.count + ' 题未作答（第' + _miss.idx.slice(0, 20).join('、') + '题），请人工检查后再提交。', 'warn')
+        }
         logger(_logP.HW + '[完成] 作业题目已全部完成。', 'success')
         return
     }
+
+    // 叶子题：支持展开后的子题，也兼容直接传 DOM
+    let _leaf = (TiMuList[index] && TiMuList[index].$el) ? TiMuList[index] : { $el: $(TiMuList[index]), parentText: '' };
+    let _item$ = _leaf.$el;
+    let _parentText = _leaf.parentText || '';
 
 
     // Helper function for handling normal textareas
@@ -4419,7 +4462,7 @@ function doHomeWork(index, TiMuList) {
         });
     }
 
-    let typeName = $(TiMuList[index]).attr('typename');
+    let typeName = _item$.attr('typename');
     let _type = ({
         单选题: 0, 单项选择题: 0, 单选: 0,
         多选题: 1, 多项选择题: 1, 多选: 1,
@@ -4430,9 +4473,16 @@ function doHomeWork(index, TiMuList) {
         写作题: 5,
         翻译题: 6
     })[typeName]
+    // DOM 优先：有选项就按选择/判断处理，标题（如「阅读理解」）只作兜底
+    let _domType = tcDetectType(_item$, _type);
+    if (_domType !== undefined && _domType !== _type) {
+        logger(_logP.HW + '[类型] 第' + (index + 1) + '题 标题为「' + (typeName || '未知') + '」，按 DOM 判为 ' + _domType + '。', 'info');
+        _type = _domType;
+    }
     _currentQuestionMeta = { index: index, total: TiMuList.length, typeName: typeName }
-    let _questionFull = $(TiMuList[index]).find('.mark_name').html()
+    let _questionFull = _item$.find('.mark_name').html() || ''
     let _question = tidyQuestion(_questionFull).replace(/^[(].*?[)]/, '').trim()
+    if (_parentText) _question = '【阅读材料】' + _parentText + '\n' + _question;
     let _a = []
     let _answerTmpArr, _textareaList
     var check_answer_flag = 0;
@@ -4442,12 +4492,12 @@ function doHomeWork(index, TiMuList) {
         logger(_logP.QUIZ + '[信息] 尝试自动识别题型：' + typeName + '。', 'info');
 
         // 检查是否有选择题特征
-        _answerTmpArr = $(TiMuList[index]).find('.stem_answer').find('.answer_p')
+        _answerTmpArr = _item$.find('.stem_answer').find('.answer_p')
         if (_answerTmpArr && _answerTmpArr.length > 0) {
             _type = 0; // 假定为单选题
 
             // 检查是否有多个可选项
-            let multiChoiceCheck = $(TiMuList[index]).find('.stem_answer input[type="checkbox"]');
+            let multiChoiceCheck = _item$.find('.stem_answer input[type="checkbox"]');
             if (multiChoiceCheck && multiChoiceCheck.length > 0) {
                 _type = 1; // 多选题
                 logger(_logP.QUIZ + '[信息] 自动识别为多选题。', 'info');
@@ -4457,7 +4507,7 @@ function doHomeWork(index, TiMuList) {
         }
         // 检查是否有文本输入框特征
         else {
-            _textareaList = $(TiMuList[index]).find('.stem_answer').find('.subEditor textarea, .Answer .divText textarea, .Answer .divText .textDIV textarea, textarea[name^="answerEditor"], .edui-editor textarea');
+            _textareaList = _item$.find('.stem_answer').find('.subEditor textarea, .Answer .divText textarea, .Answer .divText .textDIV textarea, textarea[name^="answerEditor"], .edui-editor textarea');
             if (_textareaList && _textareaList.length > 0) {
                 _type = 4; // 简答题
                 logger(_logP.QUIZ + '[信息] 自动识别为简答题。', 'info');
@@ -4467,7 +4517,7 @@ function doHomeWork(index, TiMuList) {
 
     switch (_type) {
         case 0: {
-            _answerTmpArr = $(TiMuList[index]).find('.stem_answer').find('.answer_p')
+            _answerTmpArr = _item$.find('.stem_answer').find('.answer_p')
 
             //遍历选项列表
             let mergedAnswers = [];
@@ -4501,7 +4551,7 @@ function doHomeWork(index, TiMuList) {
                     _a = cleanOptions.slice()
                     if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
                         //修改题目将答案插入
-                        let timuele = $(TiMuList[index]).find('.mark_name')
+                        let timuele = _item$.find('.mark_name')
                         // logger("timuele题目标签:"+timuele.html())
                         timuele.html(timuele.html() + "<p></p>" + agrs)
                     }
@@ -4530,7 +4580,7 @@ function doHomeWork(index, TiMuList) {
             break
 
         case 1: {
-            _answerTmpArr = $(TiMuList[index]).find('.stem_answer').find('.answer_p')
+            _answerTmpArr = _item$.find('.stem_answer').find('.answer_p')
             //遍历选项列表
             let mergedAnswers = [];
             let cleanMultiOptions = [];
@@ -4563,7 +4613,7 @@ function doHomeWork(index, TiMuList) {
                 getAnswer(_type, _question).then((agrs) => {
                     if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
                         //修改题目将答案插入
-                        let timuele = $(TiMuList[index]).find('.mark_name')
+                        let timuele = _item$.find('.mark_name')
                         // logger("timuele题目标签:"+timuele.html())
                         timuele.html(timuele.html() + "<p></p>" + agrs)
                     }
@@ -4606,7 +4656,7 @@ function doHomeWork(index, TiMuList) {
             break
         case 2: {
             _question = buildPrompt({ type: '填空题', question: _question, answer_format: "用'|'分割多个答案" });
-            _textareaList = findAnswerTextareas($(TiMuList[index]));
+            _textareaList = findAnswerTextareas(_item$);
             if (!_textareaList || _textareaList.length === 0) {
                 logger(_logP.QUIZ + '[错误] 未找到填空输入区域。', 'error');
                 setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time);
@@ -4642,7 +4692,7 @@ function doHomeWork(index, TiMuList) {
             break
         }
         case 3: {
-            _answerTmpArr = $(TiMuList[index]).find('.stem_answer').find('.answer_p')
+            _answerTmpArr = _item$.find('.stem_answer').find('.answer_p')
             $.each(_answerTmpArr, (i, t) => {
                 _a.push($(t).text().trim())
             })
@@ -4667,7 +4717,7 @@ function doHomeWork(index, TiMuList) {
                 _question = buildPrompt({ type: '判断题', question: _question, answer_format: "只回答正确或错误" })
                 getAnswer(_type, _question).then((agrs) => {
                     if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
-                        let timuele = $(TiMuList[index]).find('.mark_name')
+                        let timuele = _item$.find('.mark_name')
                         timuele.html(timuele.html() + "<p></p>" + agrs)
                     }
                     let judgeResult = parseJudgeAnswer(agrs)
@@ -4699,7 +4749,7 @@ function doHomeWork(index, TiMuList) {
             break
         }
         case 4: {
-            let _answerEle = findAnswerTextareas($(TiMuList[index]))
+            let _answerEle = findAnswerTextareas(_item$)
             if (!_answerEle || _answerEle.length === 0) {
                 logger(_logP.HW + '[错误] 第' + (index + 1) + '题 未找到文本作答区域。', 'error')
                 setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
@@ -4718,7 +4768,7 @@ function doHomeWork(index, TiMuList) {
             let jdt = buildPrompt({ type: typeName || '简答题', question: _question, answer_format: "用50字简要回答" })
             getAnswer(_type, jdt).then((agrs) => {
                 if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
-                    let timuele = $(TiMuList[index]).find('.mark_name')
+                    let timuele = _item$.find('.mark_name')
                     timuele.html(timuele.html() + "<p></p>" + agrs)
                 }
                 $.each(_answerEle, (i, t) => {
@@ -4735,7 +4785,7 @@ function doHomeWork(index, TiMuList) {
         }
             break
         case 5: {
-            let _answerEle5 = findAnswerTextareas($(TiMuList[index]))
+            let _answerEle5 = findAnswerTextareas(_item$)
             if (!_answerEle5 || _answerEle5.length === 0) {
                 logger(_logP.HW + '[错误] 第' + (index + 1) + '题 未找到写作题文本框。', 'error')
                 setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
@@ -4755,7 +4805,7 @@ function doHomeWork(index, TiMuList) {
             let jdt5 = buildPrompt({ type: typeName || '写作题', question: _question, answer_format: "用英文根据题目进行写作" })
             getAnswer(_type, jdt5).then((agrs) => {
                 if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
-                    let timuele = $(TiMuList[index]).find('.mark_name')
+                    let timuele = _item$.find('.mark_name')
                     timuele.html(timuele.html() + "<p></p>" + agrs)
                 }
                 $.each(_answerEle5, (i, t) => {
@@ -4772,7 +4822,7 @@ function doHomeWork(index, TiMuList) {
         }
             break
         case 6: {
-            let _answerEle6 = findAnswerTextareas($(TiMuList[index]))
+            let _answerEle6 = findAnswerTextareas(_item$)
             if (!_answerEle6 || _answerEle6.length === 0) {
                 logger(_logP.HW + '[错误] 第' + (index + 1) + '题 未找到翻译题文本框。', 'error')
                 setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
@@ -4792,7 +4842,7 @@ function doHomeWork(index, TiMuList) {
             let jdt6 = buildPrompt({ type: typeName || '翻译题', question: _question, answer_format: "中文英文互译" })
             getAnswer(_type, jdt6).then((agrs) => {
                 if (localStorage.getItem('GPTJsSetting.alterTitle') === 'true') {
-                    let timuele = $(TiMuList[index]).find('.mark_name')
+                    let timuele = _item$.find('.mark_name')
                     timuele.html(timuele.html() + "<p></p>" + agrs)
                 }
                 $.each(_answerEle6, (i, t) => {
@@ -4814,13 +4864,13 @@ function doHomeWork(index, TiMuList) {
                 setTimeout(() => { doHomeWork(index + 1, TiMuList) }, setting.time)
             } else {
                 // 尝试获取文本输入区域
-                _textareaList = $(TiMuList[index]).find('.stem_answer').find('textarea, .subEditor textarea, .divText textarea, .eidtDiv textarea, .divText .edui-editor, textarea[name^="answerEditor"]');
+                _textareaList = _item$.find('.stem_answer').find('textarea, .subEditor textarea, .divText textarea, .eidtDiv textarea, .divText .edui-editor, textarea[name^="answerEditor"]');
                 if (_textareaList && _textareaList.length > 0) {
                     logger(_logP.QUIZ + '[信息] 检测到文本输入区域，尝试回答。', 'info');
                     let jdt = buildPrompt({ type: typeName || '未知题型', question: _question, answer_format: "请根据题目作答" })
 
                     // 检查是否有富文本编辑器特有的textarea
-                    let editorTextareas = $(TiMuList[index]).find('.stem_answer textarea[name^="answerEditor"]');
+                    let editorTextareas = _item$.find('.stem_answer textarea[name^="answerEditor"]');
                     if (editorTextareas && editorTextareas.length > 0) {
                         // 使用富文本编辑器ID
                         let editorId = $(editorTextareas[0]).attr('id');
@@ -4868,6 +4918,12 @@ function missonExam() {
         写作题: 5,
         翻译题: 6
     })[typeName]
+    // DOM 优先：有选项就按选项判，标题「阅读理解」只作兜底
+    let _domExamType = tcDetectType($_examtable, _qType);
+    if (_domExamType !== undefined && _domExamType !== _qType) {
+        logger(_logP.QUIZ + '[类型] 标题为「' + (typeName || '未知') + '」，按 DOM 判为 ' + _domExamType + '。', 'info');
+        _qType = _domExamType;
+    }
     // 尝试从导航栏获取当前题号
     let _examCurIdx = null
     try {
@@ -5354,12 +5410,17 @@ function toNextExam() {
 // 不自动跳转、不自动交卷；叠加随机抖动
 function missonExamPreview() {
     logger(_logP.EXAM + '[启动] 进入整卷预览页面，开始处理考试。', 'hili')
-    let TiMuList = $('.mark_table').find('.questionLi')
-    if (!TiMuList || TiMuList.length === 0) {
+    let $raw = $('.mark_table').find('.questionLi')
+    if (!$raw || $raw.length === 0) {
         logger(_logP.EXAM + '[错误] 未解析到题目，请确认页面已渲染。', 'error')
         return
     }
-    logger(_logP.EXAM + '[信息] 共解析到' + TiMuList.length + '道题。', 'info')
+    // 复合题展开为子题（阅读理解等），父题不再单独作答
+    let TiMuList = tcFlattenQuestions($raw)
+    if (!TiMuList.length) {
+        $raw.each(function () { TiMuList.push({ $el: $(this), parentText: '' }) })
+    }
+    logger(_logP.EXAM + '[信息] 共解析到' + TiMuList.length + '道题（原始 ' + $raw.length + ' 个题块）。', 'info')
     doExamPreview(0, TiMuList)
 }
 
@@ -5382,6 +5443,11 @@ function getExamPreviewType($timu) {
         翻译题: 6
     }
     let typeName = $timu.attr('typename')
+    // DOM 优先：有选项就按选项判单选/多选，避免「阅读理解」标题把整块当成简答
+    let domType = tcDetectType($timu, undefined)
+    if (domType !== undefined) {
+        return { type: domType, typeName: typeName || ('类型' + domType) }
+    }
     if (typeName && typeMap[typeName] !== undefined) {
         return { type: typeMap[typeName], typeName: typeName }
     }
@@ -5414,15 +5480,22 @@ function getExamPreviewType($timu) {
 
 function doExamPreview(index, TiMuList) {
     if (index >= TiMuList.length) {
+        var _miss = tcUnansweredCount(TiMuList)
+        if (_miss.count > 0) {
+            logger(_logP.EXAM + '[守卫] 仍有 ' + _miss.count + ' 题未作答（第' + _miss.idx.slice(0, 20).join('、') + '题），请人工补答后再交卷。', 'warn')
+        }
         logger(_logP.EXAM + '[完成] 整卷预览答题已完成，请人工核对后手动交卷。', 'success')
         return
     }
-    let $timu = $(TiMuList[index])
+    let _leaf = (TiMuList[index] && TiMuList[index].$el) ? TiMuList[index] : { $el: $(TiMuList[index]), parentText: '' };
+    let $timu = _leaf.$el
+    let _parentText = _leaf.parentText || ''
     let typeInfo = getExamPreviewType($timu)
     let _type = typeInfo.type
     let typeName = typeInfo.typeName
     let _questionFull = $timu.find('.mark_name').html() || ''
     let _question = tidyQuestion(_questionFull).replace(/^[(].*?[)]/, '').trim()
+    if (_parentText) _question = '【阅读材料】' + _parentText + '\n' + _question;
     let _a = []
     let _answerTmpArr, _textareaList
     let alreadyAnswered = 0
@@ -6163,6 +6236,16 @@ function doWork(index, doms, dom) {
 
 function startDoWork(index, doms, c, TiMuList) {
     if (c == TiMuList.length) {
+        var _missW = tcUnansweredCount(TiMuList)
+        if (_missW.count > 0) {
+            var _forceW = localStorage.getItem('GPTJsSetting.force') === 'true'
+            if (!_forceW) {
+                logger(_logP.QUIZ + '[守卫] 仍有 ' + _missW.count + ' 题未作答（第' + _missW.idx.slice(0, 20).join('、') + '题），已停止自动提交，请人工处理。', 'warn')
+                try { tcUpdateStatusBar('测验：尚有 ' + _missW.count + ' 题未作答，已停止自动提交') } catch (e) { }
+                return
+            }
+            logger(_logP.QUIZ + '[警告] 仍有 ' + _missW.count + ' 题未作答，但你开启了强制提交，继续提交。', 'warn')
+        }
         if (localStorage.getItem('GPTJsSetting.sub') === 'true') {
             logger(_logP.QUIZ + '[信息] 所有题目处理完成，开始自动提交。', 'info')
             setTimeout(() => {
@@ -6204,6 +6287,12 @@ function startDoWork(index, doms, c, TiMuList) {
         简答题: 4, 简答: 4, 问答题: 4, 名词解释: 4, 论述题: 4, 论述: 4,
         计算题: 4, 计算: 4, 分录题: 4, 资料题: 4, 作图题: 4, 其他: 4, 其它: 4, 阅读理解: 4, 阅读: 4, 阅读题: 4, 理解题: 4, 完形填空: 4, 完形: 4, 综合题: 4
     }[typeName]
+    // DOM 优先：有选项就按选项判，标题「阅读理解」只作兜底
+    let _domWType = tcDetectType($(TiMuList[c]), _TimuType);
+    if (_domWType !== undefined && _domWType !== _TimuType) {
+        logger(_logP.QUIZ + '[类型] 标题为「' + (typeName || '未知') + '」，按 DOM 判为 ' + _domWType + '。', 'info');
+        _TimuType = _domWType;
+    }
     _currentQuestionMeta = { index: c, total: TiMuList.length, typeName: typeName }
     let _a = []
     let _answerTmpArr
@@ -10626,6 +10715,141 @@ function switchMission() {
     _mlist.splice(0, 1)
     _domList.splice(0, 1)
     setTimeout(missonStart, 5000)
+}
+
+/* ------------------- 复合题（阅读理解/完形填空）识别与展开 ------------------- */
+// 超星把「阅读理解」整块标成一道题，里面才是 5 道 A/B/C/D 子题。
+// 原来的逻辑按标题映射成类型 4（简答），只去找文本框 → 子题全被跳过。
+// 这里统一：DOM 优先判题型 + 父题展开成子题 + 提交前校验未作答。
+
+var TC_SUB_SEL = '.Py-mian1, .questionLi, .sub_question, .subQues, .sub-question, .stem_sub';
+
+function tcDomSignals($el) {
+    var s = { radio: 0, checkbox: 0, panduan: 0, textarea: 0, ueditor: 0, options: 0, singleList: 0, multiList: 0 };
+    try {
+        s.radio = $el.find('input[type="radio"]').length;
+        s.checkbox = $el.find('input[type="checkbox"]').length;
+        s.panduan = $el.find('.answerList.panduan li, .answerList.judge li').length;
+        s.textarea = $el.find('textarea[name^="answer"], textarea[name^="answerEditor"], .subEditor textarea').length;
+        s.ueditor = $el.find('[data-editorindex]').length;
+        s.options = $el.find('.answerList.singleChoice li, .answerList.multiChoice li, .answerBg .answer_p, .stem_answer .answer_p').length;
+        s.singleList = $el.find('.answerList.singleChoice li').length;
+        s.multiList = $el.find('.answerList.multiChoice li').length;
+    } catch (e) { /* ignore */ }
+    return s;
+}
+
+// 纯函数：DOM 信号优先，标题映射只作兜底
+function tcTypeFromSignals(sig, labelType) {
+    sig = sig || {};
+    if (sig.multiList > 0) return 1;
+    if (sig.singleList > 0) return 0;
+    if (sig.checkbox > 0 && (sig.options > 0 || sig.checkbox > 1)) return 1;
+    if (sig.radio > 0) return 0;
+    if (sig.panduan > 0) return 3;
+    if (sig.ueditor > 0 || sig.textarea > 0) return 4;
+    return (labelType === undefined) ? undefined : labelType;
+}
+
+function tcDetectType($el, labelType) {
+    return tcTypeFromSignals(tcDomSignals($el), labelType);
+}
+
+function tcStemText($el) {
+    var t = '';
+    try {
+        var $t = $el.find('.Py-m1-title, h3.mark_name, .mark_name, .colorShallow').first();
+        t = $t.length ? $t.text() : $el.text();
+    } catch (e) { /* ignore */ }
+    return String(t || '').replace(/\s+/g, ' ').trim().slice(0, 2000);
+}
+
+function tcSubQuestions($el) {
+    var out = [];
+    try {
+        $el.find(TC_SUB_SEL).each(function () {
+            var $c = $(this);
+            if ($c.parentsUntil($el).filter(TC_SUB_SEL).length === 0) out.push($c);
+        });
+    } catch (e) { /* ignore */ }
+    return out;
+}
+
+// 展平成叶子题：父题若包含子题则只保留子题，并把父题题干作为上下文带下去
+function tcFlattenQuestions($list) {
+    var out = [];
+    var nodes = [];
+    try {
+        if (!$list) return out;
+        nodes = $list.jquery ? $list.toArray() : Array.prototype.slice.call($list);
+    } catch (e) { return out; }
+    // 只保留最外层节点：.questionLi / .Py-mian1 的 find 会把子题也选中，不去重会重复作答
+    var roots = nodes.filter(function (el) {
+        for (var i = 0; i < nodes.length; i++) {
+            var other = nodes[i];
+            if (other === el) continue;
+            try {
+                if (other.contains && other.contains(el)) return false;
+            } catch (e) { /* ignore */ }
+        }
+        return true;
+    });
+    roots.forEach(function (el) {
+        var $q = $(el);
+        var subs = tcSubQuestions($q);
+        if (!subs.length) { out.push({ $el: $q, parentText: '' }); return; }
+        var ctx = tcStemText($q);
+        subs.forEach(function ($s) {
+            var deep = tcSubQuestions($s);
+            if (deep.length) {
+                var ctx2 = (ctx ? ctx + '\n' : '') + tcStemText($s);
+                deep.forEach(function ($d) { out.push({ $el: $d, parentText: ctx2 }); });
+            } else {
+                out.push({ $el: $s, parentText: ctx });
+            }
+        });
+    });
+    return out;
+}
+
+// 单题是否已作答：选择题看选中项，主观题看 textarea / UE / contenteditable
+function tcIsAnswered($el, type) {
+    try {
+        if (type === 4) {
+            var $ta = $el.find('textarea[name^="answer"], textarea[name^="answerEditor"], .subEditor textarea');
+            for (var i = 0; i < $ta.length; i++) {
+                if (String($($ta[i]).val() || '').trim()) return true;
+            }
+            var $ed = $el.find('[data-editorindex]');
+            for (var k = 0; k < $ed.length; k++) {
+                var ei = $ed.eq(k).attr('data-editorindex');
+                try {
+                    var inst = (window.UE && UE.instants) ? UE.instants['ueditorInstant' + ei] : null;
+                    if (inst && inst.getContent && String(inst.getContent()).replace(/<[^>]+>/g, '').trim()) return true;
+                } catch (e) { /* ignore */ }
+            }
+            var $ce = $el.find('[contenteditable="true"]');
+            for (var m = 0; m < $ce.length; m++) {
+                if (String($($ce[m]).text() || '').trim()) return true;
+            }
+            return false;
+        }
+        if ($el.find('input[type="radio"]:checked, input[type="checkbox"]:checked').length) return true;
+        if ($el.find('.check_answer, .answerList li.on, .answerList li.selected, .answerBg .on').length) return true;
+        return false;
+    } catch (e) { return true; }
+}
+
+// leaves 支持 [{ $el, type?, labelType? }]；返回 { count, idx: [题号...] }
+function tcUnansweredCount(leaves) {
+    var idx = [];
+    (leaves || []).forEach(function (it, i) {
+        if (!it) return;
+        var $el = it.$el || $(it);
+        var t = (it.type !== undefined && it.type !== null) ? it.type : tcDetectType($el, it.labelType);
+        if (!tcIsAnswered($el, t)) idx.push(i + 1);
+    });
+    return { count: idx.length, idx: idx };
 }
 
 function tidyStr(s) {
