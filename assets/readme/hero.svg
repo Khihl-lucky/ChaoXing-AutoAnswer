@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="heroTitle heroDesc">
+  <title id="heroTitle">超星学习通自动化助手</title>
+  <desc id="heroDesc">基于 DeepSeek 原生多模态的 Tampermonkey 用户脚本。右侧是任务链卡片：视频、测验、文档、讨论四类任务点已完成，平台 AI 评估 92 分，高于 90 分门槛。</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1220"/>
+      <stop offset="1" stop-color="#0E1A31"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#38BDF8"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="420" rx="24" fill="url(#bg)"/>
+  <rect x="1" y="1" width="1198" height="418" rx="23" fill="none" stroke="#1E3A5F" stroke-width="1.5"/>
+
+  <g id="title-block">
+    <text x="64" y="110" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" fill="#7C8AA5" letter-spacing="2">TAMPERMONKEY · USERSCRIPT</text>
+    <text x="64" y="176" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="54" font-weight="700" fill="#E6EDF7">超星学习通自动化助手</text>
+    <text x="64" y="222" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="24" fill="#A9B8CE">DeepSeek 原生多模态 · 全任务类型自动处理</text>
+    <text x="64" y="262" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" fill="#7C8AA5">一个 API Key · 油猴一键安装 · 开源免费</text>
+
+    <g id="meta-chips" transform="translate(64 296)">
+      <rect x="0" y="0" width="104" height="38" rx="19" fill="#111A2E" stroke="#1E3A5F"/>
+      <text x="52" y="25" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#38BDF8">v2.8.2</text>
+      <rect x="116" y="0" width="104" height="38" rx="19" fill="#111A2E" stroke="#1E3A5F"/>
+      <text x="168" y="25" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#A9B8CE">MIT</text>
+      <rect x="232" y="0" width="150" height="38" rx="19" fill="#111A2E" stroke="#1E3A5F"/>
+      <text x="307" y="25" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#A9B8CE">Tampermonkey</text>
+    </g>
+  </g>
+
+  <g id="proof-card" transform="translate(716 48)">
+    <rect x="0" y="0" width="420" height="320" rx="18" fill="#111A2E" stroke="#1E3A5F" stroke-width="1.5"/>
+    <text x="28" y="42" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" font-weight="600" fill="#E6EDF7">任务链 · 7.3 树表的查找</text>
+    <text x="392" y="42" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#7C8AA5">节点 2 / 3</text>
+
+    <g id="task-rows">
+      <circle cx="40" cy="77" r="10" fill="#22D3EE"/>
+      <path d="M35 77 l4 4 l7 -8" fill="none" stroke="#0B1220" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="66" y="84" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" fill="#E6EDF7">视频</text>
+      <text x="392" y="84" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" fill="#22D3EE">100</text>
+
+      <circle cx="40" cy="121" r="10" fill="#22D3EE"/>
+      <path d="M35 121 l4 4 l7 -8" fill="none" stroke="#0B1220" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="66" y="128" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" fill="#E6EDF7">测验 / 作业</text>
+      <text x="392" y="128" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" fill="#22D3EE">92</text>
+
+      <circle cx="40" cy="165" r="10" fill="#22D3EE"/>
+      <path d="M35 165 l4 4 l7 -8" fill="none" stroke="#0B1220" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="66" y="172" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" fill="#E6EDF7">文档 / PPT</text>
+      <text x="392" y="172" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" fill="#22D3EE">88</text>
+
+      <circle cx="40" cy="209" r="10" fill="#22D3EE"/>
+      <path d="M35 209 l4 4 l7 -8" fill="none" stroke="#0B1220" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="66" y="216" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" fill="#E6EDF7">讨论区</text>
+      <text x="392" y="216" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" fill="#22D3EE">AI 回复</text>
+    </g>
+
+    <line x1="28" y1="240" x2="392" y2="240" stroke="#1E3A5F" stroke-width="1.5"/>
+
+    <text x="28" y="274" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="20" fill="#A9B8CE">平台 AI 评估</text>
+    <rect x="188" y="258" width="130" height="14" rx="7" fill="#0B1220"/>
+    <rect x="188" y="258" width="118" height="14" rx="7" fill="url(#bar)"/>
+    <text x="392" y="274" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" fill="#FBBF24">92 ≥ 90</text>
+    <text x="28" y="304" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="18" fill="#7C8AA5">未达标不会自动跳过，停下来让你选</text>
+  </g>
+</svg>

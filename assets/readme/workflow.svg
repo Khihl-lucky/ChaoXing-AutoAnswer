@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-labelledby="flowTitle flowDesc">
+  <title id="flowTitle">AI 实践任务链处理流程</title>
+  <desc id="flowDesc">五步流程：识别节点、生成内容、提交、平台 AI 评估、达标进入下一节点；未达标时用同一段对话重做，并把评语带入下一轮。</desc>
+
+  <defs>
+    <marker id="flowArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#38BDF8"/>
+    </marker>
+    <linearGradient id="flowBg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0B1220"/>
+      <stop offset="1" stop-color="#0E1A31"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="320" rx="24" fill="url(#flowBg)"/>
+  <rect x="1" y="1" width="1198" height="318" rx="23" fill="none" stroke="#1E3A5F" stroke-width="1.5"/>
+
+  <text x="48" y="54" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="600" fill="#E6EDF7">任务链怎么跑</text>
+  <text x="1152" y="54" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#7C8AA5">同一节点 · 同一段 AI 对话</text>
+
+  <g id="steps">
+    <g transform="translate(48 96)">
+      <rect width="192" height="112" rx="16" fill="#111A2E" stroke="#1E3A5F" stroke-width="1.5"/>
+      <text x="24" y="40" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#38BDF8">01</text>
+      <text x="24" y="74" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" fill="#E6EDF7">识别节点</text>
+      <text x="24" y="100" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="18" fill="#7C8AA5">对话 / 上传作品</text>
+    </g>
+    <line x1="244" y1="152" x2="268" y2="152" stroke="#38BDF8" stroke-width="2" marker-end="url(#flowArrow)"/>
+
+    <g transform="translate(276 96)">
+      <rect width="192" height="112" rx="16" fill="#111A2E" stroke="#1E3A5F" stroke-width="1.5"/>
+      <text x="24" y="40" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#38BDF8">02</text>
+      <text x="24" y="74" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" fill="#E6EDF7">生成内容</text>
+      <text x="24" y="100" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="18" fill="#7C8AA5">附件 + 上轮评语</text>
+    </g>
+    <line x1="472" y1="152" x2="496" y2="152" stroke="#38BDF8" stroke-width="2" marker-end="url(#flowArrow)"/>
+
+    <g transform="translate(504 96)">
+      <rect width="192" height="112" rx="16" fill="#111A2E" stroke="#1E3A5F" stroke-width="1.5"/>
+      <text x="24" y="40" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#38BDF8">03</text>
+      <text x="24" y="74" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" fill="#E6EDF7">提交</text>
+      <text x="24" y="100" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="18" fill="#7C8AA5">上传 / 发送</text>
+    </g>
+    <line x1="700" y1="152" x2="724" y2="152" stroke="#38BDF8" stroke-width="2" marker-end="url(#flowArrow)"/>
+
+    <g transform="translate(732 96)">
+      <rect width="192" height="112" rx="16" fill="#111A2E" stroke="#1E3A5F" stroke-width="1.5"/>
+      <text x="24" y="40" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#38BDF8">04</text>
+      <text x="24" y="74" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" fill="#E6EDF7">平台评估</text>
+      <text x="24" y="100" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="18" fill="#7C8AA5">四维得分 + 建议</text>
+    </g>
+    <line x1="928" y1="152" x2="952" y2="152" stroke="#38BDF8" stroke-width="2" marker-end="url(#flowArrow)"/>
+
+    <g transform="translate(960 96)">
+      <rect width="192" height="112" rx="16" fill="#111A2E" stroke="#22D3EE" stroke-width="1.5"/>
+      <text x="24" y="40" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#22D3EE">05</text>
+      <text x="24" y="74" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" fill="#E6EDF7">达标 / 重做</text>
+      <text x="24" y="100" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="18" fill="#7C8AA5">低于合格分就停下</text>
+    </g>
+  </g>
+
+  <g id="loop">
+    <path d="M1056 208 C1056 262, 372 262, 372 216" fill="none" stroke="#FBBF24" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#flowArrow)"/>
+    <text x="714" y="292" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="20" fill="#FBBF24">未达标 → 带着平台评语，用同一段对话重做上一版</text>
+  </g>
+</svg>
